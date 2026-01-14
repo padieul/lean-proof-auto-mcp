@@ -1,0 +1,89 @@
+[project]
+name = "lean-proof-auto-mcp"
+version = "0.0.0"
+description = "MCP server for automated Lean 4 proof annotations (Aesop / Grind)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+authors = [
+  { name = "Paul Dietze" }
+]
+
+dependencies = [
+  "mcp>=0.4.0"
+]
+
+[project.scripts]
+lean-proof-auto-mcp = "lean_proof_auto_mcp.server:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.9.0",
+  "mypy>=1.8.0",
+  "pre-commit>=3.6.0",
+  "jsonschema>=4.21",
+  "jsonschema-specifications>=2023.12.1",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests"]
+respect-gitignore = true
+
+[tool.ruff.lint]
+select = [
+  "E", "F",   # pycodestyle errors + pyflakes
+  "I",        # import sorting
+  "UP",       # pyupgrade
+  "B",        # bugbear (real footguns)
+  "SIM",      # simplify
+]
+ignore = [
+  "E203",     # whitespace before ':' (black compat; harmless)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+  "-q",
+  "--strict-markers",
+  "--strict-config",
+]
+
+[tool.mypy]
+python_version = "3.10"
+mypy_path = "src"
+packages = ["lean_proof_auto_mcp"]
+
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+check_untyped_defs = false
+disallow_untyped_defs = false
+
+pretty = true
+show_error_codes = true
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lean_proof_auto_mcp"]
+
+[tool.hatch.build]
+sources = ["src"]
+
+[tool.uv]
+# uv will manage the venv + lockfile

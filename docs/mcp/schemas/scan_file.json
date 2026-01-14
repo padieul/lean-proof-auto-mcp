@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lean-proof-auto-mcp/schemas/scan_file.json",
+  "title": "scan_file tool response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["api_version", "status", "run_id", "tool", "file", "summary"],
+  "properties": {
+    "api_version": { "$ref": "common.json#/$defs/api_version" },
+    "status": { "$ref": "common.json#/$defs/status" },
+    "run_id": { "$ref": "common.json#/$defs/run_id" },
+    "tool": {
+      "type": "string",
+      "const": "scan_file"
+    },
+    "file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["theorem_count", "notes"],
+      "properties": {
+        "theorem_count": { "type": "integer", "minimum": 0 },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": { "$ref": "common.json#/$defs/diagnostic" }
+    }
+  }
+}

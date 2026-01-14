@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Pre-commit Hook Runner",
+  "description": "Automatically runs pre-commit hooks when the user triggers this action, ensuring code quality checks are performed before commits",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Run `uv run pre-commit run --all-files` to execute all pre-commit hooks and fix any issues found. If there are any failures, explain what needs to be fixed and help resolve them."
+  }
+}

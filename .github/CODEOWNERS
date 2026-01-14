@@ -1,0 +1,5 @@
+# Default owner for everything
+* @padieul
+
+# Workflows (make sure you review CI changes)
+.github/workflows/* @padieul

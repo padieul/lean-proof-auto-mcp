@@ -122,3 +122,216 @@ def test_scan_file_fail_response_conforms_to_schema(scan_file_validator):
     """Test that scan_file fail response validates against JSON schema."""
     resp = scan_file({"file": ""})
     _assert_schema_valid(scan_file_validator, resp)
+
+
+def test_scan_file_determinism():
+    """Test that scan_file returns identical output for repeated calls with same input."""
+    input_args = {"file": "test.lean"}
+
+    # Call multiple times
+    resp1 = scan_file(input_args)
+    resp2 = scan_file(input_args)
+    resp3 = scan_file(input_args)
+
+    # All responses should be identical
+    assert resp1 == resp2, "First and second calls should return identical responses"
+    assert resp2 == resp3, "Second and third calls should return identical responses"
+    assert resp1 == resp3, "First and third calls should return identical responses"
+
+
+def test_scan_file_determinism_with_different_inputs():
+    """Test that scan_file returns different outputs for different inputs."""
+    resp1 = scan_file({"file": "test1.lean"})
+    resp2 = scan_file({"file": "test2.lean"})
+
+    # Responses should differ in the file field at minimum
+    assert resp1["file"] != resp2["file"], "Different inputs should produce different file fields"
+
+
+def test_scan_file_required_fields_present():
+    """Test that all required fields are present in success response."""
+    resp = scan_file({"file": "test.lean"})
+
+    # Top-level required fields
+    required_fields = ["api_version", "status", "run_id", "tool", "file", "summary"]
+    for field in required_fields:
+        assert field in resp, f"Missing required field: {field}"
+
+    # Summary required fields
+    assert "theorem_count" in resp["summary"], "Missing summary.theorem_count"
+    assert "notes" in resp["summary"], "Missing summary.notes"
+
+
+def test_scan_file_field_types():
+    """Test that fields have correct types."""
+    resp = scan_file({"file": "test.lean"})
+
+    # Type checks
+    assert isinstance(resp["api_version"], str), "api_version must be string"
+    assert isinstance(resp["status"], str), "status must be string"
+    assert isinstance(resp["run_id"], str), "run_id must be string"
+    assert isinstance(resp["tool"], str), "tool must be string"
+    assert isinstance(resp["file"], str), "file must be string"
+    assert isinstance(resp["summary"], dict), "summary must be object"
+    assert isinstance(resp["summary"]["theorem_count"], int), "theorem_count must be integer"
+    assert isinstance(resp["summary"]["notes"], list), "notes must be array"
+
+    # Optional fields
+    if "theorems" in resp:
+        assert isinstance(resp["theorems"], list), "theorems must be array"
+    if "diagnostics" in resp:
+        assert isinstance(resp["diagnostics"], list), "diagnostics must be array"
+
+
+def test_scan_file_theorem_count_non_negative():
+    """Test that theorem_count is non-negative."""
+    resp = scan_file({"file": "test.lean"})
+    assert resp["summary"]["theorem_count"] >= 0, "theorem_count must be non-negative"
+
+
+def test_scan_file_notes_are_strings():
+    """Test that all notes are strings."""
+    resp = scan_file({"file": "test.lean"})
+    for note in resp["summary"]["notes"]:
+        assert isinstance(note, str), f"Note must be string, got {type(note)}"
+
+
+def test_scan_file_theorems_array_structure():
+    """Test that theorems array (when present) has correct structure."""
+    resp = scan_file({"file": "test.lean"})
+
+    if "theorems" in resp and len(resp["theorems"]) > 0:
+        for theorem in resp["theorems"]:
+            # Required fields in theorem object
+            assert "theorem_id" in theorem, "Missing theorem.theorem_id"
+            assert "name" in theorem, "Missing theorem.name"
+            assert "kind" in theorem, "Missing theorem.kind"
+            assert "location" in theorem, "Missing theorem.location"
+            assert "automation" in theorem, "Missing theorem.automation"
+
+            # Validate kind enum
+            assert theorem["kind"] in ["theorem", "lemma", "example", "instance"], (
+                f"Invalid kind: {theorem['kind']}"
+            )
+
+            # Validate location structure
+            loc = theorem["location"]
+            assert "decl_start" in loc, "Missing location.decl_start"
+            assert "decl_end" in loc, "Missing location.decl_end"
+            assert loc["decl_start"] >= 1, "decl_start must be >= 1"
+            assert loc["decl_end"] >= 1, "decl_end must be >= 1"
+            assert loc["decl_end"] >= loc["decl_start"], "decl_end must be >= decl_start"
+
+            # Validate automation structure
+            auto = theorem["automation"]
+            assert "whole_goal_potential" in auto, "Missing automation.whole_goal_potential"
+            assert "subgoal_potential" in auto, "Missing automation.subgoal_potential"
+            assert "annotation_value" in auto, "Missing automation.annotation_value"
+
+            # Validate score ranges
+            for potential_type in ["whole_goal_potential", "subgoal_potential"]:
+                potential = auto[potential_type]
+                assert "aesop" in potential, f"Missing {potential_type}.aesop"
+                assert "grind" in potential, f"Missing {potential_type}.grind"
+                assert 0.0 <= potential["aesop"] <= 1.0, f"{potential_type}.aesop out of range"
+                assert 0.0 <= potential["grind"] <= 1.0, f"{potential_type}.grind out of range"
+
+            assert 0.0 <= auto["annotation_value"] <= 1.0, "annotation_value out of range"
+
+
+def test_scan_file_error_handling_missing_file_arg():
+    """Test that scan_file handles missing file argument gracefully."""
+    resp = scan_file({})
+
+    # Should return fail status
+    _assert_contract_guarantees(resp, expected_status="fail")
+
+    # Should have diagnostic
+    assert "diagnostics" in resp, "Fail response should include diagnostics"
+    assert len(resp["diagnostics"]) > 0, "Should have at least one diagnostic"
+
+
+def test_scan_file_error_handling_invalid_file_type():
+    """Test that scan_file handles invalid file type gracefully."""
+    resp = scan_file({"file": 123})  # number instead of string
+
+    # Should return fail status
+    _assert_contract_guarantees(resp, expected_status="fail")
+
+    # Should have diagnostic
+    assert "diagnostics" in resp, "Fail response should include diagnostics"
+    assert len(resp["diagnostics"]) > 0, "Should have at least one diagnostic"
+
+
+def test_scan_file_error_handling_whitespace_only_file():
+    """Test that scan_file handles whitespace-only file argument gracefully."""
+    resp = scan_file({"file": "   "})
+
+    # Should return fail status
+    _assert_contract_guarantees(resp, expected_status="fail")
+
+    # Should have diagnostic
+    assert "diagnostics" in resp, "Fail response should include diagnostics"
+    assert len(resp["diagnostics"]) > 0, "Should have at least one diagnostic"
+
+
+def test_scan_file_diagnostics_structure():
+    """Test that diagnostics (when present) have correct structure."""
+    resp = scan_file({"file": ""})
+
+    if "diagnostics" in resp and len(resp["diagnostics"]) > 0:
+        for diag in resp["diagnostics"]:
+            # Required fields
+            assert "severity" in diag, "Missing diagnostic.severity"
+            assert "message" in diag, "Missing diagnostic.message"
+
+            # Validate severity enum
+            assert diag["severity"] in ["info", "warning", "error"], (
+                f"Invalid severity: {diag['severity']}"
+            )
+
+            # Message must be non-empty string
+            assert isinstance(diag["message"], str), "diagnostic.message must be string"
+            assert len(diag["message"]) > 0, "diagnostic.message must be non-empty"
+
+            # Optional location field
+            if "location" in diag:
+                loc = diag["location"]
+                assert "line" in loc, "Missing diagnostic.location.line"
+                assert "col" in loc, "Missing diagnostic.location.col"
+                assert loc["line"] >= 1, "location.line must be >= 1"
+                assert loc["col"] >= 1, "location.col must be >= 1"
+
+
+def test_scan_file_api_version_format():
+    """Test that api_version follows the required format (0.x)."""
+    resp = scan_file({"file": "test.lean"})
+
+    # Must match pattern ^0\.[0-9]+$
+    import re
+
+    pattern = r"^0\.[0-9]+$"
+    assert re.match(pattern, resp["api_version"]), (
+        f"api_version '{resp['api_version']}' does not match pattern {pattern}"
+    )
+
+
+def test_scan_file_run_id_non_empty():
+    """Test that run_id is non-empty."""
+    resp = scan_file({"file": "test.lean"})
+    assert len(resp["run_id"]) > 0, "run_id must be non-empty"
+
+
+def test_scan_file_tool_name_correct():
+    """Test that tool field is exactly 'scan_file'."""
+    resp = scan_file({"file": "test.lean"})
+    assert resp["tool"] == "scan_file", f"tool must be 'scan_file', got '{resp['tool']}'"
+
+
+def test_scan_file_status_valid():
+    """Test that status is one of the valid values."""
+    resp = scan_file({"file": "test.lean"})
+    valid_statuses = {"success", "fail", "error", "timeout"}
+    assert resp["status"] in valid_statuses, (
+        f"status '{resp['status']}' not in valid set {valid_statuses}"
+    )

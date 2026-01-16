@@ -32,7 +32,8 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
     except ValueError as e:
         # Schema requires file to be non-empty, so use placeholder for invalid input
         file_value = args.get("file", "") if isinstance(args, dict) else ""
-        if not file_value or not file_value.strip():
+        # Handle non-string file values
+        if not isinstance(file_value, str) or not file_value or not file_value.strip():
             file_value = "<invalid>"
 
         return {

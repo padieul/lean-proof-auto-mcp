@@ -36,8 +36,8 @@ This spec uses a **phased approach** to prevent premature implementation:
 ## Phase 2: Contract Tests
 
 **NOTE: This phase creates tests that validate stub responses. Tests should pass with stubs returning placeholder data.**
-- [ ] Set up test infrastructure (add jsonschema and hypothesis to dependencies, create test directories)
-- [ ] Write scan_file contract tests (schema compliance, required fields, determinism, error handling)
+- [x] Set up test infrastructure (add jsonschema and hypothesis to dependencies, create test directories)
+- [x] Write scan_file contract tests (schema compliance, required fields, determinism, error handling)
 - [ ] Write scan_theorem contract tests (schema compliance, both input modes, structure validation, score ranges)
 - [ ] Verify all contract tests pass with stub implementations
 

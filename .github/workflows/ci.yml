@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: ["main"]
   push:
-    branches: ["main"]
+    branches: ["main", "ci/fix-ci"]
 
 permissions:
   contents: read
@@ -31,7 +31,7 @@ jobs:
         uses: astral-sh/setup-uv@v3
 
       - name: Sync deps (dev)
-        run: uv sync --extra dev
+        run: uv sync --group dev
 
       - name: Ruff format (check)
         run: uv run ruff format --check .
@@ -40,7 +40,7 @@ jobs:
         run: uv run ruff check .
 
       - name: Type check (mypy)
-        run: uv run mypy .
+        run: uv run mypy -p lean_proof_auto_mcp
 
       - name: Pytest
         run: uv run pytest

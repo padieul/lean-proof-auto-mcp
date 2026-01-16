@@ -29,6 +29,63 @@
         }
       }
     },
+    "theorems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["theorem_id", "name", "kind", "location", "automation"],
+        "properties": {
+          "theorem_id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "kind": {
+            "type": "string",
+            "enum": ["theorem", "lemma", "example", "instance"]
+          },
+          "location": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["decl_start", "decl_end"],
+            "properties": {
+              "decl_start": { "type": "integer", "minimum": 1 },
+              "decl_end": { "type": "integer", "minimum": 1 },
+              "proof_start": { "type": "integer", "minimum": 1 },
+              "proof_end": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "automation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["whole_goal_potential", "subgoal_potential", "annotation_value"],
+            "properties": {
+              "whole_goal_potential": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["aesop", "grind"],
+                "properties": {
+                  "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+                  "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+                }
+              },
+              "subgoal_potential": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["aesop", "grind"],
+                "properties": {
+                  "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+                  "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+                }
+              },
+              "annotation_value": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
     "diagnostics": {
       "type": "array",
       "items": { "$ref": "common.json#/$defs/diagnostic" }

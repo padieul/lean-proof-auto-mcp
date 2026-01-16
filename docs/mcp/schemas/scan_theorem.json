@@ -4,7 +4,7 @@
   "title": "scan_theorem tool response",
   "type": "object",
   "additionalProperties": false,
-  "required": ["api_version", "status", "run_id", "tool", "file", "target", "theorem"],
+  "required": ["api_version", "status", "run_id", "tool", "file", "target"],
   "properties": {
     "api_version": { "$ref": "common.json#/$defs/api_version" },
     "status": { "$ref": "common.json#/$defs/status" },
@@ -44,7 +44,7 @@
       ]
     },
     "theorem": {
-      "type": "object",
+      "type": ["object", "null"],
       "additionalProperties": false,
       "required": ["name", "kind", "location", "structure", "automation"],
       "properties": {

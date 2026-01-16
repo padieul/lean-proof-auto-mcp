@@ -61,5 +61,6 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
                 "stub: returns deterministic shape for contract testing",
             ],
         },
+        "theorems": [],
         "diagnostics": [],
     }

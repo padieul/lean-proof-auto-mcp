@@ -19,15 +19,16 @@
     },
     "target": {
       "type": "object",
-      "additionalProperties": false,
       "oneOf": [
         {
+          "additionalProperties": false,
           "required": ["theorem_id"],
           "properties": {
             "theorem_id": { "type": "string", "minLength": 1 }
           }
         },
         {
+          "additionalProperties": false,
           "required": ["range"],
           "properties": {
             "range": {

@@ -78,12 +78,14 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
     except ValueError as e:
         # Build error response with whatever we can extract
         file_value = args.get("file", "") if isinstance(args, dict) else ""
-        if not file_value or not file_value.strip():
+        if not isinstance(file_value, str) or not file_value.strip():
             file_value = "<invalid>"
 
         target_value = args.get("target", {}) if isinstance(args, dict) else {}
         if not isinstance(target_value, dict):
-            target_value = {}
+            target_value = {"theorem_id": "<invalid>"}
+        elif not target_value:
+            target_value = {"theorem_id": "<invalid>"}
 
         return {
             "api_version": API_VERSION,
@@ -91,7 +93,7 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
             "run_id": "scan-theorem-invalid-args",
             "tool": "scan_theorem",
             "file": file_value,
-            "target": target_value if target_value else {"theorem_id": "<invalid>"},
+            "target": target_value,
             "theorem": None,
             "diagnostics": [{"severity": "error", "message": str(e)}],
         }

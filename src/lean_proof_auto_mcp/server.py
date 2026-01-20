@@ -32,7 +32,14 @@ def create_app(cfg: Config) -> FastMCP:
 
 def main() -> None:
     cfg = Config.from_env()
-    print(f"{cfg.server_name}: server started (api_version={cfg.api_version})")
+    
+    # Change to the configured working directory
+    import os
+    if cfg.working_directory != os.getcwd():
+        print(f"{cfg.server_name}: changing working directory to {cfg.working_directory}")
+        os.chdir(cfg.working_directory)
+    
+    print(f"{cfg.server_name}: server started (api_version={cfg.api_version}, cwd={os.getcwd()})")
     create_app(cfg).run()  # stdio transport by default
 
 

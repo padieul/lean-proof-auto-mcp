@@ -70,6 +70,15 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
         text = ""
         diagnostics = []
         
+        # Debug: Add working directory info to diagnostics
+        import os
+        cwd = os.getcwd()
+        abs_path = file_path.resolve()
+        diagnostics.append({
+            "severity": "info",
+            "message": f"Debug: CWD={cwd}, requested_file={parsed.file}, resolved_path={abs_path}"
+        })
+        
         if file_path.exists():
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:

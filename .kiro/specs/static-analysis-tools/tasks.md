@@ -46,8 +46,8 @@ This spec uses a **phased approach** to prevent premature implementation:
 
 **NOTE: This phase implements the ACTUAL parsing and analysis logic. This is where real implementation happens, NOT in Phase 1 stubs.**
 
-- [ ] Implement core/source.py (SourceText, Span dataclasses with get_lines, get_span_text methods)
-- [ ] Implement core/lean_syntax.py (strip_comments, detect_string_literals, normalize_whitespace functions)
+- [x] Implement core/source.py (SourceText, Span dataclasses with get_lines, get_span_text methods)
+- [x] Implement core/lean_syntax.py (strip_comments, detect_string_literals, normalize_whitespace functions)
 - [ ] Implement core/indexer.py (TheoremDecl, FileIndex dataclasses with build_index, find_by_id, find_by_range functions)
 - [ ] Implement core/features.py (TheoremFeatures dataclass with extract_features, detect_tactics, count functions)
 - [ ] Implement core/segmenter.py (ProofStructure dataclass with segment_proof, extract_skeleton, identify_blocks functions)

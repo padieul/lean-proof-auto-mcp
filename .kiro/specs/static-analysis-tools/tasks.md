@@ -62,7 +62,7 @@ This spec uses a **phased approach** to prevent premature implementation:
 
 - [x] Integrate scan_file with core modules (add file reading, call build_index, extract features, compute profiles, format response)
 - [x] Implement scan_theorem with core modules (add file reading, find target theorem, extract features, segment proof, format response)
-- [ ] Run all contract tests and verify they pass with real implementations
-- [ ] Write property-based tests (determinism, schema compliance, score bounds, stable ordering, consistency checks)
-- [ ] Final validation (run full test suite, check coverage >90%, test with real Lean files, verify performance targets)
+- [x] Run all contract tests and verify they pass with real implementations
+- [-] Write property-based tests (determinism, schema compliance, score bounds, stable ordering, consistency checks)
+- [x] Final validation (run full test suite, check coverage >90%, test with real Lean files, verify performance targets)
 

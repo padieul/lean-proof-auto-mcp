@@ -50,9 +50,9 @@ This spec uses a **phased approach** to prevent premature implementation:
 - [x] Implement core/lean_syntax.py (strip_comments, detect_string_literals, normalize_whitespace functions)
 - [x] Implement core/indexer.py (TheoremDecl, FileIndex dataclasses with build_index, find_by_id, find_by_range functions)
 - [x] Implement core/features.py (TheoremFeatures dataclass with extract_features, detect_tactics, count functions)
-- [ ] Implement core/segmenter.py (ProofStructure dataclass with segment_proof, extract_skeleton, identify_blocks functions)
-- [ ] Implement core/scoring.py (AutomationProfile dataclass with compute_profile, score_aesop_potential, score_grind_potential functions)
-- [ ] Implement core/format.py (stable_sort_theorems, normalize_notes, ensure_deterministic functions)
+- [x] Implement core/segmenter.py (ProofStructure dataclass with segment_proof, extract_skeleton, identify_blocks functions)
+- [x] Implement core/scoring.py (AutomationProfile dataclass with compute_profile, score_aesop_potential, score_grind_potential functions)
+- [x] Implement core/format.py (stable_sort_theorems, normalize_notes, ensure_deterministic functions)
 - [ ] Write unit tests for all core modules with inline Lean snippets
 
 

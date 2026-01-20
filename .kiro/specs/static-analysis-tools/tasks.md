@@ -32,14 +32,15 @@ All phases of the static analysis tools implementation have been successfully co
 ### 5.3 Fix Automation Scoring ❌ NOT STARTED
 - [x] **CRITICAL**: Update core/features.py to avoid false negative tactic detection
 - [x] Improve proof text extraction from detected boundaries  
-- [ ] Enhanced confidence scoring in core/scoring.py
+- [x] Enhanced confidence scoring in core/scoring.py
 - [ ] Ensure theorems with detected proofs get non-zero automation scores
 - [ ] Test scoring accuracy on real Mathlib theorems
 
 ### 5.4 Validation with Real Files ❌ NOT STARTED
 - [ ] Test fixes against tests/fixtures/mathlib_lean_files/Defs.lean
-- [ ] Test fixes against tests/fixtures/mathlib_lean_files/Coeff.lean  
+- [x] Test fixes against tests/fixtures/mathlib_lean_files/Coeff.lean  
 - [ ] Test fixes against tests/fixtures/mathlib_lean_files/Degree.lean
+- [ ] Ensure that proof boundaries detection works perfectly on all 3 fixtures Mathlib files
 - [ ] Verify all existing tests still pass (no regressions)
 - [ ] Document improvements and remaining limitations
 

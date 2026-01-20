@@ -106,6 +106,7 @@ def score_aesop_potential(features: TheoremFeatures) -> float:
     Aesop is a proof search tactic that works well on goals that can be
     solved by applying constructors, destructors, and simple reasoning.
     It tends to work better on shorter, more structural proofs.
+    Enhanced to better handle term-mode proofs and confidence signals.
     
     Args:
         features: Theorem features to analyze
@@ -116,7 +117,19 @@ def score_aesop_potential(features: TheoremFeatures) -> float:
     if features.proof_lines == 0:
         return 0.0
     
-    score = 0.3  # Base score
+    score = 0.2  # Lower base score, build up from evidence
+    
+    # Enhanced confidence-based scoring
+    if features.confidence >= 0.8:
+        score += 0.3  # High confidence gets significant boost
+    elif features.confidence >= 0.6:
+        score += 0.2  # Good confidence gets moderate boost
+    elif features.confidence >= 0.4:
+        score += 0.1  # Some confidence gets small boost
+    elif features.confidence > 0.0:
+        score += 0.05  # Any confidence is better than none
+    else:
+        return 0.0  # No confidence means no meaningful score
     
     # Aesop likes structural tactics
     structural_tactics = {
@@ -125,30 +138,39 @@ def score_aesop_potential(features: TheoremFeatures) -> float:
     }
     structural_count = len(features.tactic_kinds & structural_tactics)
     if structural_count > 0:
-        score += min(0.4, structural_count * 0.1)
+        score += min(0.3, structural_count * 0.08)
+    
+    # Enhanced term-mode proof support
+    term_mode_patterns = {
+        'term_application', 'rfl', 'term_proof', 'constructor_term',
+        'map_application', 'ring_hom_application', 'inference_placeholder'
+    }
+    term_mode_count = len(features.tactic_kinds & term_mode_patterns)
+    if term_mode_count > 0:
+        score += min(0.25, term_mode_count * 0.1)  # Term-mode proofs can be good for aesop
     
     # Aesop prefers shorter proofs
     if features.proof_lines <= 5:
-        score += 0.3
-    elif features.proof_lines <= 10:
         score += 0.2
+    elif features.proof_lines <= 10:
+        score += 0.15
     elif features.proof_lines <= 20:
         score += 0.1
     # No bonus for longer proofs
     
     # Aesop doesn't like heavy rewriting
     if features.rewrite_count > 5:
-        score -= 0.2
+        score -= 0.15
     elif features.rewrite_count > 2:
-        score -= 0.1
+        score -= 0.08
     
     # Aesop doesn't like heavy simp usage
     if features.simp_count > 3:
-        score -= 0.15
+        score -= 0.1
     
-    # Boost for high confidence (well-structured proof)
-    if features.confidence > 0.8:
-        score += 0.1
+    # Enhanced pattern recognition
+    if 'tactic_mode' in features.tactic_kinds:
+        score += 0.05  # Tactic mode is generally good for aesop
     
     return max(0.0, min(1.0, score))
 
@@ -159,6 +181,7 @@ def score_grind_potential(features: TheoremFeatures) -> float:
     Grind is an automation tactic that excels at equational reasoning
     and simplification. It works well on proofs with lots of rewrites
     and algebraic manipulation.
+    Enhanced to better handle term-mode proofs and confidence signals.
     
     Args:
         features: Theorem features to analyze
@@ -169,27 +192,47 @@ def score_grind_potential(features: TheoremFeatures) -> float:
     if features.proof_lines == 0:
         return 0.0
     
-    score = 0.2  # Base score
+    score = 0.15  # Lower base score, build up from evidence
+    
+    # Enhanced confidence-based scoring
+    if features.confidence >= 0.8:
+        score += 0.25  # High confidence gets significant boost
+    elif features.confidence >= 0.6:
+        score += 0.18  # Good confidence gets moderate boost
+    elif features.confidence >= 0.4:
+        score += 0.1   # Some confidence gets small boost
+    elif features.confidence > 0.0:
+        score += 0.05  # Any confidence is better than none
+    else:
+        return 0.0  # No confidence means no meaningful score
     
     # Grind likes rewrite-heavy proofs
     if features.rewrite_count > 0:
-        score += min(0.4, features.rewrite_count * 0.08)
+        score += min(0.35, features.rewrite_count * 0.06)
     
     # Grind likes simp usage
     if features.simp_count > 0:
-        score += min(0.3, features.simp_count * 0.1)
+        score += min(0.25, features.simp_count * 0.08)
+    
+    # Enhanced term-mode proof support for algebraic reasoning
+    algebraic_term_patterns = {
+        'map_application', 'ring_hom_application', 'term_application'
+    }
+    algebraic_term_count = len(features.tactic_kinds & algebraic_term_patterns)
+    if algebraic_term_count > 0:
+        score += min(0.2, algebraic_term_count * 0.08)  # Algebraic term-mode is good for grind
     
     # Grind works well with medium-length proofs
     if 5 <= features.proof_lines <= 30:
-        score += 0.2
+        score += 0.15
     elif features.proof_lines <= 5:
-        score += 0.1  # Still good, but less opportunity
+        score += 0.08  # Still good, but less opportunity
     
     # Grind doesn't like induction/cases (structural reasoning)
     if features.has_induction:
-        score -= 0.2
-    if features.has_cases:
         score -= 0.15
+    if features.has_cases:
+        score -= 0.1
     
     # Grind likes algebraic tactics
     algebraic_tactics = {
@@ -197,11 +240,11 @@ def score_grind_potential(features: TheoremFeatures) -> float:
     }
     algebraic_count = len(features.tactic_kinds & algebraic_tactics)
     if algebraic_count > 0:
-        score += min(0.2, algebraic_count * 0.1)
+        score += min(0.2, algebraic_count * 0.08)
     
-    # Boost for high confidence
-    if features.confidence > 0.8:
-        score += 0.1
+    # Enhanced pattern recognition
+    if 'term_proof' in features.tactic_kinds and features.rewrite_count == 0:
+        score += 0.1  # Pure term proofs can be good for grind
     
     return max(0.0, min(1.0, score))
 
@@ -212,6 +255,7 @@ def score_annotation_value(features: TheoremFeatures) -> float:
     Estimates the return on investment for adding automation annotations
     to this theorem. Higher scores indicate theorems where automation
     annotations would provide more value.
+    Enhanced to better consider confidence and proof quality.
     
     Args:
         features: Theorem features to analyze
@@ -222,40 +266,61 @@ def score_annotation_value(features: TheoremFeatures) -> float:
     if features.proof_lines == 0:
         return 0.0
     
-    score = 0.1  # Base score
+    score = 0.05  # Lower base score, build up from evidence
+    
+    # Enhanced confidence-based scoring - confidence is crucial for annotation value
+    if features.confidence >= 0.8:
+        score += 0.25  # High confidence proofs are great annotation candidates
+    elif features.confidence >= 0.6:
+        score += 0.18  # Good confidence proofs are good candidates
+    elif features.confidence >= 0.4:
+        score += 0.1   # Some confidence is still valuable
+    elif features.confidence > 0.0:
+        score += 0.05  # Any confidence is better than none
+    else:
+        score -= 0.1   # Low confidence reduces annotation value significantly
     
     # Longer proofs have more potential for automation
     if features.proof_lines > 20:
-        score += 0.4
-    elif features.proof_lines > 10:
         score += 0.3
-    elif features.proof_lines > 5:
+    elif features.proof_lines > 10:
         score += 0.2
+    elif features.proof_lines > 5:
+        score += 0.15
+    elif features.proof_lines > 2:
+        score += 0.1  # Even short proofs can have value if well-structured
     
     # Local lemmas indicate complex proofs that could benefit from automation
     if features.local_lemmas_count > 0:
-        score += min(0.3, features.local_lemmas_count * 0.1)
+        score += min(0.25, features.local_lemmas_count * 0.08)
     
     # Repeated patterns (high tactic diversity) suggest automation opportunities
     tactic_diversity = len(features.tactic_kinds)
     if tactic_diversity > 5:
-        score += 0.2
+        score += 0.15
     elif tactic_diversity > 3:
         score += 0.1
+    elif tactic_diversity > 0:
+        score += 0.05  # Any detected patterns are valuable
     
     # Rewrite-heavy proofs often benefit from automation
     if features.rewrite_count > 3:
-        score += 0.15
+        score += 0.12
+    elif features.rewrite_count > 0:
+        score += 0.08
     
     # Simp-heavy proofs might benefit from better simp sets
     if features.simp_count > 2:
-        score += 0.1
+        score += 0.08
+    elif features.simp_count > 0:
+        score += 0.05
     
-    # High confidence proofs are better candidates for automation
-    if features.confidence > 0.8:
-        score += 0.1
-    elif features.confidence < 0.5:
-        score -= 0.1  # Low confidence might indicate parsing issues
+    # Enhanced pattern-based scoring
+    if 'term_application' in features.tactic_kinds:
+        score += 0.1  # Complex term applications often benefit from automation
+    
+    if features.has_induction or features.has_cases:
+        score += 0.1  # Structural proofs with cases often benefit from automation
     
     return max(0.0, min(1.0, score))
 
@@ -268,16 +333,31 @@ def _score_aesop_subgoal_potential(
     
     Aesop can be useful for automating individual subgoals even when
     it can't solve the whole goal, especially in case analysis.
+    Enhanced to better use confidence information.
     """
-    base_score = score_aesop_potential(features) * 0.7  # Start lower than whole goal
+    # Start with a confidence-adjusted base score
+    if features.confidence >= 0.8:
+        base_score = score_aesop_potential(features) * 0.8  # High confidence gets better base
+    elif features.confidence >= 0.6:
+        base_score = score_aesop_potential(features) * 0.7  # Good confidence
+    elif features.confidence >= 0.4:
+        base_score = score_aesop_potential(features) * 0.6  # Some confidence
+    elif features.confidence > 0.0:
+        base_score = score_aesop_potential(features) * 0.5  # Low confidence
+    else:
+        base_score = 0.0  # No confidence means no subgoal potential
     
     # Boost if we have induction/cases (can automate branches)
     if features.has_induction or features.has_cases:
-        base_score += 0.3
+        base_score += 0.25
     
     # Boost if we have structure info showing cases
     if structure and structure.cases:
-        base_score += min(0.2, len(structure.cases) * 0.05)
+        base_score += min(0.2, len(structure.cases) * 0.04)
+    
+    # Enhanced term-mode support for subgoals
+    if 'term_application' in features.tactic_kinds:
+        base_score += 0.1  # Term applications often create good subgoals for aesop
     
     return max(0.0, min(1.0, base_score))
 
@@ -290,14 +370,29 @@ def _score_grind_subgoal_potential(
     
     Grind can be useful for automating rewrite-heavy subgoals even
     when the overall proof structure doesn't suit it.
+    Enhanced to better use confidence information.
     """
-    base_score = score_grind_potential(features) * 0.8  # Start close to whole goal
+    # Start with a confidence-adjusted base score
+    if features.confidence >= 0.8:
+        base_score = score_grind_potential(features) * 0.85  # High confidence gets better base
+    elif features.confidence >= 0.6:
+        base_score = score_grind_potential(features) * 0.8   # Good confidence
+    elif features.confidence >= 0.4:
+        base_score = score_grind_potential(features) * 0.7   # Some confidence
+    elif features.confidence > 0.0:
+        base_score = score_grind_potential(features) * 0.6   # Low confidence
+    else:
+        base_score = 0.0  # No confidence means no subgoal potential
     
     # Boost if we have rewrite/simp blocks
     if structure and structure.blocks:
         rewrite_blocks = [b for b in structure.blocks if b.kind == "rewrite_simp"]
         if rewrite_blocks:
-            base_score += min(0.2, len(rewrite_blocks) * 0.1)
+            base_score += min(0.2, len(rewrite_blocks) * 0.08)
+    
+    # Enhanced algebraic term-mode support for subgoals
+    if 'map_application' in features.tactic_kinds or 'ring_hom_application' in features.tactic_kinds:
+        base_score += 0.12  # Algebraic term applications often create good subgoals for grind
     
     return max(0.0, min(1.0, base_score))
 
@@ -314,13 +409,32 @@ def _generate_notes(
     """
     notes = []
     
-    # Note about proof length
+    # Enhanced note about proof detection and confidence
     if features.proof_lines == 0:
-        notes.append("no proof found")
+        if features.confidence == 0.0:
+            notes.append("no proof found")
+        else:
+            notes.append("proof detection uncertain")
     elif features.proof_lines > 20:
         notes.append("long proof")
     elif features.proof_lines <= 3:
         notes.append("short proof")
+    
+    # Note about proof quality based on enhanced confidence signals
+    if features.confidence >= 0.8:
+        notes.append("high confidence proof")
+    elif features.confidence >= 0.6:
+        notes.append("good proof structure")
+    elif features.confidence >= 0.4:
+        notes.append("moderate confidence")
+    elif features.confidence > 0.0:
+        notes.append("uncertain proof boundaries")
+    
+    # Enhanced notes about proof patterns
+    if 'term_application' in features.tactic_kinds or 'term_proof' in features.tactic_kinds:
+        notes.append("term-mode proof")
+    elif 'tactic_mode' in features.tactic_kinds:
+        notes.append("tactic-mode proof")
     
     # Note about structural patterns
     if features.has_induction:
@@ -344,6 +458,15 @@ def _generate_notes(
     elif features.local_lemmas_count > 0:
         notes.append("has local lemmas")
     
+    # Enhanced notes about proof complexity
+    tactic_diversity = len(features.tactic_kinds)
+    if tactic_diversity > 8:
+        notes.append("highly diverse tactics")
+    elif tactic_diversity > 5:
+        notes.append("diverse tactics")
+    elif tactic_diversity == 0 and features.proof_lines > 0:
+        notes.append("minimal tactic detection")
+    
     # Note about structure if available
     if structure:
         if len(structure.skeleton) > 3:
@@ -359,15 +482,22 @@ def _generate_notes(
             if "closing" in block_kinds:
                 notes.append("has closing tactics")
     
-    # Note about confidence
-    if features.confidence < 0.5:
-        notes.append("uncertain proof boundaries")
-    
-    # Note about high-scoring automation
+    # Enhanced notes about automation potential
     if scores['aesop_whole'] > 0.7:
         notes.append("good aesop candidate")
+    elif scores['aesop_whole'] > 0.5:
+        notes.append("moderate aesop potential")
+        
     if scores['grind_whole'] > 0.7:
         notes.append("good grind candidate")
+    elif scores['grind_whole'] > 0.5:
+        notes.append("moderate grind potential")
+    
+    # Note about annotation value
+    if scores['annotation_value'] > 0.8:
+        notes.append("high annotation value")
+    elif scores['annotation_value'] > 0.6:
+        notes.append("good annotation candidate")
     
     # Limit to 10 notes and 200 chars each
     notes = notes[:10]

@@ -52,10 +52,11 @@ class TheoremFeatures:
 
 
 def extract_features(source: SourceText, decl: TheoremDecl) -> TheoremFeatures:
-    """Compute features from theorem proof span.
+    """Compute features from theorem proof span with enhanced analysis.
     
     Analyzes the proof text to extract various metrics and patterns
-    that can be used for automation scoring and analysis.
+    that can be used for automation scoring and analysis. Enhanced to
+    better handle term-mode proofs and complex proof structures.
     
     Args:
         source: The source text containing the theorem
@@ -77,29 +78,29 @@ def extract_features(source: SourceText, decl: TheoremDecl) -> TheoremFeatures:
             confidence=0.0
         )
     
-    # Extract proof text
+    # Extract proof text with better context handling
     proof_text = source.get_span_text(decl.proof_span)
     
-    # Strip comments to avoid false positives
+    # Strip comments to avoid false positives, but preserve structure
     clean_proof = strip_comments(proof_text)
     
-    # Calculate basic metrics
+    # Calculate basic metrics with enhanced line counting
     proof_lines = len([line for line in clean_proof.splitlines() if line.strip()])
     
-    # Detect tactics
-    tactic_kinds = detect_tactics(clean_proof)
+    # Enhanced tactic detection with context awareness
+    tactic_kinds = detect_tactics_enhanced(clean_proof, source, decl.proof_span)
     
-    # Check for specific patterns
-    has_induction = 'induction' in tactic_kinds
-    has_cases = 'cases' in tactic_kinds
+    # Check for specific patterns with enhanced detection
+    has_induction = any(t in tactic_kinds for t in ['induction', 'induction_on'])
+    has_cases = any(t in tactic_kinds for t in ['cases', 'rcases']) and 'induction' not in tactic_kinds
     
-    # Count specific constructs
+    # Count specific constructs with enhanced patterns
     rewrite_count = count_rewrites(clean_proof)
     simp_count = count_simps(clean_proof)
     local_lemmas_count = count_local_lemmas(clean_proof)
     
-    # Calculate confidence based on proof structure
-    confidence = _calculate_confidence(clean_proof, decl.proof_span, tactic_kinds)
+    # Calculate confidence with enhanced multi-signal approach
+    confidence = _calculate_confidence_enhanced(clean_proof, decl.proof_span, tactic_kinds, decl)
     
     return TheoremFeatures(
         proof_lines=proof_lines,
@@ -113,11 +114,158 @@ def extract_features(source: SourceText, decl: TheoremDecl) -> TheoremFeatures:
     )
 
 
+def detect_tactics_enhanced(proof_text: str, source_context: SourceText, 
+                          proof_span) -> Set[str]:
+    """Enhanced tactic detection with context awareness.
+    
+    Improved tactic detection that handles context, multi-line tactics,
+    and various proof patterns more effectively.
+    
+    Args:
+        proof_text: The proof text to analyze
+        source_context: The full source context (for better analysis)
+        proof_span: The proof span (for location-aware analysis)
+        
+    Returns:
+        Set of detected tactic keywords and patterns
+    """
+    if not proof_text:
+        return set()
+    
+    # Start with basic tactic detection
+    detected = detect_tactics(proof_text)
+    
+    # Add context-aware enhancements
+    detected.update(_detect_multiline_tactics(proof_text))
+    detected.update(_detect_custom_tactics(proof_text))
+    detected.update(_detect_proof_structure_patterns(proof_text))
+    
+    return detected
+
+
+def _detect_multiline_tactics(proof_text: str) -> Set[str]:
+    """Detect tactics that span multiple lines.
+    
+    Args:
+        proof_text: The proof text to analyze
+        
+    Returns:
+        Set of detected multi-line tactic patterns
+    """
+    detected = set()
+    
+    # Multi-line tactic patterns
+    multiline_patterns = [
+        (r'induction\s+\w+\s+with\s*\n', 'induction'),
+        (r'cases\s+\w+\s+with\s*\n', 'cases'),
+        (r'simp\s*\[.*\n.*\]', 'simp'),
+        (r'rw\s*\[.*\n.*\]', 'rw'),
+        (r'have\s+\w+\s*:.*\n.*:=', 'have'),
+        (r'calc\s+.*\n.*=', 'calc'),
+    ]
+    
+    for pattern, tactic_name in multiline_patterns:
+        if re.search(pattern, proof_text, re.MULTILINE | re.IGNORECASE):
+            detected.add(tactic_name)
+    
+    return detected
+
+
+def _detect_custom_tactics(proof_text: str) -> Set[str]:
+    """Detect custom tactics and macros.
+    
+    Args:
+        proof_text: The proof text to analyze
+        
+    Returns:
+        Set of detected custom tactic patterns
+    """
+    detected = set()
+    
+    # Custom tactic patterns (common in Mathlib)
+    custom_patterns = [
+        (r'\bfield_simp\b', 'field_simp'),
+        (r'\bnorm_cast\b', 'norm_cast'),
+        (r'\bpush_cast\b', 'push_cast'),
+        (r'\bsimp_mod_cast\b', 'simp_mod_cast'),
+        (r'\bapply_mod_cast\b', 'apply_mod_cast'),
+        (r'\bexact_mod_cast\b', 'exact_mod_cast'),
+        (r'\bassumption_mod_cast\b', 'assumption_mod_cast'),
+        (r'\bconv_rhs\b', 'conv_rhs'),
+        (r'\bconv_lhs\b', 'conv_lhs'),
+        (r'\bsimp_all_only\b', 'simp_all_only'),
+        (r'\bring_nf\b', 'ring_nf'),
+        (r'\babel\b', 'abel'),
+        (r'\bgroup\b', 'group'),
+        (r'\bnoncomm_ring\b', 'noncomm_ring'),
+    ]
+    
+    for pattern, tactic_name in custom_patterns:
+        if re.search(pattern, proof_text, re.IGNORECASE):
+            detected.add(tactic_name)
+    
+    return detected
+
+
+def _detect_proof_structure_patterns(proof_text: str) -> Set[str]:
+    """Detect proof structure patterns that indicate proof quality.
+    
+    Args:
+        proof_text: The proof text to analyze
+        
+    Returns:
+        Set of detected proof structure indicators
+    """
+    detected = set()
+    
+    # Proof structure patterns
+    structure_patterns = [
+        (r'^\s*by\s*$', 'tactic_mode'),
+        (r':=\s*by\s+', 'tactic_proof'),
+        (r':=\s*\w+\.\w+', 'term_proof'),
+        (r'^\s*\|\s*\w+\s*=>', 'pattern_match'),
+        (r'^\s*·\s+', 'bullet_point'),
+        (r'next\s*=>', 'next_case'),
+        (r'this\s*:', 'this_reference'),
+        (r'@\[\w+\]', 'attribute'),
+    ]
+    
+    for pattern, structure_name in structure_patterns:
+        if re.search(pattern, proof_text, re.MULTILINE | re.IGNORECASE):
+            detected.add(structure_name)
+    
+    return detected
+
+
+def _calculate_confidence_enhanced(proof_text: str, proof_span, tactic_kinds: Set[str], 
+                                 decl: TheoremDecl) -> float:
+    """Enhanced confidence calculation with multiple signals.
+    
+    This is a wrapper that calls the main confidence calculation but could
+    be extended with declaration-specific logic.
+    
+    Args:
+        proof_text: The proof text
+        proof_span: The proof span object
+        tactic_kinds: Set of detected tactics
+        decl: The theorem declaration
+        
+    Returns:
+        Confidence score between 0.0 and 1.0
+    """
+    base_confidence = _calculate_confidence(proof_text, proof_span, tactic_kinds)
+    
+    # Additional declaration-specific adjustments could go here
+    # For now, just return the base confidence
+    return base_confidence
+
+
 def detect_tactics(proof_text: str) -> Set[str]:
-    """Find tactic keywords in proof.
+    """Find tactic keywords in proof with enhanced context awareness.
     
     Uses regex patterns to detect common Lean tactics while avoiding
-    false positives in comments and strings.
+    false positives in comments and strings. Enhanced to better handle
+    tactic variants, aliases, and term-mode proof patterns.
     
     Args:
         proof_text: The proof text to analyze
@@ -128,66 +276,191 @@ def detect_tactics(proof_text: str) -> Set[str]:
     if not proof_text:
         return set()
     
-    # Common Lean tactics to detect
+    # Enhanced tactic patterns with better coverage
     tactic_patterns = [
+        # Core structural tactics
         r'\bintro\b',
         r'\bintros\b', 
         r'\binduction\b',
         r'\bcases\b',
-        r'\brw\b',
-        r'\brewrite\b',
-        r'\bsimp\b',
         r'\bapply\b',
         r'\bexact\b',
-        r'\brfl\b',
-        r'\btrivial\b',
-        r'\bsorry\b',
-        r'\bdone\b',
-        r'\buse\b',
-        r'\bexists\b',
         r'\bconstructor\b',
         r'\bleft\b',
         r'\bright\b',
         r'\bsplit\b',
+        
+        # Rewriting tactics and variants
+        r'\brw\b',
+        r'\brewrite\b',
+        r'\brw_mod_cast\b',
+        r'\bsimp_rw\b',
+        r'\bconv_rhs\b',
+        r'\bconv_lhs\b',
+        
+        # Simplification tactics and variants
+        r'\bsimp\b',
+        r'\bsimp_all\b',
+        r'\bsimp_only\b',
+        r'\bdsimp\b',
+        r'\bfield_simp\b',
+        r'\bring_nf\b',
+        
+        # Reflexivity and trivial proofs
+        r'\brfl\b',
+        r'\btrivial\b',
+        r'\bdone\b',
+        
+        # Proof by contradiction and negation
+        r'\bby_contra\b',
+        r'\bcontradiction\b',
+        r'\bexfalso\b',
+        r'\bpush_neg\b',
+        r'\bcontrapose\b',
+        
+        # Automation tactics
+        r'\btauto\b',
+        r'\bomega\b',
+        r'\blinarith\b',
+        r'\bnorm_num\b',
+        r'\bdecide\b',
+        r'\baesop\b',
+        r'\bgrind\b',
+        
+        # Local reasoning
+        r'\bhave\b',
+        r'\bsuffices\b',
+        r'\blet\b',
+        r'\bobtain\b',
+        r'\buse\b',
+        r'\bexists\b',
+        r'\bwlog\b',
+        
+        # Advanced tactics
         r'\bext\b',
         r'\bfunext\b',
         r'\bconv\b',
         r'\bchange\b',
         r'\bshow\b',
         r'\bassumption\b',
-        r'\bcontradiction\b',
-        r'\bexfalso\b',
-        r'\bby_contra\b',
-        r'\btauto\b',
-        r'\bomega\b',
-        r'\blinarith\b',
-        r'\bnorm_num\b',
-        r'\bfield_simp\b',
-        r'\bring_nf\b',
-        r'\bsimp_all\b',
-        r'\bsimp_rw\b',
-        r'\brw_mod_cast\b',
-        r'\bpush_neg\b',
-        r'\bcontrapose\b',
-        r'\bwlog\b',
-        r'\bsuffices\b',
-        r'\bhave\b',
-        r'\blet\b',
-        r'\bobtain\b',
         r'\bcalc\b',
         r'\bunfold\b',
-        r'\bdsimp\b',
-        r'\bsimp_only\b'
+        r'\bsorry\b',
+        
+        # Tactic combinators and modifiers
+        r'\btry\b',
+        r'\brepeat\b',
+        r'\bfirst\b',
+        r'\ball_goals\b',
+        r'\bany_goals\b',
+        r'\bfocus\b',
+        r'\bskip\b',
+        
+        # Additional common tactics
+        r'\brcases\b',
+        r'\brintro\b',
+        r'\bsimp_all_only\b',
+        r'\bpush_cast\b',
+        r'\bnorm_cast\b',
+        r'\bassumption_mod_cast\b',
+        r'\bexact_mod_cast\b',
+        r'\bapply_mod_cast\b',
+        r'\brw_mod_cast\b',
+        r'\bsimp_mod_cast\b'
     ]
     
     detected = set()
     
+    # Detect traditional tactic keywords
     for pattern in tactic_patterns:
         matches = re.finditer(pattern, proof_text, re.IGNORECASE)
         for match in matches:
             # Extract the actual tactic name (remove word boundaries)
             tactic = match.group().lower()
             detected.add(tactic)
+    
+    # Enhanced detection for term-mode proof patterns
+    detected.update(_detect_term_mode_patterns(proof_text))
+    
+    # Enhanced detection for tactic combinators
+    detected.update(_detect_tactic_combinators(proof_text))
+    
+    # Enhanced detection for proof structure patterns
+    detected.update(_detect_proof_structure_patterns(proof_text))
+    
+    return detected
+
+
+def _detect_term_mode_patterns(proof_text: str) -> Set[str]:
+    """Detect term-mode proof patterns that indicate valid proofs.
+    
+    Args:
+        proof_text: The proof text to analyze
+        
+    Returns:
+        Set of detected term-mode proof indicators
+    """
+    detected = set()
+    
+    # Common term-mode proof patterns
+    term_patterns = [
+        # Function application patterns (common in Mathlib)
+        (r'\w+\.\w+\s+\.\.\s*$', 'term_application'),  # e.g., "eval₂_list_sum .."
+        (r'\w+\s+_\s+_\s*$', 'term_application'),      # e.g., "eval₂_X _ _"
+        (r'\(\w+\s+_\s+_\)\.\w+\s+_\s+_', 'term_application'),  # e.g., "(eval₂RingHom _ _).map_pow _ _"
+        
+        # Direct proof terms
+        (r'^\s*rfl\s*$', 'rfl'),
+        (r'^\s*trivial\s*$', 'trivial'),
+        (r'^\s*True\.intro\s*$', 'term_proof'),
+        (r'^\s*False\.elim\s+\w+\s*$', 'term_proof'),
+        
+        # Constructor applications
+        (r'⟨.*⟩', 'constructor_term'),
+        (r'Exists\.intro\s+\w+', 'constructor_term'),
+        
+        # Ring homomorphism applications
+        (r'\w+\.map_\w+', 'map_application'),
+        (r'RingHom\.\w+', 'ring_hom_application'),
+        
+        # Inference placeholders (Lean 4 style)
+        (r'\.\.\s*$', 'inference_placeholder'),
+        (r'‹.*›', 'assumption_term'),
+    ]
+    
+    for pattern, tactic_name in term_patterns:
+        if re.search(pattern, proof_text, re.MULTILINE | re.IGNORECASE):
+            detected.add(tactic_name)
+    
+    return detected
+
+
+def _detect_tactic_combinators(proof_text: str) -> Set[str]:
+    """Detect tactic combinators and complex tactic expressions.
+    
+    Args:
+        proof_text: The proof text to analyze
+        
+    Returns:
+        Set of detected tactic combinator patterns
+    """
+    detected = set()
+    
+    # Tactic combinator patterns
+    combinator_patterns = [
+        (r'<;>', 'tactic_combinator'),
+        (r';\s*\[', 'tactic_list'),
+        (r'try\s+\w+', 'try_combinator'),
+        (r'repeat\s+\w+', 'repeat_combinator'),
+        (r'first\s*\|', 'first_combinator'),
+        (r'·\s+\w+', 'bullet_tactic'),  # Lean 4 bullet syntax
+        (r'case\s+\w+\s*=>', 'case_tactic'),
+        (r'\|\s*\w+\s*=>', 'match_case'),
+    ]
+    
+    for pattern, combinator_name in combinator_patterns:
+        if re.search(pattern, proof_text, re.IGNORECASE):
+            detected.add(combinator_name)
     
     return detected
 
@@ -287,10 +560,11 @@ def count_local_lemmas(proof_text: str) -> int:
 
 
 def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: Set[str]) -> float:
-    """Calculate confidence in proof detection.
+    """Calculate confidence in proof detection with enhanced multi-signal approach.
     
-    Uses heuristics to estimate how confident we are that we correctly
-    identified the proof boundaries and content.
+    Uses multiple heuristics to estimate how confident we are that we correctly
+    identified the proof boundaries and content. Enhanced to better handle
+    term-mode proofs and various proof patterns.
     
     Args:
         proof_text: The proof text
@@ -303,31 +577,80 @@ def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: Set[str]) -
     if not proof_text or not proof_span:
         return 0.0
     
-    confidence = 0.5  # Base confidence
+    confidence = 0.3  # Lower base confidence, build up from evidence
     
-    # Boost confidence if we found common tactics
-    if tactic_kinds:
-        confidence += 0.2
+    # Signal 1: Proof structure quality
+    lines = [line.strip() for line in proof_text.splitlines() if line.strip()]
+    non_empty_lines = len(lines)
+    
+    if non_empty_lines > 0:
+        confidence += 0.2  # Any non-empty content is good
         
-        # Extra boost for structural tactics that indicate real proofs
-        structural_tactics = {'intro', 'intros', 'induction', 'cases', 'apply', 'exact'}
-        if tactic_kinds & structural_tactics:
-            confidence += 0.2
+        # Check for proper proof keywords
+        if any(keyword in proof_text.lower() for keyword in ['by', ':=', 'proof']):
+            confidence += 0.1
     
-    # Boost confidence if proof has reasonable length
-    lines = len([line for line in proof_text.splitlines() if line.strip()])
-    if 2 <= lines <= 50:
+    # Signal 2: Tactic diversity and appropriateness
+    if tactic_kinds:
+        confidence += 0.2  # Found some tactics/patterns
+        
+        # Boost for structural tactics that indicate real proofs
+        structural_tactics = {
+            'intro', 'intros', 'induction', 'cases', 'apply', 'exact',
+            'constructor', 'left', 'right', 'split'
+        }
+        if tactic_kinds & structural_tactics:
+            confidence += 0.15
+        
+        # Boost for term-mode proof patterns
+        term_mode_patterns = {
+            'term_application', 'rfl', 'term_proof', 'constructor_term',
+            'map_application', 'ring_hom_application', 'inference_placeholder'
+        }
+        if tactic_kinds & term_mode_patterns:
+            confidence += 0.15  # Term-mode proofs are valid
+        
+        # Boost for automation tactics
+        automation_tactics = {
+            'simp', 'simp_all', 'simp_only', 'tauto', 'omega', 'linarith',
+            'norm_num', 'decide', 'aesop', 'grind'
+        }
+        if tactic_kinds & automation_tactics:
+            confidence += 0.1
+    
+    # Signal 3: Proof length appropriateness
+    if 1 <= non_empty_lines <= 50:
         confidence += 0.1
-    elif lines > 50:
+    elif non_empty_lines > 50:
         confidence += 0.05  # Very long proofs might have parsing issues
     
-    # Reduce confidence if proof looks suspicious
-    if 'sorry' in tactic_kinds:
-        confidence -= 0.3  # Incomplete proof
+    # Signal 4: Presence of proof keywords and markers
+    proof_indicators = [
+        'by', ':=', 'proof', 'qed', 'begin', 'end',
+        '⟨', '⟩', '‹', '›',  # Lean brackets
+        '..', '_ _',  # Inference patterns
+    ]
     
-    # Check for 'by' keyword which indicates tactic mode
-    if 'by' in proof_text.lower():
-        confidence += 0.1
+    indicator_count = sum(1 for indicator in proof_indicators 
+                         if indicator in proof_text.lower())
+    if indicator_count > 0:
+        confidence += min(0.1, indicator_count * 0.03)
+    
+    # Signal 5: Absence of suspicious patterns
+    if 'sorry' in tactic_kinds:
+        confidence -= 0.3  # More significant penalty for incomplete proofs
+    
+    # Check for error patterns that might indicate parsing issues
+    error_patterns = ['error', 'failed', 'unknown', 'invalid']
+    if any(pattern in proof_text.lower() for pattern in error_patterns):
+        confidence -= 0.1
+    
+    # Signal 6: Indentation and structure consistency
+    if non_empty_lines > 1:
+        # Check if proof has consistent indentation (indicates structure)
+        indentations = [len(line) - len(line.lstrip()) for line in lines]
+        if len(set(indentations)) <= 3:  # Reasonable indentation variety
+            confidence += 0.05
     
     # Ensure confidence is in valid range
     return max(0.0, min(1.0, confidence))

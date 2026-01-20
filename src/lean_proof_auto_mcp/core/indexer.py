@@ -241,6 +241,7 @@ def _find_declaration_spans(lines: List[str], start_line: int, start_col: int) -
     3. Enhanced indentation-based proof boundary detection
     4. Improved handling of nested proof constructs
     5. Better distinction between term-mode (:=) and tactic-mode (by) proofs
+    6. Improved proof text extraction from detected boundaries
     
     Args:
         lines: Lines of the source file
@@ -257,6 +258,7 @@ def _find_declaration_spans(lines: List[str], start_line: int, start_col: int) -
     decl_end_line = start_line
     proof_start_line = None
     proof_end_line = None
+    proof_start_col = 0
     
     # First, find the main colon that separates name/params from type
     main_colon_line = _find_main_colon(lines, start_line)
@@ -269,6 +271,7 @@ def _find_declaration_spans(lines: List[str], start_line: int, start_col: int) -
     if proof_info:
         decl_end_line = proof_info['decl_end_line']
         proof_start_line = proof_info['proof_start_line']
+        proof_start_col = proof_info.get('proof_start_col', 0)
         proof_mode = proof_info['proof_mode']  # 'term' or 'tactic'
         
         if proof_mode == 'tactic':
@@ -284,7 +287,12 @@ def _find_declaration_spans(lines: List[str], start_line: int, start_col: int) -
     
     proof_span = None
     if proof_start_line and proof_end_line:
-        proof_span = Span(start_line=proof_start_line, end_line=proof_end_line)
+        # Create proof span that excludes the declaration part
+        proof_span = Span(
+            start_line=proof_start_line, 
+            start_col=proof_start_col,
+            end_line=proof_end_line
+        )
     
     return decl_span, proof_span
 
@@ -401,14 +409,15 @@ def _looks_like_simple_type(text: str) -> bool:
 def _find_proof_markers(lines: List[str], main_colon_line: int) -> Optional[dict]:
     """Find proof start markers after the main colon.
     
-    Enhanced to detect both := and by patterns in various contexts.
+    Enhanced to detect both := and by patterns in various contexts and
+    return precise proof start positions for better text extraction.
     
     Args:
         lines: Lines of the source file
         main_colon_line: Line where main colon was found (1-indexed)
         
     Returns:
-        Dict with proof info or None if no proof found
+        Dict with proof info including precise start position, or None if no proof found
     """
     # Look for proof markers starting from the main colon line
     for line_idx in range(main_colon_line - 1, min(len(lines), main_colon_line + 10)):
@@ -418,24 +427,53 @@ def _find_proof_markers(lines: List[str], main_colon_line: int) -> Optional[dict
         # Look for := pattern (term-mode proof)
         assign_match = re.search(r':=\s*', line)
         if assign_match:
-            assign_pos = assign_match.end()
-            remaining_line = line[assign_pos:].strip()
+            assign_end_pos = assign_match.end()
+            remaining_line = line[assign_end_pos:].strip()
             
             # Check if there's a 'by' immediately after :=
             if remaining_line.startswith('by'):
                 # This is := by pattern (tactic proof)
-                return {
-                    'decl_end_line': current_line_num,
-                    'proof_start_line': current_line_num,
-                    'proof_mode': 'tactic'
-                }
+                by_start_pos = assign_end_pos + line[assign_end_pos:].find('by')
+                by_end_pos = by_start_pos + 2
+                
+                # Check if there's content after 'by' on the same line
+                after_by = line[by_end_pos:].strip()
+                if after_by:
+                    # Proof starts after 'by ' on the same line
+                    proof_start_col = by_end_pos + (len(line[by_end_pos:]) - len(line[by_end_pos:].lstrip()))
+                    return {
+                        'decl_end_line': current_line_num,
+                        'proof_start_line': current_line_num,
+                        'proof_start_col': proof_start_col,
+                        'proof_mode': 'tactic'
+                    }
+                else:
+                    # Proof starts on the next line
+                    return {
+                        'decl_end_line': current_line_num,
+                        'proof_start_line': current_line_num + 1,
+                        'proof_start_col': 0,
+                        'proof_mode': 'tactic'
+                    }
             else:
                 # This is := <term> pattern (term-mode proof)
-                return {
-                    'decl_end_line': current_line_num,
-                    'proof_start_line': current_line_num,
-                    'proof_mode': 'term'
-                }
+                if remaining_line:
+                    # Proof starts after := on the same line
+                    proof_start_col = assign_end_pos + (len(line[assign_end_pos:]) - len(remaining_line))
+                    return {
+                        'decl_end_line': current_line_num,
+                        'proof_start_line': current_line_num,
+                        'proof_start_col': proof_start_col,
+                        'proof_mode': 'term'
+                    }
+                else:
+                    # Proof starts on the next line
+                    return {
+                        'decl_end_line': current_line_num,
+                        'proof_start_line': current_line_num + 1,
+                        'proof_start_col': 0,
+                        'proof_mode': 'term'
+                    }
         
         # Look for standalone 'by' pattern (direct tactic proof)
         by_match = re.search(r'\bby\b', line)
@@ -447,11 +485,26 @@ def _find_proof_markers(lines: List[str], main_colon_line: int) -> Optional[dict
             
             # Check if this looks like a proof-starting 'by'
             if _is_proof_starting_by(line, by_pos, before_by):
-                return {
-                    'decl_end_line': current_line_num,
-                    'proof_start_line': current_line_num,
-                    'proof_mode': 'tactic'
-                }
+                by_end_pos = by_match.end()
+                after_by = line[by_end_pos:].strip()
+                
+                if after_by:
+                    # Proof starts after 'by ' on the same line
+                    proof_start_col = by_end_pos + (len(line[by_end_pos:]) - len(after_by))
+                    return {
+                        'decl_end_line': current_line_num,
+                        'proof_start_line': current_line_num,
+                        'proof_start_col': proof_start_col,
+                        'proof_mode': 'tactic'
+                    }
+                else:
+                    # Proof starts on the next line
+                    return {
+                        'decl_end_line': current_line_num,
+                        'proof_start_line': current_line_num + 1,
+                        'proof_start_col': 0,
+                        'proof_mode': 'tactic'
+                    }
     
     return None
 
@@ -486,8 +539,8 @@ def _is_proof_starting_by(line: str, by_pos: int, before_by: str) -> bool:
 def _find_tactic_proof_end(lines: List[str], start_line: int) -> int:
     """Find the end of a tactic proof starting with 'by'.
     
-    Enhanced version of _find_proof_end with better indentation analysis
-    and handling of nested proof constructs.
+    Enhanced version with better indentation analysis and handling of nested proof constructs.
+    Improved to correctly detect proof boundaries for better text extraction.
     
     Args:
         lines: Lines of the source file
@@ -499,44 +552,68 @@ def _find_tactic_proof_end(lines: List[str], start_line: int) -> int:
     if start_line < 1 or start_line > len(lines):
         return start_line
     
-    # Get base indentation level from the line with 'by'
+    # Get base indentation level from the first non-empty proof line
     start_line_idx = start_line - 1
-    start_line_text = lines[start_line_idx]
+    base_indent = None
     
-    # Find the 'by' token and use its indentation as base
-    by_match = re.search(r'\bby\b', start_line_text)
-    if by_match:
-        base_indent = by_match.start()
-    else:
-        base_indent = _get_line_indent(start_line_text)
+    # Find the base indentation from the first meaningful proof line
+    for line_idx in range(start_line_idx, min(len(lines), start_line_idx + 5)):
+        line = lines[line_idx]
+        stripped_line = line.strip()
+        
+        if stripped_line and not stripped_line.startswith('--'):
+            # This is a meaningful proof line
+            line_indent = _get_line_indent(line)
+            if base_indent is None:
+                base_indent = line_indent
+            break
+    
+    # If we couldn't find base indentation, use a reasonable default
+    if base_indent is None:
+        # Look for indentation from the 'by' line or use default
+        if start_line_idx < len(lines):
+            by_line = lines[start_line_idx]
+            by_match = re.search(r'\bby\b', by_line)
+            if by_match:
+                base_indent = by_match.start() + 2  # Indent after 'by '
+            else:
+                base_indent = _get_line_indent(by_line) + 2
+        else:
+            base_indent = 2
     
     # Look for the end of the indented proof block
     end_line = start_line
     
-    for line_idx in range(start_line_idx + 1, len(lines)):
+    for line_idx in range(start_line_idx, len(lines)):
         line = lines[line_idx]
         current_line_num = line_idx + 1
         
         # Skip empty lines and comments
         stripped_line = line.strip()
         if not stripped_line or stripped_line.startswith('--'):
+            # Empty lines and comments don't end the proof, but update end_line
+            if stripped_line.startswith('--'):
+                end_line = current_line_num
             continue
         
         # Check indentation
         line_indent = _get_line_indent(line)
         
-        # If we find a line with same or less indentation than the 'by', check if proof ends
-        if line_indent <= base_indent:
+        # If we find a line with less indentation than the base, check if proof ends
+        if line_indent < base_indent:
             # Check if this line starts a new declaration or major construct
-            if re.match(r'\s*(theorem|lemma|example|instance|def|inductive|structure|class|namespace|section|variable)\b', line):
+            if re.match(r'\s*(theorem|lemma|example|instance|def|inductive|structure|class|namespace|section|variable|end)\b', line):
                 break
             
-            # Check if this line is at the same level and looks like it's outside the proof
-            if line_indent == base_indent:
-                # Allow certain proof-internal constructs at the same level
-                if not re.match(r'\s*(·|case\s+|have\s+|suffices\s+|show\s+|calc\s+)', line):
-                    break
+            # If this line is at a significantly lower indentation level, proof likely ends
+            if line_indent < base_indent - 1:
+                break
         
+        # Check for new theorem/declaration at any indentation level - this definitely ends the proof
+        if re.match(r'^\s*(theorem|lemma|example|instance|def|inductive|structure|class)\b', line):
+            break
+        
+        # Update end_line for any meaningful content
         end_line = current_line_num
         
         # Don't search too far (safety limit)

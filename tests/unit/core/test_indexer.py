@@ -264,6 +264,125 @@ variable (x : Nat)
         assert decl.proof_span is not None
         assert decl.proof_span.end_line > decl.proof_span.start_line
 
+    def test_anonymous_theorem_deterministic_ids(self):
+        """Test that anonymous theorems get deterministic unique IDs."""
+        lean_code = """
+-- Multiple anonymous examples
+example : True := rfl
+
+example : 1 + 1 = 2 := by norm_num
+
+-- Anonymous instances
+instance : Inhabited Nat := ⟨0⟩
+
+instance : Decidable True := isTrue rfl
+
+-- Anonymous theorem with complex type
+theorem {R : Type*} [Ring R] (x y : R) : x + y = y + x := by ring
+
+-- In namespace
+namespace Test
+
+example : True := rfl
+
+instance : Inhabited Bool := ⟨true⟩
+
+theorem {α : Type*} [Add α] (a b : α) : a + b = b + a := sorry
+
+end Test
+
+-- More examples after namespace
+example : 2 + 2 = 4 := rfl
+
+-- Multiple on same line (edge case)
+example : True := rfl; example : False → True := by intro; trivial
+"""
+        source = SourceText(path="test.lean", text=lean_code)
+        index = build_index(source)
+        
+        # Should find all declarations
+        assert len(index.decls) == 11
+        
+        # Collect all theorem_id values
+        theorem_ids = [decl.theorem_id for decl in index.decls]
+        
+        # All theorem_id values should be unique
+        assert len(theorem_ids) == len(set(theorem_ids)), f"Duplicate theorem_id values found: {theorem_ids}"
+        
+        # Check specific patterns for anonymous declarations
+        # Anonymous declarations either start with "{kind}_" or "{namespace}.{kind}_"
+        anonymous_decls = []
+        for decl in index.decls:
+            # Check if it's an anonymous declaration
+            if decl.theorem_id.startswith(f"{decl.kind}_"):
+                # Global anonymous (e.g., "example_5")
+                anonymous_decls.append(decl)
+            elif "." in decl.theorem_id:
+                # Check if it's namespaced anonymous (e.g., "Test.example_18")
+                parts = decl.theorem_id.split(".")
+                if len(parts) >= 2 and parts[-1].startswith(f"{decl.kind}_"):
+                    anonymous_decls.append(decl)
+        
+        # Should have anonymous examples, instances, and theorems
+        example_count = len([d for d in anonymous_decls if d.kind == "example"])
+        instance_count = len([d for d in anonymous_decls if d.kind == "instance"])
+        theorem_count = len([d for d in anonymous_decls if d.kind == "theorem"])
+        
+        assert example_count >= 5  # At least 5 anonymous examples (including collision)
+        assert instance_count >= 2  # At least 2 anonymous instances  
+        assert theorem_count >= 2  # At least 2 anonymous theorems
+        
+        # Check namespace handling - the Test namespace affects the theorem_id prefix
+        namespaced_decls = [decl for decl in index.decls if "Test." in decl.theorem_id]
+        assert len(namespaced_decls) >= 4  # Should have declarations in Test namespace
+        
+        # Verify deterministic naming pattern
+        for decl in anonymous_decls:
+            if "Test." in decl.theorem_id:
+                # Namespaced anonymous declaration
+                expected_pattern = f"Test.{decl.kind}_"
+                assert decl.theorem_id.startswith(expected_pattern), f"Expected {decl.theorem_id} to start with {expected_pattern}"
+            else:
+                # Global anonymous declaration
+                expected_pattern = f"{decl.kind}_"
+                assert decl.theorem_id.startswith(expected_pattern), f"Expected {decl.theorem_id} to start with {expected_pattern}"
+            
+            # Should end with line number (and possibly collision counter)
+            suffix = decl.theorem_id.split('_')[-1]
+            if suffix.isdigit():
+                line_num = int(suffix)
+                assert line_num > 0, f"Line number should be positive: {decl.theorem_id}"
+            else:
+                # Might be collision counter format like "example_5_1"
+                parts = decl.theorem_id.split('_')
+                if len(parts) >= 3 and parts[-1].isdigit() and parts[-2].isdigit():
+                    line_num = int(parts[-2])
+                    counter = int(parts[-1])
+                    assert line_num > 0 and counter > 0, f"Line number and counter should be positive: {decl.theorem_id}"
+
+    def test_anonymous_theorem_collision_resolution(self):
+        """Test collision resolution for anonymous theorems on the same line."""
+        # This is an edge case but should be handled correctly
+        lean_code = """example : True := rfl; example : False → True := by intro; trivial"""
+        
+        source = SourceText(path="test.lean", text=lean_code)
+        index = build_index(source)
+        
+        # Should find both examples
+        assert len(index.decls) == 2
+        
+        # Both should be on line 1
+        assert all(decl.decl_span.start_line == 1 for decl in index.decls)
+        
+        # Should have different theorem_id values
+        theorem_ids = [decl.theorem_id for decl in index.decls]
+        assert len(set(theorem_ids)) == 2, f"Expected unique IDs but got: {theorem_ids}"
+        
+        # One should be example_1, the other should be example_1_1 (collision resolution)
+        expected_ids = {"example_1", "example_1_1"}
+        actual_ids = set(theorem_ids)
+        assert actual_ids == expected_ids, f"Expected {expected_ids} but got {actual_ids}"
+
 
 class TestFindById:
     """Test cases for find_by_id function."""

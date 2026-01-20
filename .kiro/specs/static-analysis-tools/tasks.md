@@ -18,7 +18,7 @@ All phases of the static analysis tools implementation have been successfully co
 ### 5.1 Fix Theorem Name Collisions 
 - [x] **CRITICAL**: Update core/indexer.py to generate unique theorem_id values
 - [x] Include namespace context in theorem names (e.g., "Polynomial.eval" vs "List.eval")  
-- [ ] Handle anonymous theorems with deterministic unique IDs (e.g., "example_42")
+- [x] Handle anonymous theorems with deterministic unique IDs (e.g., "example_42")
 - [ ] Test with Defs.lean to verify zero duplicate theorem_id values
 - [ ] Ensure backward compatibility with existing tests
 
@@ -30,8 +30,8 @@ All phases of the static analysis tools implementation have been successfully co
 - [ ] Test with Mathlib files to achieve <5% "no proof found" rate
 
 ### 5.3 Fix Automation Scoring ❌ NOT STARTED
-- [ ] **CRITICAL**: Update core/features.py to avoid false negative tactic detection
-- [ ] Improve proof text extraction from detected boundaries  
+- [x] **CRITICAL**: Update core/features.py to avoid false negative tactic detection
+- [x] Improve proof text extraction from detected boundaries  
 - [ ] Enhanced confidence scoring in core/scoring.py
 - [ ] Ensure theorems with detected proofs get non-zero automation scores
 - [ ] Test scoring accuracy on real Mathlib theorems

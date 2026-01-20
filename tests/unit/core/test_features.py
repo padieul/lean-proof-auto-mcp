@@ -641,3 +641,99 @@ class TestBoundaryConditions:
         # Should handle gracefully
         assert features.proof_lines >= 0
         assert features.confidence >= 0.0
+
+
+class TestEnhancedTacticDetection:
+    """Test cases for enhanced tactic detection improvements."""
+    
+    def test_term_mode_proof_patterns(self):
+        """Test detection of term-mode proof patterns."""
+        proof_text = "eval₂_list_sum .."
+        tactics = detect_tactics(proof_text)
+        assert 'inference_placeholder' in tactics
+        
+        proof_text2 = "eval₂_X _ _"
+        tactics2 = detect_tactics(proof_text2)
+        assert 'term_application' in tactics2
+        
+        proof_text3 = "(eval₂RingHom _ _).map_pow _ _"
+        tactics3 = detect_tactics(proof_text3)
+        assert 'term_application' in tactics3
+    
+    def test_enhanced_confidence_for_term_proofs(self):
+        """Test that term-mode proofs get reasonable confidence scores."""
+        from src.lean_proof_auto_mcp.core.features import _calculate_confidence
+        from src.lean_proof_auto_mcp.core.source import Span
+        
+        # Test term-mode proof with inference placeholder
+        proof_text = "eval₂_list_sum .."
+        tactic_kinds = {'inference_placeholder'}
+        span = Span(1, 0, 1, 20)
+        confidence = _calculate_confidence(proof_text, span, tactic_kinds)
+        assert confidence > 0.0, f"Expected positive confidence, got {confidence}"
+        
+        # Test rfl proof
+        proof_text2 = "rfl"
+        tactic_kinds2 = {'rfl'}
+        confidence2 = _calculate_confidence(proof_text2, span, tactic_kinds2)
+        assert confidence2 > 0.0, f"Expected positive confidence for rfl, got {confidence2}"
+    
+    def test_extract_features_with_term_proof(self):
+        """Test feature extraction with term-mode proofs."""
+        source_text = """theorem eval_listSum (l : List R[X]) (x : R) : eval x l.sum = (l.map (eval x)).sum :=
+  eval₂_list_sum .."""
+        
+        source = SourceText("test.lean", source_text)
+        decl = TheoremDecl(
+            theorem_id="eval_listSum",
+            name="eval_listSum",
+            kind="theorem",
+            decl_span=Span(1, 0, 2, 0),
+            proof_span=Span(2, 2, 2, 19)  # Include both dots
+        )
+        
+        features = extract_features(source, decl)
+        
+        assert features.proof_lines == 1
+        assert 'inference_placeholder' in features.tactic_kinds
+        assert features.confidence > 0.0, f"Expected positive confidence, got {features.confidence}"
+    
+    def test_multiline_tactic_detection(self):
+        """Test detection of multi-line tactics."""
+        proof_text = """induction n with
+| zero => simp
+| succ n ih => rw [ih]"""
+        
+        tactics = detect_tactics(proof_text)
+        assert 'induction' in tactics
+        assert 'simp' in tactics
+        assert 'rw' in tactics
+    
+    def test_custom_mathlib_tactics(self):
+        """Test detection of custom Mathlib tactics."""
+        proof_text = """by
+  field_simp
+  norm_cast
+  push_cast
+  simp_mod_cast"""
+        
+        tactics = detect_tactics(proof_text)
+        assert 'field_simp' in tactics
+        assert 'norm_cast' in tactics
+        assert 'push_cast' in tactics
+        assert 'simp_mod_cast' in tactics
+    
+    def test_proof_structure_patterns(self):
+        """Test detection of proof structure patterns."""
+        proof_text1 = """by
+  trivial"""
+        tactics1 = detect_tactics(proof_text1)
+        assert 'tactic_mode' in tactics1
+        
+        proof_text2 = ":= by simp"
+        tactics2 = detect_tactics(proof_text2)
+        assert 'tactic_proof' in tactics2
+        
+        proof_text3 = ":= some_lemma.property"
+        tactics3 = detect_tactics(proof_text3)
+        assert 'term_proof' in tactics3

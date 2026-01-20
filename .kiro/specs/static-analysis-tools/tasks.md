@@ -53,15 +53,15 @@ This spec uses a **phased approach** to prevent premature implementation:
 - [x] Implement core/segmenter.py (ProofStructure dataclass with segment_proof, extract_skeleton, identify_blocks functions)
 - [x] Implement core/scoring.py (AutomationProfile dataclass with compute_profile, score_aesop_potential, score_grind_potential functions)
 - [x] Implement core/format.py (stable_sort_theorems, normalize_notes, ensure_deterministic functions)
-- [ ] Write unit tests for all core modules with inline Lean snippets
+- [x] Write unit tests for all core modules with inline Lean snippets
 
 
 ## Phase 4: Tool Integration
 
 **NOTE: This phase wires the tools to the core modules implemented in Phase 3. This replaces the stub implementations with real functionality.**
 
-- [ ] Integrate scan_file with core modules (add file reading, call build_index, extract features, compute profiles, format response)
-- [ ] Implement scan_theorem with core modules (add file reading, find target theorem, extract features, segment proof, format response)
+- [x] Integrate scan_file with core modules (add file reading, call build_index, extract features, compute profiles, format response)
+- [x] Implement scan_theorem with core modules (add file reading, find target theorem, extract features, segment proof, format response)
 - [ ] Run all contract tests and verify they pass with real implementations
 - [ ] Write property-based tests (determinism, schema compliance, score bounds, stable ordering, consistency checks)
 - [ ] Final validation (run full test suite, check coverage >90%, test with real Lean files, verify performance targets)

@@ -25,7 +25,7 @@ All phases of the static analysis tools implementation have been successfully co
 ### 5.2 Fix Proof Boundary Detection ❌ NOT STARTED  
 - [x] **CRITICAL**: Improve regex patterns in core/indexer.py for proof detection
 - [x] Better handling of multi-line declarations spanning multiple lines
-- [-] Enhanced detection of both `:=` (term-mode) and `by` (tactic-mode) proofs
+- [x] Enhanced detection of both `:=` (term-mode) and `by` (tactic-mode) proofs
 - [ ] Improved indentation-based proof end detection
 - [ ] Test with Mathlib files to achieve <5% "no proof found" rate
 

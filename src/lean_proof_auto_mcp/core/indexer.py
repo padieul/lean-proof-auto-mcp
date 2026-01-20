@@ -84,7 +84,8 @@ def build_index(source: SourceText) -> FileIndex:
     # Pattern to match theorem-like declarations
     # Matches: theorem|lemma|example|instance followed by optional name and eventually a colon
     # This pattern is more flexible to handle multi-line declarations and Unicode characters
-    decl_pattern = r'\b(theorem|lemma|example|instance)(?:\s+([^\s:({}\[\]]+))?\s*'
+    # Updated to allow dots in theorem names for qualified names like List.length_append
+    decl_pattern = r'\b(theorem|lemma|example|instance)(?:\s+([^\s:({}\[\]]+(?:\.[^\s:({}\[\]]+)*))?\s*'
     
     lines = clean_text.splitlines()
     
@@ -232,7 +233,14 @@ def _is_inside_string_literal(pos: int, text: str, string_spans: List[Span]) -> 
 
 
 def _find_declaration_spans(lines: List[str], start_line: int, start_col: int) -> tuple[Optional[Span], Optional[Span]]:
-    """Find declaration and proof spans for a theorem.
+    """Find declaration and proof spans for a theorem with enhanced detection.
+    
+    Enhanced to better handle:
+    1. Multi-line declarations spanning multiple lines
+    2. Better recognition of proof start markers in various syntactic contexts
+    3. Enhanced indentation-based proof boundary detection
+    4. Improved handling of nested proof constructs
+    5. Better distinction between term-mode (:=) and tactic-mode (by) proofs
     
     Args:
         lines: Lines of the source file
@@ -245,38 +253,31 @@ def _find_declaration_spans(lines: List[str], start_line: int, start_col: int) -
     if start_line < 1 or start_line > len(lines):
         return None, None
     
-    # Find end of declaration (look for := or 'by')
+    # Find end of declaration (look for main colon that starts the type)
     decl_end_line = start_line
     proof_start_line = None
     proof_end_line = None
     
-    # Look for declaration end markers
-    for line_idx in range(start_line - 1, len(lines)):
-        line = lines[line_idx]
-        current_line_num = line_idx + 1
+    # First, find the main colon that separates name/params from type
+    main_colon_line = _find_main_colon(lines, start_line)
+    if not main_colon_line:
+        return None, None
+    
+    # Look for proof markers after the main colon
+    proof_info = _find_proof_markers(lines, main_colon_line)
+    
+    if proof_info:
+        decl_end_line = proof_info['decl_end_line']
+        proof_start_line = proof_info['proof_start_line']
+        proof_mode = proof_info['proof_mode']  # 'term' or 'tactic'
         
-        # Look for := (definition) or 'by' (tactic proof)
-        if ':=' in line:
-            decl_end_line = current_line_num
-            
-            # Check if there's a 'by' on the same line (tactic proof)
-            by_pos = line.find('by')
-            if by_pos != -1 and by_pos > line.find(':='):
-                proof_start_line = current_line_num
-                proof_end_line = _find_proof_end(lines, current_line_num)
-            else:
-                # Term-mode proof or definition - proof is on the same line or next lines
-                proof_start_line = current_line_num
-                proof_end_line = _find_term_proof_end(lines, current_line_num)
-            break
-        elif 'by' in line and current_line_num <= start_line + 5:  # Look within reasonable distance
-            # Direct tactic proof without :=
-            decl_end_line = current_line_num
-            proof_start_line = current_line_num
-            proof_end_line = _find_proof_end(lines, current_line_num)
-            break
-        elif current_line_num > start_line + 10:  # Don't search too far
-            break
+        if proof_mode == 'tactic':
+            proof_end_line = _find_tactic_proof_end(lines, proof_start_line)
+        else:  # term mode
+            proof_end_line = _find_term_proof_end(lines, proof_start_line)
+    else:
+        # No proof found - might be a declaration without proof
+        decl_end_line = main_colon_line
     
     # Create spans
     decl_span = Span(start_line=start_line, end_line=decl_end_line)
@@ -288,10 +289,205 @@ def _find_declaration_spans(lines: List[str], start_line: int, start_col: int) -
     return decl_span, proof_span
 
 
-def _find_proof_end(lines: List[str], start_line: int) -> int:
+def _find_main_colon(lines: List[str], start_line: int) -> Optional[int]:
+    """Find the main colon that separates theorem name/params from type.
+    
+    This function distinguishes between type annotation colons (like {R : Type*})
+    and the main colon that starts the theorem type.
+    
+    Args:
+        lines: Lines of the source file
+        start_line: Line where declaration keyword starts (1-indexed)
+        
+    Returns:
+        Line number where main colon is found, None if not found
+    """
+    # Look for the main colon within reasonable distance
+    for line_idx in range(start_line - 1, min(len(lines), start_line + 20)):
+        line = lines[line_idx]
+        current_line_num = line_idx + 1
+        
+        # Look for colon that's not part of type annotations
+        # Main colon is typically followed by the theorem type, not a type annotation
+        colon_positions = []
+        for i, char in enumerate(line):
+            if char == ':':
+                colon_positions.append(i)
+        
+        for colon_pos in colon_positions:
+            # Check if this colon looks like the main colon
+            if _is_main_colon(line, colon_pos):
+                return current_line_num
+    
+    return None
+
+
+def _is_main_colon(line: str, colon_pos: int) -> bool:
+    """Check if a colon position represents the main theorem colon.
+    
+    Args:
+        line: The line containing the colon
+        colon_pos: Position of the colon in the line
+        
+    Returns:
+        True if this looks like the main theorem colon
+    """
+    # Skip if this is part of :=
+    if colon_pos + 1 < len(line) and line[colon_pos + 1] == '=':
+        return False
+    
+    # Look at what comes before the colon
+    before_colon = line[:colon_pos].strip()
+    after_colon = line[colon_pos + 1:].strip()
+    
+    # If the colon is at the end of the line (or followed only by whitespace),
+    # and we have a reasonable theorem declaration before it, it's likely the main colon
+    if not after_colon:
+        # Check if before_colon looks like a theorem declaration
+        if re.match(r'(theorem|lemma|example|instance)\s+', before_colon):
+            return True
+    
+    # Main colon typically has the theorem type after it
+    # Type annotations typically have "Type*", "ℕ", etc. after them
+    # Main colon often has more complex expressions
+    
+    # Heuristic: if what comes before looks like a parameter list ending,
+    # and what comes after doesn't look like a simple type, it's likely the main colon
+    if before_colon.endswith(')') or before_colon.endswith('}') or before_colon.endswith(']'):
+        # This could be the end of parameter list
+        if after_colon and not _looks_like_simple_type(after_colon):
+            return True
+        # If after_colon is empty, it could still be the main colon if the type is on the next line
+        if not after_colon:
+            return True
+    
+    # Another heuristic: if there's no opening bracket/paren before this colon
+    # on the same line, it might be the main colon
+    open_brackets = before_colon.count('(') + before_colon.count('{') + before_colon.count('[')
+    close_brackets = before_colon.count(')') + before_colon.count('}') + before_colon.count(']')
+    
+    if open_brackets == close_brackets and (after_colon or not after_colon):
+        return True
+    
+    return False
+
+
+def _looks_like_simple_type(text: str) -> bool:
+    """Check if text looks like a simple type annotation.
+    
+    Args:
+        text: Text after a colon
+        
+    Returns:
+        True if it looks like a simple type (Type*, ℕ, etc.)
+    """
+    text = text.strip()
+    
+    # Common simple types
+    simple_types = {
+        'Type*', 'Type', 'ℕ', 'ℤ', 'ℚ', 'ℝ', 'ℂ', 'Prop', 'Sort*', 'Sort'
+    }
+    
+    if text in simple_types:
+        return True
+    
+    # Check for Type u, Sort u patterns
+    if re.match(r'^(Type|Sort)\s+[a-zA-Z_][a-zA-Z0-9_]*$', text):
+        return True
+    
+    return False
+
+
+def _find_proof_markers(lines: List[str], main_colon_line: int) -> Optional[dict]:
+    """Find proof start markers after the main colon.
+    
+    Enhanced to detect both := and by patterns in various contexts.
+    
+    Args:
+        lines: Lines of the source file
+        main_colon_line: Line where main colon was found (1-indexed)
+        
+    Returns:
+        Dict with proof info or None if no proof found
+    """
+    # Look for proof markers starting from the main colon line
+    for line_idx in range(main_colon_line - 1, min(len(lines), main_colon_line + 10)):
+        line = lines[line_idx]
+        current_line_num = line_idx + 1
+        
+        # Look for := pattern (term-mode proof)
+        assign_match = re.search(r':=\s*', line)
+        if assign_match:
+            assign_pos = assign_match.end()
+            remaining_line = line[assign_pos:].strip()
+            
+            # Check if there's a 'by' immediately after :=
+            if remaining_line.startswith('by'):
+                # This is := by pattern (tactic proof)
+                return {
+                    'decl_end_line': current_line_num,
+                    'proof_start_line': current_line_num,
+                    'proof_mode': 'tactic'
+                }
+            else:
+                # This is := <term> pattern (term-mode proof)
+                return {
+                    'decl_end_line': current_line_num,
+                    'proof_start_line': current_line_num,
+                    'proof_mode': 'term'
+                }
+        
+        # Look for standalone 'by' pattern (direct tactic proof)
+        by_match = re.search(r'\bby\b', line)
+        if by_match:
+            # Make sure this 'by' is not part of a larger expression
+            # and appears in a context where it could start a proof
+            by_pos = by_match.start()
+            before_by = line[:by_pos].strip()
+            
+            # Check if this looks like a proof-starting 'by'
+            if _is_proof_starting_by(line, by_pos, before_by):
+                return {
+                    'decl_end_line': current_line_num,
+                    'proof_start_line': current_line_num,
+                    'proof_mode': 'tactic'
+                }
+    
+    return None
+
+
+def _is_proof_starting_by(line: str, by_pos: int, before_by: str) -> bool:
+    """Check if a 'by' token starts a proof.
+    
+    Args:
+        line: The line containing 'by'
+        by_pos: Position of 'by' in the line
+        before_by: Text before the 'by' token
+        
+    Returns:
+        True if this 'by' likely starts a proof
+    """
+    # If 'by' is at the start of the line or after whitespace, likely a proof starter
+    if by_pos == 0 or line[:by_pos].isspace():
+        return True
+    
+    # If 'by' comes after := on the same line
+    if ':=' in before_by:
+        return True
+    
+    # If 'by' comes after what looks like a theorem type
+    # (this is a heuristic - could be improved)
+    if before_by.endswith(':') or '→' in before_by or '↔' in before_by:
+        return True
+    
+    return False
+
+
+def _find_tactic_proof_end(lines: List[str], start_line: int) -> int:
     """Find the end of a tactic proof starting with 'by'.
     
-    Uses indentation-based heuristics to find where the proof block ends.
+    Enhanced version of _find_proof_end with better indentation analysis
+    and handling of nested proof constructs.
     
     Args:
         lines: Lines of the source file
@@ -303,44 +499,70 @@ def _find_proof_end(lines: List[str], start_line: int) -> int:
     if start_line < 1 or start_line > len(lines):
         return start_line
     
-    # Get base indentation level
+    # Get base indentation level from the line with 'by'
     start_line_idx = start_line - 1
-    base_indent = _get_line_indent(lines[start_line_idx])
+    start_line_text = lines[start_line_idx]
     
-    # Look for the end of the indented block
+    # Find the 'by' token and use its indentation as base
+    by_match = re.search(r'\bby\b', start_line_text)
+    if by_match:
+        base_indent = by_match.start()
+    else:
+        base_indent = _get_line_indent(start_line_text)
+    
+    # Look for the end of the indented proof block
     end_line = start_line
     
     for line_idx in range(start_line_idx + 1, len(lines)):
         line = lines[line_idx]
         current_line_num = line_idx + 1
         
-        # Skip empty lines
-        if not line.strip():
+        # Skip empty lines and comments
+        stripped_line = line.strip()
+        if not stripped_line or stripped_line.startswith('--'):
             continue
         
         # Check indentation
         line_indent = _get_line_indent(line)
         
-        # If we find a line with same or less indentation, proof likely ends
+        # If we find a line with same or less indentation than the 'by', check if proof ends
         if line_indent <= base_indent:
-            # Check if this line starts a new declaration
-            if re.match(r'\s*(theorem|lemma|example|instance|def|inductive|structure|class)\b', line):
+            # Check if this line starts a new declaration or major construct
+            if re.match(r'\s*(theorem|lemma|example|instance|def|inductive|structure|class|namespace|section|variable)\b', line):
                 break
+            
             # Check if this line is at the same level and looks like it's outside the proof
-            if line_indent == base_indent and not line.strip().startswith(('·', '|', 'case', 'have', 'suffices')):
-                break
+            if line_indent == base_indent:
+                # Allow certain proof-internal constructs at the same level
+                if not re.match(r'\s*(·|case\s+|have\s+|suffices\s+|show\s+|calc\s+)', line):
+                    break
         
         end_line = current_line_num
         
-        # Don't search too far
-        if current_line_num > start_line + 100:
+        # Don't search too far (safety limit)
+        if current_line_num > start_line + 200:
             break
     
     return end_line
+def _find_proof_end(lines: List[str], start_line: int) -> int:
+    """Find the end of a tactic proof starting with 'by'.
+    
+    This is the legacy function - use _find_tactic_proof_end for enhanced detection.
+    
+    Args:
+        lines: Lines of the source file
+        start_line: Line where proof starts (1-indexed)
+        
+    Returns:
+        Line number where proof ends (1-indexed)
+    """
+    return _find_tactic_proof_end(lines, start_line)
 
 
 def _find_term_proof_end(lines: List[str], start_line: int) -> int:
     """Find the end of a term-mode proof or definition.
+    
+    Enhanced to better handle complex term expressions and nested constructs.
     
     Args:
         lines: Lines of the source file
@@ -352,34 +574,96 @@ def _find_term_proof_end(lines: List[str], start_line: int) -> int:
     if start_line < 1 or start_line > len(lines):
         return start_line
     
-    # For term-mode proofs, look for the end of the expression
-    # This is a simple heuristic - look for next declaration or significant dedent
-    
     start_line_idx = start_line - 1
-    base_indent = _get_line_indent(lines[start_line_idx])
-    end_line = start_line
+    start_line_text = lines[start_line_idx]
     
-    for line_idx in range(start_line_idx + 1, len(lines)):
+    # Find the := position to determine base indentation
+    assign_pos = start_line_text.find(':=')
+    if assign_pos != -1:
+        # If := is at the end of the line (or followed only by whitespace),
+        # the proof continues on the next line
+        after_assign = start_line_text[assign_pos + 2:].strip()
+        if not after_assign:
+            # Proof starts on the next line, use its indentation as base
+            if start_line < len(lines):
+                next_line = lines[start_line_idx + 1]
+                if next_line.strip():
+                    base_indent = _get_line_indent(next_line)
+                else:
+                    base_indent = assign_pos
+            else:
+                base_indent = assign_pos
+        else:
+            # Proof starts on the same line after :=
+            base_indent = assign_pos + 2
+    else:
+        base_indent = _get_line_indent(start_line_text)
+    
+    end_line = start_line
+    paren_depth = 0
+    brace_depth = 0
+    bracket_depth = 0
+    
+    # Count initial bracket depth from the := line
+    if assign_pos != -1:
+        after_assign = start_line_text[assign_pos + 2:]
+        paren_depth += after_assign.count('(') - after_assign.count(')')
+        brace_depth += after_assign.count('{') - after_assign.count('}')
+        bracket_depth += after_assign.count('[') - after_assign.count(']')
+    
+    # If the proof starts on the next line, we need to scan from there
+    scan_start_line = start_line
+    if assign_pos != -1 and not start_line_text[assign_pos + 2:].strip():
+        scan_start_line = start_line + 1
+    
+    # Always scan at least one line ahead to check for where clauses and continuations
+    for line_idx in range(scan_start_line - 1, len(lines)):
         line = lines[line_idx]
         current_line_num = line_idx + 1
         
-        # Skip empty lines
-        if not line.strip():
+        # Skip the start line if we already processed it
+        if current_line_num == start_line and assign_pos != -1 and start_line_text[assign_pos + 2:].strip():
+            # Proof is on the same line as :=, but we still need to check for continuations
+            end_line = current_line_num
+            continue
+        line = lines[line_idx]
+        current_line_num = line_idx + 1
+        
+        # Skip empty lines and comments
+        stripped_line = line.strip()
+        if not stripped_line or stripped_line.startswith('--'):
+            continue
+        
+        # Update bracket depths
+        paren_depth += line.count('(') - line.count(')')
+        brace_depth += line.count('{') - line.count('}')
+        bracket_depth += line.count('[') - line.count(']')
+        
+        # Check if we're still inside brackets
+        if paren_depth > 0 or brace_depth > 0 or bracket_depth > 0:
+            end_line = current_line_num
             continue
         
         # Check for new declaration
-        if re.match(r'\s*(theorem|lemma|example|instance|def|inductive|structure|class)\b', line):
+        if re.match(r'\s*(theorem|lemma|example|instance|def|inductive|structure|class|namespace|section|variable)\b', line):
             break
         
         # Check indentation - if we dedent significantly, proof likely ends
         line_indent = _get_line_indent(line)
         if line_indent < base_indent:
-            break
+            # But allow some constructs that might be at lower indentation
+            if not re.match(r'\s*(where|deriving|extends)\b', line):
+                break
+        
+        # Special handling for 'where' clauses - they should be included in the proof
+        if re.match(r'\s*where\b', line):
+            end_line = current_line_num
+            continue
         
         end_line = current_line_num
         
-        # Don't search too far
-        if current_line_num > start_line + 20:
+        # Don't search too far (safety limit)
+        if current_line_num > start_line + 50:
             break
     
     return end_line

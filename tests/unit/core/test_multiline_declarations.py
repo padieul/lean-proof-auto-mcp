@@ -33,9 +33,9 @@ class TestMultiLineDeclarations:
         assert decl.decl_span.start_line == 1
         assert decl.decl_span.end_line == 7
         
-        # Proof should start at line 7 (where := by is)
+        # Proof should start at line 8 (where the proof content is)
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 7
+        assert decl.proof_span.start_line == 8
 
     def test_theorem_name_on_separate_line(self):
         """Test theorem where name is on a separate line from keyword."""
@@ -86,9 +86,9 @@ class TestMultiLineDeclarations:
         assert decl.decl_span.start_line == 1
         assert decl.decl_span.end_line == 9
         
-        # Proof should start at line 9
+        # Proof should start at line 10 (where the proof content is)
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 9
+        assert decl.proof_span.start_line == 10
 
     def test_anonymous_theorem_with_immediate_parameters(self):
         """Test anonymous theorem with immediate parameters."""
@@ -179,6 +179,6 @@ class TestMultiLineDeclarations:
         assert decl.decl_span.start_line == 1
         assert decl.decl_span.end_line == 2
         
-        # Proof should start at line 2
+        # Proof should start at line 3 (where the proof content is)
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 2
+        assert decl.proof_span.start_line == 3

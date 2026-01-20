@@ -41,7 +41,7 @@ class TestTermModeProofDetection:
         
         assert decl.theorem_id == "multiline_term"
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 1
+        assert decl.proof_span.start_line == 2  # Proof content starts on line 2
         assert decl.proof_span.end_line == 3
 
     def test_complex_term_with_brackets(self):
@@ -57,7 +57,7 @@ class TestTermModeProofDetection:
         
         assert decl.theorem_id == "complex_term"
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 1
+        assert decl.proof_span.start_line == 2  # Proof content starts on line 2
         assert decl.proof_span.end_line == 2
 
     def test_term_proof_with_where_clause(self):
@@ -80,6 +80,21 @@ class TestTermModeProofDetection:
 class TestTacticModeProofDetection:
     """Test enhanced detection of tactic-mode proofs (using by)."""
 
+    def test_same_line_proof(self):
+        """Test proof that starts on the same line as := by."""
+        lean_code = """theorem same_line : True := by trivial"""
+        
+        source = SourceText(path="test.lean", text=lean_code)
+        index = build_index(source)
+        
+        assert len(index.decls) == 1
+        decl = index.decls[0]
+        
+        assert decl.theorem_id == "same_line"
+        assert decl.proof_span is not None
+        assert decl.proof_span.start_line == 1  # Proof content is on the same line
+        assert decl.proof_span.end_line == 1
+
     def test_assign_by_pattern(self):
         """Test := by pattern detection."""
         lean_code = """theorem assign_by : True := by
@@ -93,7 +108,7 @@ class TestTacticModeProofDetection:
         
         assert decl.theorem_id == "assign_by"
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 1
+        assert decl.proof_span.start_line == 2  # Proof content starts on line 2
         assert decl.proof_span.end_line == 2
 
     def test_direct_by_pattern(self):
@@ -126,7 +141,7 @@ class TestTacticModeProofDetection:
         
         assert decl.theorem_id == "multiline_tactic"
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 1
+        assert decl.proof_span.start_line == 2  # Proof content starts on line 2
         assert decl.proof_span.end_line == 3
 
     def test_nested_tactic_constructs(self):
@@ -144,7 +159,7 @@ class TestTacticModeProofDetection:
         
         assert decl.theorem_id == "nested_tactics"
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 1
+        assert decl.proof_span.start_line == 2  # Proof content starts on line 2
         assert decl.proof_span.end_line == 4
 
     def test_case_analysis_proof(self):
@@ -162,7 +177,7 @@ class TestTacticModeProofDetection:
         
         assert decl.theorem_id == "case_analysis"
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 1
+        assert decl.proof_span.start_line == 2  # Proof content starts on line 2
         assert decl.proof_span.end_line == 4
 
 
@@ -187,7 +202,7 @@ class TestComplexDeclarationPatterns:
         assert decl.decl_span.start_line == 1
         assert decl.decl_span.end_line == 4
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 4
+        assert decl.proof_span.start_line == 5  # Proof content starts on line 5
         assert decl.proof_span.end_line == 5
 
     def test_multiline_declaration_with_tactic_proof(self):
@@ -208,7 +223,7 @@ class TestComplexDeclarationPatterns:
         assert decl.decl_span.start_line == 1
         assert decl.decl_span.end_line == 4
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 4
+        assert decl.proof_span.start_line == 5  # Proof content starts on line 5
         assert decl.proof_span.end_line == 5
 
     def test_type_annotation_colons_ignored(self):
@@ -231,7 +246,8 @@ class TestComplexDeclarationPatterns:
         # Should find the main colon on line 6, not the type annotation colons
         assert decl.decl_span.end_line == 6
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 6
+        assert decl.proof_span.start_line == 7  # Proof content starts on line 7
+        assert decl.proof_span.end_line == 7
 
     def test_anonymous_theorem_with_complex_type(self):
         """Test anonymous theorem with complex type signature."""
@@ -247,7 +263,8 @@ class TestComplexDeclarationPatterns:
         # Should generate anonymous name
         assert decl.theorem_id.startswith("theorem_")
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 1
+        assert decl.proof_span.start_line == 2  # Proof content starts on line 2
+        assert decl.proof_span.end_line == 2
         assert decl.proof_span.end_line == 2
 
 
@@ -278,7 +295,7 @@ calc 1 + 1 = 2 := by norm_num"""
         
         tactic_proof = next(d for d in index.decls if d.theorem_id == "tactic_proof")
         assert tactic_proof.proof_span is not None
-        assert tactic_proof.proof_span.start_line == 3
+        assert tactic_proof.proof_span.start_line == 4  # Proof content starts on line 4
         
         assign_by_proof = next(d for d in index.decls if d.theorem_id == "assign_by_proof")
         assert assign_by_proof.proof_span is not None
@@ -286,7 +303,7 @@ calc 1 + 1 = 2 := by norm_num"""
         
         calc_proof = next(d for d in index.decls if d.theorem_id == "calc_proof")
         assert calc_proof.proof_span is not None
-        assert calc_proof.proof_span.start_line == 8
+        assert calc_proof.proof_span.start_line == 9  # Proof content starts on line 9
 
 
 class TestEdgeCases:

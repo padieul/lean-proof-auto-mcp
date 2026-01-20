@@ -69,19 +69,15 @@ class SourceText:
         
         return lines[start_idx:end_idx]
     
-    def get_span_text(self, span: Span) -> str:
-        """Extract text within the given span with enhanced proof text extraction.
-        
-        Enhanced to better handle proof text extraction by:
-        1. Properly handling column-based extraction for single-line spans
-        2. Better multi-line span extraction with precise boundaries
-        3. Improved handling of indentation and whitespace preservation
+    def get_span_text(self, span: Span, normalize_for_proof: bool = False) -> str:
+        """Extract text within the given span.
         
         Args:
             span: The span to extract text from
+            normalize_for_proof: If True, apply proof-specific normalization
             
         Returns:
-            The text content within the span, properly extracted for proof analysis
+            The text content within the span
         """
         lines = self.get_lines(span.start_line, span.end_line)
         
@@ -94,36 +90,45 @@ class SourceText:
             if span.start_col > 0 or span.end_col > 0:
                 start_col = span.start_col
                 end_col = span.end_col if span.end_col > 0 else len(line)
-                extracted = line[start_col:end_col]
-                # For single-line proofs, strip leading/trailing whitespace but preserve structure
-                return extracted.strip()
-            return line.strip()
+                return line[start_col:end_col]
+            return line
         
-        # Multi-line span - handle proof text extraction carefully
+        # Multi-line span
         result_lines = []
         
-        # First line - from start_col to end, preserving proof structure
+        # First line - from start_col to end
         first_line = lines[0]
         if span.start_col > 0:
             first_line = first_line[span.start_col:]
+        result_lines.append(first_line)
         
-        # For proof text, if the first line is just whitespace after extraction,
-        # skip it and start from the next line (common with "by" on its own line)
-        if first_line.strip():
-            result_lines.append(first_line.rstrip())
+        # Middle lines (if any)
+        if len(lines) > 2:
+            result_lines.extend(lines[1:-1])
         
-        # Process all remaining lines (middle + last)
-        remaining_lines = lines[1:] if len(lines) > 1 else []
+        # Last line - up to end_col
+        if len(lines) > 1:
+            last_line = lines[-1]
+            if span.end_col > 0:
+                last_line = last_line[:span.end_col]
+            result_lines.append(last_line)
         
-        # Handle last line end_col constraint
-        if remaining_lines and span.end_col > 0:
-            # Apply end_col constraint to the last line
-            remaining_lines[-1] = remaining_lines[-1][:span.end_col]
+        result = "\n".join(result_lines)
+        
+        # Apply proof-specific normalization if requested
+        if normalize_for_proof:
+            result = self._normalize_proof_text(result)
+        
+        return result
+    
+    def _normalize_proof_text(self, text: str) -> str:
+        """Apply proof-specific text normalization."""
+        lines = text.split('\n')
+        result_lines = []
         
         # Find the base indentation level from non-empty lines
-        # Look for the most common indentation level (excluding special patterns like |)
         indentation_counts = {}
-        for line in remaining_lines:
+        for line in lines:
             stripped = line.strip()
             if stripped and not stripped.startswith('--'):  # Skip empty lines and comments
                 line_indent = len(line) - len(line.lstrip())
@@ -131,13 +136,18 @@ class SourceText:
                 if not stripped.startswith(('|', '·', 'case ', 'next ')):
                     indentation_counts[line_indent] = indentation_counts.get(line_indent, 0) + 1
         
-        # Find the most common indentation level
+        # Find the most common indentation level, but ensure it's not 0 if we have indented content
         base_indent = 0
         if indentation_counts:
-            base_indent = max(indentation_counts.items(), key=lambda x: x[1])[0]
+            # Get the minimum non-zero indentation as base to preserve content
+            non_zero_indents = [indent for indent in indentation_counts.keys() if indent > 0]
+            if non_zero_indents:
+                base_indent = min(non_zero_indents)
+            else:
+                base_indent = max(indentation_counts.items(), key=lambda x: x[1])[0]
         
-        # Add remaining lines with normalized indentation
-        for line in remaining_lines:
+        # Normalize indentation
+        for line in lines:
             stripped = line.strip()
             if stripped:  # Non-empty line
                 if len(line) >= base_indent:
@@ -151,11 +161,7 @@ class SourceText:
                 # Preserve empty lines in proof structure
                 result_lines.append("")
         
-        # Join lines and clean up the result
-        result = "\n".join(result_lines)
-        
         # Remove leading/trailing empty lines but preserve internal structure
-        result_lines = result.split('\n')
         while result_lines and not result_lines[0].strip():
             result_lines.pop(0)
         while result_lines and not result_lines[-1].strip():

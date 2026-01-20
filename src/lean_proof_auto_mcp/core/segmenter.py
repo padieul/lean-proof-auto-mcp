@@ -86,7 +86,7 @@ def segment_proof(source: SourceText, decl: TheoremDecl) -> ProofStructure:
         )
     
     # Extract proof text
-    proof_text = source.get_span_text(decl.proof_span)
+    proof_text = source.get_span_text(decl.proof_span, normalize_for_proof=True)
     
     # Strip comments to avoid false positives
     clean_proof = strip_comments(proof_text)

@@ -79,7 +79,7 @@ def extract_features(source: SourceText, decl: TheoremDecl) -> TheoremFeatures:
         )
     
     # Extract proof text with better context handling
-    proof_text = source.get_span_text(decl.proof_span)
+    proof_text = source.get_span_text(decl.proof_span, normalize_for_proof=True)
     
     # Strip comments to avoid false positives, but preserve structure
     clean_proof = strip_comments(proof_text)

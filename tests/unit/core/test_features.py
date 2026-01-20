@@ -345,7 +345,7 @@ class TestExtractFeatures:
             name="example",
             kind="theorem",
             decl_span=Span(1, 0, 4, 0),
-            proof_span=Span(1, 26, 4, 0)  # from "by" to end
+            proof_span=Span(1, 25, 4, 0)  # from "by" to end
         )
         
         features = extract_features(source, decl)
@@ -400,7 +400,7 @@ class TestExtractFeatures:
             name="nat_add_comm",
             kind="theorem",
             decl_span=Span(1, 0, 6, 0),
-            proof_span=Span(1, 55, 6, 0)
+            proof_span=Span(2, 0, 6, 0)  # Start from line 2 where induction begins
         )
         
         features = extract_features(source, decl)
@@ -455,7 +455,7 @@ class TestExtractFeatures:
             name="example",
             kind="theorem",
             decl_span=Span(1, 0, 5, 0),
-            proof_span=Span(1, 26, 5, 0)
+            proof_span=Span(1, 25, 5, 0)  # from "by" to end
         )
         
         features = extract_features(source, decl)
@@ -505,7 +505,7 @@ class TestIntegrationScenarios:
             name="list_length_append",
             kind="theorem",
             decl_span=Span(1, 0, 8, 0),
-            proof_span=Span(2, 50, 8, 0)
+            proof_span=Span(3, 0, 8, 0)  # Start from line 3 where induction begins
         )
         
         features = extract_features(source, decl)

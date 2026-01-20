@@ -134,7 +134,7 @@ class TestBuildIndex:
         assert decl.kind == "theorem"
         assert decl.decl_span.start_line == 1
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 1
+        assert decl.proof_span.start_line == 2  # Proof content starts on line 2
     
     def test_build_index_multiple_declarations(self):
         """Test indexing multiple declarations."""

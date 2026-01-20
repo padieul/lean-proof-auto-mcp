@@ -1,14 +1,14 @@
 """Unit tests for core.indexer module."""
 
 import pytest
-from src.lean_proof_auto_mcp.core.indexer import (
+from lean_proof_auto_mcp.core.indexer import (
     TheoremDecl,
     FileIndex,
     build_index,
     find_by_id,
     find_by_range,
 )
-from src.lean_proof_auto_mcp.core.source import SourceText, Span
+from lean_proof_auto_mcp.core.source import SourceText, Span
 
 
 class TestTheoremDecl:

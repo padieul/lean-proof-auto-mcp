@@ -1,7 +1,7 @@
 """Unit tests for core.format module."""
 
 import pytest
-from src.lean_proof_auto_mcp.core.format import (
+from lean_proof_auto_mcp.core.format import (
     stable_sort_theorems,
     normalize_notes,
     ensure_deterministic,

@@ -5,8 +5,8 @@ with better handling of multi-line declarations and complex proof structures.
 """
 
 import pytest
-from src.lean_proof_auto_mcp.core.source import SourceText
-from src.lean_proof_auto_mcp.core.indexer import build_index
+from lean_proof_auto_mcp.core.source import SourceText
+from lean_proof_auto_mcp.core.indexer import build_index
 
 
 class TestTermModeProofDetection:

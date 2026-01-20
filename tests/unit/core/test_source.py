@@ -1,7 +1,7 @@
 """Unit tests for core.source module."""
 
 import pytest
-from src.lean_proof_auto_mcp.core.source import (
+from lean_proof_auto_mcp.core.source import (
     Span,
     SourceText,
     get_lines,

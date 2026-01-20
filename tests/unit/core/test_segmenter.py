@@ -1,13 +1,13 @@
 """Unit tests for core/segmenter.py module."""
 
 import pytest
-from src.lean_proof_auto_mcp.core.segmenter import (
+from lean_proof_auto_mcp.core.segmenter import (
     ProofBlock, CaseBlock, ProofStructure,
     segment_proof, extract_skeleton, identify_blocks, extract_cases,
     _classify_line
 )
-from src.lean_proof_auto_mcp.core.source import SourceText, Span
-from src.lean_proof_auto_mcp.core.indexer import TheoremDecl
+from lean_proof_auto_mcp.core.source import SourceText, Span
+from lean_proof_auto_mcp.core.indexer import TheoremDecl
 
 
 class TestProofBlock:

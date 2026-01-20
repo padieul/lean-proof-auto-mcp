@@ -1,16 +1,16 @@
 """Unit tests for core.scoring module."""
 
 import pytest
-from src.lean_proof_auto_mcp.core.scoring import (
+from lean_proof_auto_mcp.core.scoring import (
     AutomationProfile,
     compute_profile,
     score_aesop_potential,
     score_grind_potential,
     score_annotation_value,
 )
-from src.lean_proof_auto_mcp.core.features import TheoremFeatures
-from src.lean_proof_auto_mcp.core.segmenter import ProofStructure, ProofBlock, CaseBlock
-from src.lean_proof_auto_mcp.core.source import Span
+from lean_proof_auto_mcp.core.features import TheoremFeatures
+from lean_proof_auto_mcp.core.segmenter import ProofStructure, ProofBlock, CaseBlock
+from lean_proof_auto_mcp.core.source import Span
 
 
 class TestAutomationProfile:

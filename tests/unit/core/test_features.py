@@ -1,7 +1,7 @@
 """Unit tests for core.features module."""
 
 import pytest
-from src.lean_proof_auto_mcp.core.features import (
+from lean_proof_auto_mcp.core.features import (
     TheoremFeatures,
     extract_features,
     detect_tactics,
@@ -9,8 +9,8 @@ from src.lean_proof_auto_mcp.core.features import (
     count_simps,
     count_local_lemmas,
 )
-from src.lean_proof_auto_mcp.core.source import SourceText, Span
-from src.lean_proof_auto_mcp.core.indexer import TheoremDecl
+from lean_proof_auto_mcp.core.source import SourceText, Span
+from lean_proof_auto_mcp.core.indexer import TheoremDecl
 
 
 class TestTheoremFeatures:
@@ -662,8 +662,8 @@ class TestEnhancedTacticDetection:
     
     def test_enhanced_confidence_for_term_proofs(self):
         """Test that term-mode proofs get reasonable confidence scores."""
-        from src.lean_proof_auto_mcp.core.features import _calculate_confidence
-        from src.lean_proof_auto_mcp.core.source import Span
+        from lean_proof_auto_mcp.core.features import _calculate_confidence
+        from lean_proof_auto_mcp.core.source import Span
         
         # Test term-mode proof with inference placeholder
         proof_text = "eval₂_list_sum .."

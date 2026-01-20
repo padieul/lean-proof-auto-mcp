@@ -1,13 +1,13 @@
 """Unit tests for core.lean_syntax module."""
 
 import pytest
-from src.lean_proof_auto_mcp.core.lean_syntax import (
+from lean_proof_auto_mcp.core.lean_syntax import (
     strip_comments,
     detect_string_literals,
     normalize_whitespace,
     get_indentation_level,
 )
-from src.lean_proof_auto_mcp.core.source import Span
+from lean_proof_auto_mcp.core.source import Span
 
 
 class TestStripComments:

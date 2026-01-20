@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lean-proof-auto-mcp/schemas/scan_theorem.json",
+  "title": "scan_theorem tool response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["api_version", "status", "run_id", "tool", "file", "target"],
+  "properties": {
+    "api_version": { "$ref": "common.json#/$defs/api_version" },
+    "status": { "$ref": "common.json#/$defs/status" },
+    "run_id": { "$ref": "common.json#/$defs/run_id" },
+    "tool": {
+      "type": "string",
+      "const": "scan_theorem"
+    },
+    "file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "target": {
+      "type": "object",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "required": ["theorem_id"],
+          "properties": {
+            "theorem_id": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "required": ["range"],
+          "properties": {
+            "range": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["start_line", "end_line"],
+              "properties": {
+                "start_line": { "type": "integer", "minimum": 1 },
+                "end_line": { "type": "integer", "minimum": 1 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "theorem": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["name", "kind", "location", "structure", "automation"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "kind": {
+          "type": "string",
+          "enum": ["theorem", "lemma", "example", "instance"]
+        },
+        "location": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["decl_start", "decl_end"],
+          "properties": {
+            "decl_start": { "type": "integer", "minimum": 1 },
+            "decl_end": { "type": "integer", "minimum": 1 },
+            "proof_start": { "type": "integer", "minimum": 1 },
+            "proof_end": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "structure": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["skeleton", "blocks"],
+          "properties": {
+            "skeleton": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "blocks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["kind", "start_line", "end_line"],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["skeleton", "rewrite_simp", "closing", "unknown"]
+                  },
+                  "start_line": { "type": "integer", "minimum": 1 },
+                  "end_line": { "type": "integer", "minimum": 1 }
+                }
+              }
+            },
+            "cases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["label", "start_line", "end_line"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "start_line": { "type": "integer", "minimum": 1 },
+                  "end_line": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        },
+        "automation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["whole_goal_potential", "subgoal_potential", "annotation_value"],
+          "properties": {
+            "whole_goal_potential": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["aesop", "grind"],
+              "properties": {
+                "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+                "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+              }
+            },
+            "subgoal_potential": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["aesop", "grind"],
+              "properties": {
+                "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+                "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+              }
+            },
+            "annotation_value": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": { "$ref": "common.json#/$defs/diagnostic" }
+    }
+  }
+}

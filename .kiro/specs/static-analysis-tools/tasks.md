@@ -15,17 +15,17 @@ All phases of the static analysis tools implementation have been successfully co
 
 ## Phase 5: Critical Fixes for Real Mathlib Files ⚠️ URGENT
 
-### 5.1 Fix Theorem Name Collisions ❌ NOT STARTED
-- [ ] **CRITICAL**: Update core/indexer.py to generate unique theorem_id values
-- [ ] Include namespace context in theorem names (e.g., "Polynomial.eval" vs "List.eval")  
+### 5.1 Fix Theorem Name Collisions 
+- [x] **CRITICAL**: Update core/indexer.py to generate unique theorem_id values
+- [x] Include namespace context in theorem names (e.g., "Polynomial.eval" vs "List.eval")  
 - [ ] Handle anonymous theorems with deterministic unique IDs (e.g., "example_42")
 - [ ] Test with Defs.lean to verify zero duplicate theorem_id values
 - [ ] Ensure backward compatibility with existing tests
 
 ### 5.2 Fix Proof Boundary Detection ❌ NOT STARTED  
-- [ ] **CRITICAL**: Improve regex patterns in core/indexer.py for proof detection
-- [ ] Better handling of multi-line declarations spanning multiple lines
-- [ ] Enhanced detection of both `:=` (term-mode) and `by` (tactic-mode) proofs
+- [x] **CRITICAL**: Improve regex patterns in core/indexer.py for proof detection
+- [x] Better handling of multi-line declarations spanning multiple lines
+- [-] Enhanced detection of both `:=` (term-mode) and `by` (tactic-mode) proofs
 - [ ] Improved indentation-based proof end detection
 - [ ] Test with Mathlib files to achieve <5% "no proof found" rate
 

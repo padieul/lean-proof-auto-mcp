@@ -6,7 +6,7 @@ of theorem-like declarations in Lean files and looking them up by ID or range.
 
 import re
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Set
 
 from .source import SourceText, Span
 from .lean_syntax import strip_comments, detect_string_literals
@@ -60,6 +60,7 @@ def build_index(source: SourceText) -> FileIndex:
     
     Uses regex-based detection to find theorem, lemma, example, and instance
     declarations. Extracts declaration spans and proof spans where possible.
+    Enhanced to include namespace context in theorem names.
     
     Args:
         source: The source text to index
@@ -78,13 +79,17 @@ def build_index(source: SourceText) -> FileIndex:
     
     # Find all theorem-like declarations
     decls = []
+    existing_ids = set()  # Track existing theorem_id values to avoid collisions
     
     # Pattern to match theorem-like declarations
     # Matches: theorem|lemma|example|instance followed by optional name and eventually a colon
-    # This pattern is more flexible to handle multi-line declarations
-    decl_pattern = r'\b(theorem|lemma|example|instance)(?:\s+([a-zA-Z_][a-zA-Z0-9_\']*(?:\.[a-zA-Z_][a-zA-Z0-9_\']*)*))?\s*'
+    # This pattern is more flexible to handle multi-line declarations and Unicode characters
+    decl_pattern = r'\b(theorem|lemma|example|instance)(?:\s+([^\s:({}\[\]]+))?\s*'
     
     lines = clean_text.splitlines()
+    
+    # Track namespace context for proper theorem_id generation
+    current_namespace_stack = []
     
     for match in re.finditer(decl_pattern, clean_text, re.MULTILINE):
         kind = match.group(1)
@@ -98,6 +103,11 @@ def build_index(source: SourceText) -> FileIndex:
         # Find the line number where this declaration starts
         decl_start_line = clean_text[:match_start_pos].count('\n') + 1
         
+        # Update namespace context up to this line
+        current_namespace_stack = _update_namespace_context(
+            lines, current_namespace_stack, decl_start_line
+        )
+        
         # Verify this is actually a declaration by looking for a colon within reasonable distance
         # Look ahead from the match position to find a colon
         remaining_text = clean_text[match.end():]
@@ -105,16 +115,11 @@ def build_index(source: SourceText) -> FileIndex:
         if not colon_search:
             continue  # Not a declaration if no colon found
         
-        # Generate name and theorem_id
-        if full_name:
-            # Extract the short name (last component after dots)
-            name_parts = full_name.split('.')
-            short_name = name_parts[-1]
-            theorem_id = full_name
-        else:
-            # For unnamed declarations (example, instance), use kind + line number
-            short_name = f"{kind}_{decl_start_line}"
-            theorem_id = f"{kind}_{decl_start_line}"
+        # Generate name and theorem_id with namespace context
+        theorem_id, short_name = _generate_unique_theorem_id_with_namespace(
+            full_name, kind, decl_start_line, existing_ids, current_namespace_stack
+        )
+        existing_ids.add(theorem_id)
         
         # Find declaration span (from keyword to end of declaration)
         decl_span, proof_span = _find_declaration_spans(
@@ -398,3 +403,133 @@ def _get_line_indent(line: str) -> int:
         else:
             break
     return indent
+
+
+def _update_namespace_context(lines: List[str], current_stack: List[str], up_to_line: int) -> List[str]:
+    """Update namespace context by scanning lines up to the given line.
+    
+    Args:
+        lines: Lines of the source file
+        current_stack: Current namespace stack
+        up_to_line: Line number to scan up to (1-indexed)
+        
+    Returns:
+        Updated namespace stack
+    """
+    # Pattern to match namespace declarations and ends
+    namespace_pattern = r'^\s*namespace\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*$'
+    end_pattern = r'^\s*end(?:\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*))?\s*$'
+    
+    # Start from where we left off or from the beginning
+    start_line = 1
+    namespace_stack = current_stack.copy()
+    
+    # Scan lines up to the target line
+    for line_idx in range(start_line - 1, min(up_to_line, len(lines))):
+        line = lines[line_idx]
+        
+        # Check for namespace declarations
+        namespace_match = re.match(namespace_pattern, line)
+        if namespace_match:
+            namespace_name = namespace_match.group(1)
+            namespace_stack.append(namespace_name)
+            continue
+        
+        # Check for end declarations
+        end_match = re.match(end_pattern, line)
+        if end_match:
+            end_name = end_match.group(1) if end_match.group(1) else None
+            if namespace_stack:
+                if end_name is None:
+                    # Generic 'end' - pop the most recent namespace
+                    namespace_stack.pop()
+                else:
+                    # Named 'end' - find and pop the matching namespace
+                    for i in range(len(namespace_stack) - 1, -1, -1):
+                        if namespace_stack[i] == end_name:
+                            namespace_stack = namespace_stack[:i]
+                            break
+            continue
+    
+    return namespace_stack
+
+
+def _generate_unique_theorem_id_with_namespace(
+    full_name: Optional[str], 
+    kind: str, 
+    start_line: int, 
+    existing_ids: Set[str], 
+    namespace_stack: List[str]
+) -> tuple[str, str]:
+    """Generate unique theorem_id with namespace context and collision resolution.
+    
+    Strategy:
+    1. If full_name already includes namespace (has dots), use it as-is
+    2. If full_name is simple, prepend current namespace context
+    3. For unnamed theorems, use kind + line number with namespace prefix
+    4. For collisions, append line number (e.g., "Polynomial.eval_123")
+    5. Ensure uniqueness within file scope
+    
+    Args:
+        full_name: Full theorem name (e.g., "eval₂_zero") or None
+        kind: Declaration kind ("theorem", "lemma", "example", "instance")
+        start_line: Line number where declaration starts (1-indexed)
+        existing_ids: Set of already used theorem_id values
+        namespace_stack: Current namespace context stack
+        
+    Returns:
+        Tuple of (unique_theorem_id, short_name)
+    """
+    if full_name:
+        # Extract the short name (last component after dots)
+        name_parts = full_name.split('.')
+        short_name = name_parts[-1]
+        
+        # Determine the full theorem_id with namespace context
+        if len(name_parts) > 1:
+            # Name already includes namespace context (e.g., "Polynomial.eval₂_zero")
+            candidate_id = full_name
+        else:
+            # Simple name - add current namespace context
+            if namespace_stack:
+                # Use the most recent (innermost) namespace
+                namespace_prefix = namespace_stack[-1]
+                candidate_id = f"{namespace_prefix}.{full_name}"
+            else:
+                # No namespace context - use name as-is
+                candidate_id = full_name
+        
+        # Handle collisions by appending line number
+        if candidate_id in existing_ids:
+            candidate_id = f"{candidate_id}_{start_line}"
+        
+        # If still collision (very unlikely), keep incrementing
+        counter = 1
+        while candidate_id in existing_ids:
+            base_name = candidate_id.rsplit('_', 1)[0] if '_' in candidate_id else candidate_id
+            candidate_id = f"{base_name}_{start_line}_{counter}"
+            counter += 1
+            
+        return candidate_id, short_name
+    else:
+        # For unnamed declarations (example, instance), use kind + line number
+        short_name = f"{kind}_{start_line}"
+        
+        # Add namespace prefix if available
+        if namespace_stack:
+            namespace_prefix = namespace_stack[-1]
+            candidate_id = f"{namespace_prefix}.{kind}_{start_line}"
+        else:
+            candidate_id = f"{kind}_{start_line}"
+        
+        # Handle collision (very unlikely for unnamed declarations)
+        counter = 1
+        while candidate_id in existing_ids:
+            if namespace_stack:
+                namespace_prefix = namespace_stack[-1]
+                candidate_id = f"{namespace_prefix}.{kind}_{start_line}_{counter}"
+            else:
+                candidate_id = f"{kind}_{start_line}_{counter}"
+            counter += 1
+            
+        return candidate_id, short_name

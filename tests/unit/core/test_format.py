@@ -1,27 +1,26 @@
 """Unit tests for core.format module."""
 
-import pytest
 from lean_proof_auto_mcp.core.format import (
-    stable_sort_theorems,
-    normalize_notes,
     ensure_deterministic,
+    normalize_notes,
+    stable_sort_theorems,
 )
 
 
 class TestStableSortTheorems:
     """Test cases for stable_sort_theorems function."""
-    
+
     def test_sort_empty_list(self):
         """Test sorting empty theorem list."""
         result = stable_sort_theorems([])
         assert result == []
-    
+
     def test_sort_single_theorem(self):
         """Test sorting single theorem."""
         theorems = [{"theorem_id": "Nat.add_comm", "name": "add_comm"}]
         result = stable_sort_theorems(theorems)
         assert result == theorems
-    
+
     def test_sort_multiple_theorems(self):
         """Test sorting multiple theorems by theorem_id."""
         theorems = [
@@ -36,7 +35,7 @@ class TestStableSortTheorems:
             {"theorem_id": "Nat.zero_add", "name": "zero_add"},
         ]
         assert result == expected
-    
+
     def test_sort_missing_theorem_id(self):
         """Test sorting theorems with missing theorem_id."""
         theorems = [
@@ -49,7 +48,7 @@ class TestStableSortTheorems:
         assert result[0]["name"] == "no_id"
         assert result[1]["theorem_id"] == "Nat.add_comm"
         assert result[2]["theorem_id"] == "Nat.zero_add"
-    
+
     def test_sort_preserves_original(self):
         """Test that original list is not modified."""
         original = [
@@ -58,7 +57,7 @@ class TestStableSortTheorems:
         ]
         original_copy = original.copy()
         result = stable_sort_theorems(original)
-        
+
         # Original should be unchanged
         assert original == original_copy
         # Result should be sorted
@@ -68,63 +67,63 @@ class TestStableSortTheorems:
 
 class TestNormalizeNotes:
     """Test cases for normalize_notes function."""
-    
+
     def test_normalize_empty_notes(self):
         """Test normalizing empty notes list."""
         result = normalize_notes([])
         assert result == []
-    
+
     def test_normalize_short_notes(self):
         """Test normalizing notes within length limit."""
         notes = ["short note", "another note"]
         result = normalize_notes(notes)
         assert result == notes
-    
+
     def test_normalize_long_note(self):
         """Test trimming long notes."""
         long_note = "a" * 250  # 250 characters
         notes = [long_note]
         result = normalize_notes(notes, max_length=200)
-        
+
         assert len(result) == 1
         assert len(result[0]) == 200
         assert result[0].endswith("...")
         assert result[0].startswith("a" * 197)  # 200 - 3 for "..."
-    
+
     def test_normalize_many_notes(self):
         """Test capping notes count at 10."""
         notes = [f"note {i}" for i in range(15)]  # 15 notes
         result = normalize_notes(notes)
-        
+
         assert len(result) == 10
         assert result == [f"note {i}" for i in range(10)]
-    
+
     def test_normalize_custom_max_length(self):
         """Test custom max_length parameter."""
         long_note = "a" * 100
         notes = [long_note]
         result = normalize_notes(notes, max_length=50)
-        
+
         assert len(result[0]) == 50
         assert result[0] == "a" * 47 + "..."
-    
+
     def test_normalize_exact_length(self):
         """Test note exactly at max_length."""
         note = "a" * 200
         notes = [note]
         result = normalize_notes(notes, max_length=200)
-        
+
         assert result == [note]  # Should not be trimmed
 
 
 class TestEnsureDeterministic:
     """Test cases for ensure_deterministic function."""
-    
+
     def test_ensure_deterministic_empty_dict(self):
         """Test with empty dictionary."""
         result = ensure_deterministic({})
         assert result == {}
-    
+
     def test_round_floats(self):
         """Test rounding floats to 2 decimal places."""
         data = {
@@ -139,7 +138,7 @@ class TestEnsureDeterministic:
             "exact": 2.0,
         }
         assert result == expected
-    
+
     def test_round_nested_floats(self):
         """Test rounding floats in nested structures."""
         data = {
@@ -156,7 +155,7 @@ class TestEnsureDeterministic:
             }
         }
         assert result == expected
-    
+
     def test_process_lists(self):
         """Test processing lists with floats."""
         data = {
@@ -169,7 +168,7 @@ class TestEnsureDeterministic:
             "skeleton": ["intro", "cases", "apply"],  # preserved order
         }
         assert result == expected
-    
+
     def test_sort_notes(self):
         """Test sorting notes arrays."""
         data = {
@@ -182,7 +181,7 @@ class TestEnsureDeterministic:
             "skeleton": ["intro", "cases"],  # preserved
         }
         assert result == expected
-    
+
     def test_nested_dictionaries(self):
         """Test processing nested dictionaries."""
         data = {
@@ -203,7 +202,7 @@ class TestEnsureDeterministic:
             }
         }
         assert result == expected
-    
+
     def test_preserve_non_float_types(self):
         """Test that non-float types are preserved."""
         data = {
@@ -214,7 +213,7 @@ class TestEnsureDeterministic:
         }
         result = ensure_deterministic(data)
         assert result == data
-    
+
     def test_mixed_list_types(self):
         """Test lists with mixed types."""
         data = {

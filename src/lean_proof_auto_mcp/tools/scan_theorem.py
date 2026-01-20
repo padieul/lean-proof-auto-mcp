@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from ..core.source import SourceText
-from ..core.indexer import build_index, find_by_id, find_by_range
 from ..core.features import extract_features
-from ..core.segmenter import segment_proof
-from ..core.scoring import compute_profile
 from ..core.format import ensure_deterministic, normalize_notes
+from ..core.indexer import build_index, find_by_id, find_by_range
+from ..core.scoring import compute_profile
+from ..core.segmenter import segment_proof
+from ..core.source import SourceText
 
 API_VERSION = "0.1"
 
@@ -40,7 +40,9 @@ def _coerce_args(args: dict[str, Any]) -> ScanTheoremArgs:
     range_obj = target.get("range")
 
     if theorem_id is not None and range_obj is not None:
-        raise ValueError("scan_theorem: 'target' must have either 'theorem_id' or 'range', not both")
+        raise ValueError(
+            "scan_theorem: 'target' must have either 'theorem_id' or 'range', not both"
+        )
 
     if theorem_id is None and range_obj is None:
         raise ValueError("scan_theorem: 'target' must have either 'theorem_id' or 'range'")
@@ -65,8 +67,7 @@ def _coerce_args(args: dict[str, Any]) -> ScanTheoremArgs:
         parsed_range = (start_line, end_line)
 
     return ScanTheoremArgs(
-        file=file,
-        target=TheoremTarget(theorem_id=parsed_theorem_id, range=parsed_range)
+        file=file, target=TheoremTarget(theorem_id=parsed_theorem_id, range=parsed_range)
     )
 
 
@@ -89,9 +90,7 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
             file_value = "<invalid>"
 
         target_value = args.get("target", {}) if isinstance(args, dict) else {}
-        if not isinstance(target_value, dict):
-            target_value = {"theorem_id": "<invalid>"}
-        elif not target_value:
+        if not isinstance(target_value, dict) or not target_value:
             target_value = {"theorem_id": "<invalid>"}
 
         return {
@@ -111,25 +110,27 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
     try:
         # Try to read file (I/O boundary)
         from pathlib import Path
+
         file_path = Path(parsed.file)
         text = ""
         diagnostics = []
-        
+
         if file_path.exists():
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, encoding="utf-8") as f:
                     text = f.read()
             except Exception as e:
-                diagnostics.append({
-                    "severity": "warning", 
-                    "message": f"Error reading file: {str(e)}"
-                })
+                diagnostics.append(
+                    {"severity": "warning", "message": f"Error reading file: {str(e)}"}
+                )
         else:
             # File doesn't exist - add diagnostic but continue with empty analysis
-            diagnostics.append({
-                "severity": "info", 
-                "message": f"File not found, using empty analysis: {parsed.file}"
-            })
+            diagnostics.append(
+                {
+                    "severity": "info",
+                    "message": f"File not found, using empty analysis: {parsed.file}",
+                }
+            )
 
         # Build source and index
         source = SourceText(path=parsed.file, text=text)
@@ -141,22 +142,32 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
             target_decl = find_by_id(index, parsed.target.theorem_id)
             if not target_decl:
                 # For test compatibility, return a minimal theorem object instead of failing
-                target_decl = _create_minimal_theorem_decl(parsed.target.theorem_id, parsed.target.theorem_id.split(".")[-1])
-                diagnostics.append({
-                    "severity": "info",
-                    "message": f"Theorem '{parsed.target.theorem_id}' not found, using minimal placeholder"
-                })
+                target_decl = _create_minimal_theorem_decl(
+                    parsed.target.theorem_id, parsed.target.theorem_id.split(".")[-1]
+                )
+                diagnostics.append(
+                    {
+                        "severity": "info",
+                        "message": f"Theorem '{parsed.target.theorem_id}' not found, "
+                        "using minimal placeholder",
+                    }
+                )
         else:
             assert parsed.target.range is not None
             start_line, end_line = parsed.target.range
             target_decl = find_by_range(index, start_line, end_line)
             if not target_decl:
                 # For test compatibility, return a minimal theorem object instead of failing
-                target_decl = _create_minimal_theorem_decl(f"theorem_at_line_{start_line}", f"theorem_at_line_{start_line}")
-                diagnostics.append({
-                    "severity": "info",
-                    "message": f"No theorem found in range {start_line}-{end_line}, using minimal placeholder"
-                })
+                target_decl = _create_minimal_theorem_decl(
+                    f"theorem_at_line_{start_line}", f"theorem_at_line_{start_line}"
+                )
+                diagnostics.append(
+                    {
+                        "severity": "info",
+                        "message": f"No theorem found in range {start_line}-{end_line}, "
+                        "using minimal placeholder",
+                    }
+                )
 
         # Extract features and structure
         features = extract_features(source, target_decl)
@@ -170,10 +181,7 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
         else:
             assert parsed.target.range is not None
             start_line, end_line = parsed.target.range
-            target_response["range"] = {
-                "start_line": start_line,
-                "end_line": end_line
-            }
+            target_response["range"] = {"start_line": start_line, "end_line": end_line}
 
         # Build location object
         location = {
@@ -191,19 +199,19 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
                 {
                     "kind": block.kind,
                     "start_line": block.span.start_line,
-                    "end_line": block.span.end_line
+                    "end_line": block.span.end_line,
                 }
                 for block in structure.blocks
-            ]
+            ],
         }
-        
+
         # Add cases if present
         if structure.cases:
             structure_obj["cases"] = [
                 {
                     "label": case.label,
                     "start_line": case.span.start_line,
-                    "end_line": case.span.end_line
+                    "end_line": case.span.end_line,
                 }
                 for case in structure.cases
             ]
@@ -217,9 +225,9 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
             "automation": {
                 "whole_goal_potential": profile.whole_goal_potential,
                 "subgoal_potential": profile.subgoal_potential,
-                "annotation_value": profile.annotation_value
+                "annotation_value": profile.annotation_value,
             },
-            "notes": normalize_notes(profile.notes)
+            "notes": normalize_notes(profile.notes),
         }
 
         # Build response
@@ -239,19 +247,19 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
 
     except Exception as e:
         return _error_response(
-            run_id, parsed.file, parsed.target,
-            "error", f"Analysis error: {str(e)}"
+            run_id, parsed.file, parsed.target, "error", f"Analysis error: {str(e)}"
         )
 
 
 def _generate_run_id(file_path: str, prefix: str) -> str:
     """Generate a deterministic run_id for testing compatibility.
-    
+
     In production, this would use UUID, but for tests we need deterministic IDs.
     """
     # For now, use deterministic IDs for test compatibility
     # In the future, this could be made configurable or use UUID in production
     import hashlib
+
     content = f"{prefix}-{file_path}"
     hash_obj = hashlib.md5(content.encode())
     return f"{prefix}-{hash_obj.hexdigest()[:8]}"
@@ -261,23 +269,19 @@ def _create_minimal_theorem_decl(theorem_id: str, name: str):
     """Create a minimal theorem declaration for test compatibility."""
     from ..core.indexer import TheoremDecl
     from ..core.source import Span
-    
+
     return TheoremDecl(
         theorem_id=theorem_id,
         name=name,
         kind="theorem",
         decl_span=Span(start_line=1, end_line=1),
         proof_span=None,
-        attributes=[]
+        attributes=[],
     )
 
 
 def _error_response(
-    run_id: str,
-    file: str,
-    target: TheoremTarget,
-    severity: str,
-    message: str
+    run_id: str, file: str, target: TheoremTarget, severity: str, message: str
 ) -> dict[str, Any]:
     """Build an error response with proper structure."""
     # Build target object for response
@@ -287,10 +291,7 @@ def _error_response(
     else:
         if target.range is not None:
             start_line, end_line = target.range
-            target_response["range"] = {
-                "start_line": start_line,
-                "end_line": end_line
-            }
+            target_response["range"] = {"start_line": start_line, "end_line": end_line}
         else:
             target_response["theorem_id"] = "<invalid>"
 

@@ -16,7 +16,7 @@ INDUCTION_THEOREM = """
 theorem add_comm (n m : Nat) : n + m = m + n := by
   induction n with
   | zero => simp
-  | succ n ih => 
+  | succ n ih =>
     simp [Nat.add_succ]
     rw [ih]
 """
@@ -33,7 +33,7 @@ theorem nat_eq_zero_or_pos (n : Nat) : n = 0 ∨ 0 < n := by
 REWRITE_THEOREM = """
 theorem mul_comm (n m : Nat) : n * m = m * n := by
   induction n with
-  | zero => 
+  | zero =>
     rw [Nat.zero_mul, Nat.mul_zero]
   | succ n ih =>
     rw [Nat.succ_mul, Nat.mul_succ, ih]

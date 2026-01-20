@@ -15,14 +15,14 @@ All phases of the static analysis tools implementation have been successfully co
 
 ## Phase 5: Critical Fixes for Real Mathlib Files ⚠️ URGENT
 
-### 5.1 Fix Theorem Name Collisions 
+### 5.1 Fix Theorem Name Collisions
 - [x] **CRITICAL**: Update core/indexer.py to generate unique theorem_id values
-- [x] Include namespace context in theorem names (e.g., "Polynomial.eval" vs "List.eval")  
+- [x] Include namespace context in theorem names (e.g., "Polynomial.eval" vs "List.eval")
 - [x] Handle anonymous theorems with deterministic unique IDs (e.g., "example_42")
 - [ ] Test with Defs.lean to verify zero duplicate theorem_id values
 - [ ] Ensure backward compatibility with existing tests
 
-### 5.2 Fix Proof Boundary Detection ❌ NOT STARTED  
+### 5.2 Fix Proof Boundary Detection ❌ NOT STARTED
 - [x] **CRITICAL**: Improve regex patterns in core/indexer.py for proof detection
 - [x] Better handling of multi-line declarations spanning multiple lines
 - [x] Enhanced detection of both `:=` (term-mode) and `by` (tactic-mode) proofs
@@ -31,14 +31,14 @@ All phases of the static analysis tools implementation have been successfully co
 
 ### 5.3 Fix Automation Scoring ❌ NOT STARTED
 - [x] **CRITICAL**: Update core/features.py to avoid false negative tactic detection
-- [x] Improve proof text extraction from detected boundaries  
+- [x] Improve proof text extraction from detected boundaries
 - [x] Enhanced confidence scoring in core/scoring.py
 - [ ] Ensure theorems with detected proofs get non-zero automation scores
 - [ ] Test scoring accuracy on real Mathlib theorems
 
 ### 5.4 Validation with Real Files ❌ NOT STARTED
 - [ ] Test fixes against tests/fixtures/mathlib_lean_files/Defs.lean
-- [x] Test fixes against tests/fixtures/mathlib_lean_files/Coeff.lean  
+- [x] Test fixes against tests/fixtures/mathlib_lean_files/Coeff.lean
 - [ ] Test fixes against tests/fixtures/mathlib_lean_files/Degree.lean
 - [x] Ensure that proof boundaries detection works perfectly on all 3 fixtures Mathlib files
 - [x] Verify all existing tests still pass (no regressions)
@@ -104,4 +104,3 @@ All phases of the static analysis tools implementation have been successfully co
 - Performance targets met (<100ms for typical files)
 
 The static analysis tools are **production ready** and can be deployed for use with Lean proof files.
-

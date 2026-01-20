@@ -1,8 +1,7 @@
 """Tests for multi-line declaration handling improvements."""
 
-import pytest
-from lean_proof_auto_mcp.core.source import SourceText
 from lean_proof_auto_mcp.core.indexer import build_index
+from lean_proof_auto_mcp.core.source import SourceText
 
 
 class TestMultiLineDeclarations:
@@ -18,21 +17,21 @@ class TestMultiLineDeclarations:
     (hxy : g (f x) = y)
     : some_complex_property x y z := by
   sorry"""
-        
+
         source = SourceText(path="test.lean", text=lean_code)
         index = build_index(source)
-        
+
         assert len(index.decls) == 1
         decl = index.decls[0]
-        
+
         assert decl.theorem_id == "very_long_theorem_name_with_many_parameters"
         assert decl.name == "very_long_theorem_name_with_many_parameters"
         assert decl.kind == "theorem"
-        
+
         # Declaration should span from line 1 to line 7 (where the colon is)
         assert decl.decl_span.start_line == 1
         assert decl.decl_span.end_line == 7
-        
+
         # Proof should start at line 8 (where the proof content is)
         assert decl.proof_span is not None
         assert decl.proof_span.start_line == 8
@@ -44,17 +43,17 @@ class TestMultiLineDeclarations:
     {α β : Type*} [Group α] [Group β]
     : α × β ≃* β × α := by
   sorry"""
-        
+
         source = SourceText(path="test.lean", text=lean_code)
         index = build_index(source)
-        
+
         assert len(index.decls) == 1
         decl = index.decls[0]
-        
+
         assert decl.theorem_id == "another_complex_theorem"
         assert decl.name == "another_complex_theorem"
         assert decl.kind == "theorem"
-        
+
         # Declaration should span from line 1 to line 4 (where the colon is)
         assert decl.decl_span.start_line == 1
         assert decl.decl_span.end_line == 4
@@ -71,21 +70,21 @@ class TestMultiLineDeclarations:
     (h5 : another_condition p q)
     : final_conclusion p q r s t u v w := by
   sorry"""
-        
+
         source = SourceText(path="test.lean", text=lean_code)
         index = build_index(source)
-        
+
         assert len(index.decls) == 1
         decl = index.decls[0]
-        
+
         assert decl.theorem_id == "distant_colon_theorem"
         assert decl.name == "distant_colon_theorem"
         assert decl.kind == "theorem"
-        
+
         # Declaration should span from line 1 to line 9 (where the colon is)
         assert decl.decl_span.start_line == 1
         assert decl.decl_span.end_line == 9
-        
+
         # Proof should start at line 10 (where the proof content is)
         assert decl.proof_span is not None
         assert decl.proof_span.start_line == 10
@@ -94,18 +93,18 @@ class TestMultiLineDeclarations:
         """Test anonymous theorem with immediate parameters."""
         lean_code = """theorem {R : Type*} [Ring R] (x y : R) : x + y = y + x := by
   ring"""
-        
+
         source = SourceText(path="test.lean", text=lean_code)
         index = build_index(source)
-        
+
         assert len(index.decls) == 1
         decl = index.decls[0]
-        
+
         # Should generate anonymous name
         assert decl.theorem_id.startswith("theorem_")
         assert decl.name.startswith("theorem_")
         assert decl.kind == "theorem"
-        
+
         # Declaration should be on line 1 only (single line)
         assert decl.decl_span.start_line == 1
         assert decl.decl_span.end_line == 1
@@ -120,17 +119,17 @@ class TestMultiLineDeclarations:
     (hf : Function.Injective f)
     : ∃ (g : W →ₗ[F] V), g.comp f = LinearMap.id := by
   sorry"""
-        
+
         source = SourceText(path="test.lean", text=lean_code)
         index = build_index(source)
-        
+
         assert len(index.decls) == 1
         decl = index.decls[0]
-        
+
         assert decl.theorem_id == "complex_type_theorem"
         assert decl.name == "complex_type_theorem"
         assert decl.kind == "theorem"
-        
+
         # Declaration should span from line 1 to line 7 (where the colon is)
         assert decl.decl_span.start_line == 1
         assert decl.decl_span.end_line == 7
@@ -144,16 +143,16 @@ class TestMultiLineDeclarations:
     (x : R) (y : S)
     : f x = y := by
   sorry"""
-        
+
         source = SourceText(path="test.lean", text=lean_code)
         index = build_index(source)
-        
+
         assert len(index.decls) == 1
         decl = index.decls[0]
-        
+
         assert decl.theorem_id == "test_colons"
         assert decl.name == "test_colons"
-        
+
         # Declaration should span to line 6 (where the main colon is)
         # NOT to line 2 where the first type annotation colon appears
         assert decl.decl_span.start_line == 1
@@ -161,24 +160,25 @@ class TestMultiLineDeclarations:
 
     def test_mathlib_style_declaration(self):
         """Test real Mathlib-style multi-line declaration."""
-        lean_code = """theorem eval₂_congr {R S : Type*} [Semiring R] [Semiring S] {f g : R →+* S} {s t : S}
+        lean_code = """theorem eval₂_congr {R S : Type*} [Semiring R] [Semiring S]
+    {f g : R →+* S} {s t : S}
     {φ ψ : R[X]} : f = g → s = t → φ = ψ → eval₂ f s φ = eval₂ g t ψ := by
   rintro rfl rfl rfl; rfl"""
-        
+
         source = SourceText(path="test.lean", text=lean_code)
         index = build_index(source)
-        
+
         assert len(index.decls) == 1
         decl = index.decls[0]
-        
+
         assert decl.theorem_id == "eval₂_congr"
         assert decl.name == "eval₂_congr"
         assert decl.kind == "theorem"
-        
-        # Declaration should span from line 1 to line 2 (where the colon is)
+
+        # Declaration should span from line 1 to line 3 (where the colon is)
         assert decl.decl_span.start_line == 1
-        assert decl.decl_span.end_line == 2
-        
-        # Proof should start at line 3 (where the proof content is)
+        assert decl.decl_span.end_line == 3
+
+        # Proof should start at line 4 (where the proof content is)
         assert decl.proof_span is not None
-        assert decl.proof_span.start_line == 3
+        assert decl.proof_span.start_line == 4

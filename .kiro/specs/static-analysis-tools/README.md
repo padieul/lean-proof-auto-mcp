@@ -57,4 +57,3 @@ No Lean installation required. Fast CI (<10 seconds).
 - Valid JSON for all inputs
 - Performance: scan_file <100ms, scan_theorem <50ms
 - Zero external dependencies (no Lean runtime)
-

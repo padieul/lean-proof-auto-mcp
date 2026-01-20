@@ -13,7 +13,7 @@ This design follows hexagonal architecture with a shared core for static analysi
 
 ### High-Level Data Flow
 ```
-Input (file path) 
+Input (file path)
   → Tool Wrapper (I/O boundary)
     → Core Indexer (find theorems)
       → Core Features (extract signals)
@@ -135,10 +135,10 @@ class Span:
 class SourceText:
     path: str
     text: str
-    
+
     def get_lines(self, start: int, end: int) -> list[str]:
         """Extract lines [start, end] (1-indexed)"""
-        
+
     def get_span_text(self, span: Span) -> str:
         """Extract text within span"""
 ```
@@ -390,20 +390,20 @@ def ensure_deterministic(data: dict) -> dict:
 def scan_file(args: dict[str, Any]) -> dict[str, Any]:
     # 1. Coerce args
     parsed = _coerce_args(args)
-    
+
     # 2. Read file (I/O boundary)
     try:
         with open(parsed.file) as f:
             text = f.read()
     except FileNotFoundError:
         return error_response(...)
-    
+
     # 3. Build source
     source = SourceText(path=parsed.file, text=text)
-    
+
     # 4. Index file
     index = build_index(source)
-    
+
     # 5. Extract features for each theorem
     theorems = []
     for decl in index.decls:
@@ -417,7 +417,7 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
             "automation": {...},
             "notes": profile.notes
         })
-    
+
     # 6. Format response
     theorems = stable_sort_theorems(theorems)
     return {
@@ -449,33 +449,33 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
 def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
     # 1. Coerce args
     parsed = _coerce_args(args)
-    
+
     # 2. Read file
     try:
         with open(parsed.file) as f:
             text = f.read()
     except FileNotFoundError:
         return error_response(...)
-    
+
     # 3. Build source and index
     source = SourceText(path=parsed.file, text=text)
     index = build_index(source)
-    
+
     # 4. Find target theorem
     if parsed.target.theorem_id:
         decl = find_by_id(index, parsed.target.theorem_id)
     else:
-        decl = find_by_range(index, parsed.target.range.start_line, 
+        decl = find_by_range(index, parsed.target.range.start_line,
                              parsed.target.range.end_line)
-    
+
     if not decl:
         return fail_response("theorem not found")
-    
+
     # 5. Extract features and structure
     features = extract_features(source, decl)
     structure = segment_proof(source, decl)
     profile = compute_profile(features, structure)
-    
+
     # 6. Format response
     return {
         "api_version": API_VERSION,
@@ -800,10 +800,10 @@ Testing with real Mathlib files revealed three critical architectural issues tha
 
 **Enhanced theorem_id Generation Strategy**:
 ```python
-def _generate_unique_theorem_id(full_name: str, kind: str, start_line: int, 
+def _generate_unique_theorem_id(full_name: str, kind: str, start_line: int,
                                existing_ids: Set[str]) -> str:
     """Generate unique theorem_id with collision resolution.
-    
+
     Strategy:
     1. Use full namespace path if available (e.g., "Polynomial.eval")
     2. For unnamed theorems, use kind + line number (e.g., "example_42")
@@ -830,10 +830,10 @@ def _generate_unique_theorem_id(full_name: str, kind: str, start_line: int,
 
 **Enhanced Proof Detection Strategy**:
 ```python
-def _find_declaration_spans_enhanced(lines: List[str], start_line: int, 
+def _find_declaration_spans_enhanced(lines: List[str], start_line: int,
                                    start_col: int) -> tuple[Optional[Span], Optional[Span]]:
     """Improved declaration and proof span detection.
-    
+
     Enhancements:
     1. Multi-line declaration support (theorem name on different line than colon)
     2. Better := vs by detection with context awareness
@@ -865,10 +865,10 @@ def _find_declaration_spans_enhanced(lines: List[str], start_line: int,
 
 **Enhanced Tactic Detection Strategy**:
 ```python
-def detect_tactics_enhanced(proof_text: str, source_context: SourceText, 
+def detect_tactics_enhanced(proof_text: str, source_context: SourceText,
                           proof_span: Span) -> Set[str]:
     """Improved tactic detection with context awareness.
-    
+
     Enhancements:
     1. Better handling of tactic variants and aliases
     2. Context-aware detection (avoid false positives in strings/comments)
@@ -880,10 +880,10 @@ def detect_tactics_enhanced(proof_text: str, source_context: SourceText,
 
 **Enhanced Confidence Scoring**:
 ```python
-def _calculate_confidence_enhanced(proof_text: str, proof_span: Span, 
+def _calculate_confidence_enhanced(proof_text: str, proof_span: Span,
                                  tactic_kinds: Set[str], decl: TheoremDecl) -> float:
     """Improved confidence calculation with multiple signals.
-    
+
     Signals:
     1. Proof structure quality (proper indentation, clear boundaries)
     2. Tactic diversity and appropriateness
@@ -936,7 +936,7 @@ def _calculate_confidence_enhanced(proof_text: str, proof_span: Span,
 
 ### Success Metrics for Phase 5
 
-**Name Collision Resolution**: 
+**Name Collision Resolution**:
 - Before: 47+ duplicate "eval" theorem_id values in Defs.lean
 - After: 0 duplicate theorem_id values in any file
 
@@ -990,4 +990,3 @@ def _calculate_confidence_enhanced(proof_text: str, proof_span: Span,
 - `probe`: test automation on specific goals
 - `search_annotations`: find annotation opportunities
 - `check_patch`: validate proposed changes
-

@@ -19,7 +19,7 @@ Phase 0: Schemas → Phase 1: Stubs → Phase 2: Tests → Phase 3: Core → Pha
 **What NOT to do**: Write any Python code
 
 ### Phase 1: Stubs
-**What to do**: 
+**What to do**:
 - Create minimal functions that return valid JSON
 - Use placeholder data: empty arrays, zero scores, deterministic IDs
 - Validate input arguments only

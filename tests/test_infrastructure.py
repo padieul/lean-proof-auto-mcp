@@ -1,11 +1,8 @@
 """Test infrastructure validation - ensures jsonschema and hypothesis are available."""
 
-import pytest
-
 
 def test_jsonschema_available():
     """Verify jsonschema library is available."""
-    import jsonschema
     from jsonschema import validate
 
     # Simple schema validation test

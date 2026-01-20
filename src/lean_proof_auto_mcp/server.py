@@ -24,7 +24,7 @@ def create_app(cfg: Config) -> FastMCP:
 
     @app.tool(name="scan_theorem")
     def scan_theorem_tool(file: str, target: dict) -> dict:
-        """Analyze a single theorem in a Lean file with detailed structure and automation insights."""
+        """Analyze a single theorem in a Lean file with detailed structure and automation."""
         return router.dispatch("scan_theorem", {"file": file, "target": target})
 
     return app
@@ -32,13 +32,14 @@ def create_app(cfg: Config) -> FastMCP:
 
 def main() -> None:
     cfg = Config.from_env()
-    
+
     # Change to the configured working directory
     import os
+
     if cfg.working_directory != os.getcwd():
         print(f"{cfg.server_name}: changing working directory to {cfg.working_directory}")
         os.chdir(cfg.working_directory)
-    
+
     print(f"{cfg.server_name}: server started (api_version={cfg.api_version}, cwd={os.getcwd()})")
     create_app(cfg).run()  # stdio transport by default
 

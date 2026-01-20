@@ -90,10 +90,7 @@ def _assert_contract_guarantees(response: dict, expected_status: str | None = No
 
 def test_scan_theorem_success_response_conforms_to_schema(scan_theorem_validator):
     """Test that scan_theorem success response validates against JSON schema."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
     _assert_schema_valid(scan_theorem_validator, resp)
 
 
@@ -108,10 +105,7 @@ def test_scan_theorem_fail_response_conforms_to_schema(scan_theorem_validator):
 
 def test_scan_theorem_theorem_id_mode_success():
     """Test scan_theorem with theorem_id input mode returns success."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
     # Verify contract guarantees
     _assert_contract_guarantees(resp, expected_status="success")
@@ -124,10 +118,9 @@ def test_scan_theorem_theorem_id_mode_success():
 
 def test_scan_theorem_range_mode_success():
     """Test scan_theorem with range input mode returns success."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"range": {"start_line": 10, "end_line": 25}}
-    })
+    resp = scan_theorem(
+        {"file": "test.lean", "target": {"range": {"start_line": 10, "end_line": 25}}}
+    )
 
     # Verify contract guarantees
     _assert_contract_guarantees(resp, expected_status="success")
@@ -141,13 +134,12 @@ def test_scan_theorem_range_mode_success():
 
 def test_scan_theorem_both_theorem_id_and_range_fails():
     """Test that providing both theorem_id and range returns fail status."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {
-            "theorem_id": "Nat.mul_comm",
-            "range": {"start_line": 10, "end_line": 25}
+    resp = scan_theorem(
+        {
+            "file": "test.lean",
+            "target": {"theorem_id": "Nat.mul_comm", "range": {"start_line": 10, "end_line": 25}},
         }
-    })
+    )
 
     # Should return fail status
     _assert_contract_guarantees(resp, expected_status="fail")
@@ -160,10 +152,7 @@ def test_scan_theorem_both_theorem_id_and_range_fails():
 
 def test_scan_theorem_neither_theorem_id_nor_range_fails():
     """Test that providing neither theorem_id nor range returns fail status."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {}})
 
     # Should return fail status
     _assert_contract_guarantees(resp, expected_status="fail")
@@ -179,10 +168,7 @@ def test_scan_theorem_neither_theorem_id_nor_range_fails():
 
 def test_scan_theorem_required_fields_present():
     """Test that all required fields are present in success response."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
     # Top-level required fields
     required_fields = ["api_version", "status", "run_id", "tool", "file", "target"]
@@ -197,10 +183,7 @@ def test_scan_theorem_required_fields_present():
 
 def test_scan_theorem_theorem_object_structure():
     """Test that theorem object has correct structure when present."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
     if resp["status"] == "success" and resp["theorem"] is not None:
         theorem = resp["theorem"]
@@ -238,10 +221,7 @@ def test_scan_theorem_theorem_object_structure():
 
 def test_scan_theorem_structure_object_required_fields():
     """Test that structure object has required fields."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
     if resp["status"] == "success" and resp["theorem"] is not None:
         structure = resp["theorem"]["structure"]
@@ -278,10 +258,7 @@ def test_scan_theorem_structure_object_required_fields():
 
 def test_scan_theorem_structure_cases_optional():
     """Test that structure.cases is optional but valid when present."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
     if resp["status"] == "success" and resp["theorem"] is not None:
         structure = resp["theorem"]["structure"]
@@ -309,10 +286,7 @@ def test_scan_theorem_structure_cases_optional():
 
 def test_scan_theorem_automation_scores_in_range():
     """Test that all automation scores are in the range [0.0, 1.0]."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
     if resp["status"] == "success" and resp["theorem"] is not None:
         auto = resp["theorem"]["automation"]
@@ -329,8 +303,12 @@ def test_scan_theorem_automation_scores_in_range():
             assert "grind" in potential, f"Missing {potential_type}.grind"
 
             # Validate ranges
-            assert 0.0 <= potential["aesop"] <= 1.0, f"{potential_type}.aesop out of range [0.0, 1.0]"
-            assert 0.0 <= potential["grind"] <= 1.0, f"{potential_type}.grind out of range [0.0, 1.0]"
+            assert 0.0 <= potential["aesop"] <= 1.0, (
+                f"{potential_type}.aesop out of range [0.0, 1.0]"
+            )
+            assert 0.0 <= potential["grind"] <= 1.0, (
+                f"{potential_type}.grind out of range [0.0, 1.0]"
+            )
 
         # Validate annotation_value range
         assert 0.0 <= auto["annotation_value"] <= 1.0, "annotation_value out of range [0.0, 1.0]"
@@ -338,10 +316,7 @@ def test_scan_theorem_automation_scores_in_range():
 
 def test_scan_theorem_automation_scores_are_numbers():
     """Test that all automation scores are numeric types."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
     if resp["status"] == "success" and resp["theorem"] is not None:
         auto = resp["theorem"]["automation"]
@@ -349,11 +324,15 @@ def test_scan_theorem_automation_scores_are_numbers():
         # Check potential objects
         for potential_type in ["whole_goal_potential", "subgoal_potential"]:
             potential = auto[potential_type]
-            assert isinstance(potential["aesop"], (int, float)), f"{potential_type}.aesop must be number"
-            assert isinstance(potential["grind"], (int, float)), f"{potential_type}.grind must be number"
+            assert isinstance(potential["aesop"], int | float), (
+                f"{potential_type}.aesop must be number"
+            )
+            assert isinstance(potential["grind"], int | float), (
+                f"{potential_type}.grind must be number"
+            )
 
         # Check annotation_value
-        assert isinstance(auto["annotation_value"], (int, float)), "annotation_value must be number"
+        assert isinstance(auto["annotation_value"], int | float), "annotation_value must be number"
 
 
 # Determinism Tests
@@ -361,10 +340,7 @@ def test_scan_theorem_automation_scores_are_numbers():
 
 def test_scan_theorem_determinism_theorem_id_mode():
     """Test that scan_theorem returns identical output for repeated calls with theorem_id."""
-    input_args = {
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    }
+    input_args = {"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}}
 
     # Call multiple times
     resp1 = scan_theorem(input_args)
@@ -379,10 +355,7 @@ def test_scan_theorem_determinism_theorem_id_mode():
 
 def test_scan_theorem_determinism_range_mode():
     """Test that scan_theorem returns identical output for repeated calls with range."""
-    input_args = {
-        "file": "test.lean",
-        "target": {"range": {"start_line": 10, "end_line": 25}}
-    }
+    input_args = {"file": "test.lean", "target": {"range": {"start_line": 10, "end_line": 25}}}
 
     # Call multiple times
     resp1 = scan_theorem(input_args)
@@ -397,14 +370,8 @@ def test_scan_theorem_determinism_range_mode():
 
 def test_scan_theorem_different_inputs_different_outputs():
     """Test that scan_theorem returns different outputs for different inputs."""
-    resp1 = scan_theorem({
-        "file": "test1.lean",
-        "target": {"theorem_id": "Nat.add_comm"}
-    })
-    resp2 = scan_theorem({
-        "file": "test2.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp1 = scan_theorem({"file": "test1.lean", "target": {"theorem_id": "Nat.add_comm"}})
+    resp2 = scan_theorem({"file": "test2.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
     # Responses should differ
     assert resp1 != resp2, "Different inputs should produce different responses"
@@ -443,10 +410,7 @@ def test_scan_theorem_missing_target_arg():
 
 def test_scan_theorem_empty_file_arg():
     """Test that scan_theorem handles empty file argument gracefully."""
-    resp = scan_theorem({
-        "file": "",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "", "target": {"theorem_id": "Nat.mul_comm"}})
 
     # Should return fail status
     _assert_contract_guarantees(resp, expected_status="fail")
@@ -459,10 +423,7 @@ def test_scan_theorem_empty_file_arg():
 
 def test_scan_theorem_empty_theorem_id():
     """Test that scan_theorem handles empty theorem_id gracefully."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": ""}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": ""}})
 
     # Should return fail status
     _assert_contract_guarantees(resp, expected_status="fail")
@@ -475,10 +436,9 @@ def test_scan_theorem_empty_theorem_id():
 
 def test_scan_theorem_invalid_range_values():
     """Test that scan_theorem handles invalid range values gracefully."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"range": {"start_line": 0, "end_line": -1}}
-    })
+    resp = scan_theorem(
+        {"file": "test.lean", "target": {"range": {"start_line": 0, "end_line": -1}}}
+    )
 
     # Should return fail status
     _assert_contract_guarantees(resp, expected_status="fail")
@@ -491,10 +451,12 @@ def test_scan_theorem_invalid_range_values():
 
 def test_scan_theorem_invalid_file_type():
     """Test that scan_theorem handles invalid file type gracefully."""
-    resp = scan_theorem({
-        "file": 123,  # number instead of string
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem(
+        {
+            "file": 123,  # number instead of string
+            "target": {"theorem_id": "Nat.mul_comm"},
+        }
+    )
 
     # Should return fail status
     _assert_contract_guarantees(resp, expected_status="fail")
@@ -507,10 +469,12 @@ def test_scan_theorem_invalid_file_type():
 
 def test_scan_theorem_invalid_target_type():
     """Test that scan_theorem handles invalid target type gracefully."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": "invalid"  # string instead of object
-    })
+    resp = scan_theorem(
+        {
+            "file": "test.lean",
+            "target": "invalid",  # string instead of object
+        }
+    )
 
     # Should return fail status
     _assert_contract_guarantees(resp, expected_status="fail")
@@ -526,10 +490,7 @@ def test_scan_theorem_invalid_target_type():
 
 def test_scan_theorem_field_types():
     """Test that fields have correct types."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
     # Type checks for top-level fields
     assert isinstance(resp["api_version"], str), "api_version must be string"
@@ -579,10 +540,7 @@ def test_scan_theorem_diagnostics_structure():
 
 def test_scan_theorem_api_version_format():
     """Test that api_version follows the required format (0.x)."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
     # Must match pattern ^0\.[0-9]+$
     import re
@@ -595,28 +553,19 @@ def test_scan_theorem_api_version_format():
 
 def test_scan_theorem_tool_name_correct():
     """Test that tool field is exactly 'scan_theorem'."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
     assert resp["tool"] == "scan_theorem", f"tool must be 'scan_theorem', got '{resp['tool']}'"
 
 
 def test_scan_theorem_run_id_non_empty():
     """Test that run_id is non-empty."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
     assert len(resp["run_id"]) > 0, "run_id must be non-empty"
 
 
 def test_scan_theorem_status_valid():
     """Test that status is one of the valid values."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
     valid_statuses = {"success", "fail", "error", "timeout"}
     assert resp["status"] in valid_statuses, (
         f"status '{resp['status']}' not in valid set {valid_statuses}"
@@ -629,10 +578,7 @@ def test_scan_theorem_status_valid():
 def test_scan_theorem_target_echo_theorem_id():
     """Test that scan_theorem echoes theorem_id in target field."""
     theorem_id = "List.append_assoc"
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": theorem_id}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": theorem_id}})
 
     if resp["status"] == "success":
         assert "target" in resp, "Missing target field"
@@ -643,10 +589,7 @@ def test_scan_theorem_target_echo_theorem_id():
 def test_scan_theorem_target_echo_range():
     """Test that scan_theorem echoes range in target field."""
     range_obj = {"start_line": 15, "end_line": 30}
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"range": range_obj}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"range": range_obj}})
 
     if resp["status"] == "success":
         assert "target" in resp, "Missing target field"
@@ -659,12 +602,8 @@ def test_scan_theorem_target_echo_range():
 
 def test_scan_theorem_notes_are_strings():
     """Test that all notes are strings when present."""
-    resp = scan_theorem({
-        "file": "test.lean",
-        "target": {"theorem_id": "Nat.mul_comm"}
-    })
+    resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
-    if (resp["status"] == "success" and resp["theorem"] is not None 
-        and "notes" in resp["theorem"]):
+    if resp["status"] == "success" and resp["theorem"] is not None and "notes" in resp["theorem"]:
         for note in resp["theorem"]["notes"]:
             assert isinstance(note, str), f"Note must be string, got {type(note)}"

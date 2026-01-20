@@ -5,7 +5,7 @@ Implement static analysis tools for Lean proof files using a phased approach: st
 
 **CRITICAL FIXES NEEDED**: Testing with real Mathlib files revealed major issues that must be addressed:
 - **Name Collision Crisis**: 47+ theorems named "eval" in a single file
-- **Proof Detection Failures**: ~30% "no proof found" for theorems that clearly have proofs  
+- **Proof Detection Failures**: ~30% "no proof found" for theorems that clearly have proofs
 - **Zero Automation Scores**: Many theorems with valid proofs get 0.0 scores
 
 ## User Stories

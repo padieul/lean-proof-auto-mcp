@@ -14,7 +14,7 @@ class Config:
     def from_env() -> Config:
         # Default to current working directory if not specified
         default_cwd = os.getcwd()
-        
+
         return Config(
             server_name=os.getenv("LPAMCP_SERVER_NAME", "lean-proof-auto-mcp"),
             api_version=os.getenv("LPAMCP_API_VERSION", "0.1.0"),

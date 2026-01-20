@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..core.source import SourceText
-from ..core.indexer import build_index
 from ..core.features import extract_features
+from ..core.format import ensure_deterministic, normalize_notes, stable_sort_theorems
+from ..core.indexer import build_index
 from ..core.scoring import compute_profile
-from ..core.format import stable_sort_theorems, normalize_notes, ensure_deterministic
+from ..core.source import SourceText
 
 API_VERSION = "0.1"
 
@@ -69,49 +69,54 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
         file_path = Path(parsed.file)
         text = ""
         diagnostics = []
-        
+
         # Debug: Add working directory info to diagnostics
         import os
+
         cwd = os.getcwd()
         abs_path = file_path.resolve()
-        diagnostics.append({
-            "severity": "info",
-            "message": f"Debug: CWD={cwd}, requested_file={parsed.file}, resolved_path={abs_path}"
-        })
-        
+        diagnostics.append(
+            {
+                "severity": "info",
+                "message": f"Debug: CWD={cwd}, requested_file={parsed.file}, "
+                f"resolved_path={abs_path}",
+            }
+        )
+
         if file_path.exists():
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, encoding="utf-8") as f:
                     text = f.read()
             except Exception as e:
-                diagnostics.append({
-                    "severity": "warning", 
-                    "message": f"Error reading file: {str(e)}"
-                })
+                diagnostics.append(
+                    {"severity": "warning", "message": f"Error reading file: {str(e)}"}
+                )
         else:
             # File doesn't exist - return empty analysis for test compatibility
-            diagnostics.append({
-                "severity": "info", 
-                "message": f"File not found, returning empty analysis: {parsed.file}"
-            })
+            diagnostics.append(
+                {
+                    "severity": "info",
+                    "message": f"File not found, returning empty analysis: {parsed.file}",
+                }
+            )
 
         # Build source representation
         source = SourceText(path=parsed.file, text=text)
-        
+
         # Index file to find theorem declarations
         index = build_index(source)
-        
+
         # Extract features and compute profiles for each theorem
         theorems = []
-        
+
         for decl in index.decls:
             try:
                 # Extract features from theorem
                 features = extract_features(source, decl)
-                
+
                 # Compute automation profile (no structure analysis for scan_file)
                 profile = compute_profile(features, structure=None)
-                
+
                 # Build theorem object
                 theorem_obj = {
                     "theorem_id": decl.theorem_id,
@@ -124,28 +129,30 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
                     "automation": {
                         "whole_goal_potential": profile.whole_goal_potential,
                         "subgoal_potential": profile.subgoal_potential,
-                        "annotation_value": profile.annotation_value
+                        "annotation_value": profile.annotation_value,
                     },
-                    "notes": normalize_notes(profile.notes)
+                    "notes": normalize_notes(profile.notes),
                 }
-                
+
                 # Add proof location if available
                 if decl.proof_span:
                     theorem_obj["location"]["proof_start"] = decl.proof_span.start_line
                     theorem_obj["location"]["proof_end"] = decl.proof_span.end_line
-                
+
                 theorems.append(theorem_obj)
-                
+
             except Exception as e:
                 # Add diagnostic for theorem processing error but continue
-                diagnostics.append({
-                    "severity": "warning",
-                    "message": f"Error processing theorem {decl.name}: {str(e)}"
-                })
-        
+                diagnostics.append(
+                    {
+                        "severity": "warning",
+                        "message": f"Error processing theorem {decl.name}: {str(e)}",
+                    }
+                )
+
         # Sort theorems for deterministic output
         theorems = stable_sort_theorems(theorems)
-        
+
         # Generate summary notes
         summary_notes = []
         if len(theorems) == 0:
@@ -154,17 +161,17 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
             summary_notes.append("1 theorem analyzed")
         else:
             summary_notes.append(f"{len(theorems)} theorems analyzed")
-        
+
         # Add analysis insights
         if theorems:
             if any("rewrite-heavy" in t.get("notes", []) for t in theorems):
                 summary_notes.append("contains rewrite-heavy proofs")
             if any("uses induction" in t.get("notes", []) for t in theorems):
                 summary_notes.append("contains inductive proofs")
-        
+
         # Normalize summary notes
         summary_notes = normalize_notes(summary_notes)
-        
+
         # Build response
         response = {
             "api_version": API_VERSION,
@@ -172,17 +179,14 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
             "run_id": run_id,
             "tool": "scan_file",
             "file": parsed.file,
-            "summary": {
-                "theorem_count": len(theorems),
-                "notes": summary_notes
-            },
+            "summary": {"theorem_count": len(theorems), "notes": summary_notes},
             "theorems": theorems,
-            "diagnostics": diagnostics
+            "diagnostics": diagnostics,
         }
-        
+
         # Ensure deterministic output
         return ensure_deterministic(response)
-        
+
     except Exception as e:
         return {
             "api_version": API_VERSION,
@@ -197,12 +201,13 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
 
 def _generate_run_id(file_path: str, prefix: str) -> str:
     """Generate a deterministic run_id for testing compatibility.
-    
+
     In production, this would use UUID, but for tests we need deterministic IDs.
     """
     # For now, use deterministic IDs for test compatibility
     # In the future, this could be made configurable or use UUID in production
     import hashlib
+
     content = f"{prefix}-{file_path}"
     hash_obj = hashlib.md5(content.encode())
     return f"{prefix}-{hash_obj.hexdigest()[:8]}"

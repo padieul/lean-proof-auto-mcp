@@ -1,8 +1,47 @@
 # Tasks: Static Analysis Tools Implementation
 
-## ✅ IMPLEMENTATION COMPLETE
+## ⚠️ CRITICAL FIXES NEEDED
+
+**Testing with real Mathlib files revealed major issues that require immediate fixes:**
+- **Name Collision Crisis**: 47+ theorems named "eval" in Defs.lean
+- **Proof Detection Failures**: ~30% "no proof found" for valid theorems
+- **Zero Automation Scores**: Many valid proofs get 0.0 scores
+
+## ✅ IMPLEMENTATION COMPLETE (Base Functionality)
 
 All phases of the static analysis tools implementation have been successfully completed. The implementation follows the phased approach and all tests are passing.
+
+---
+
+## Phase 5: Critical Fixes for Real Mathlib Files ⚠️ URGENT
+
+### 5.1 Fix Theorem Name Collisions ❌ NOT STARTED
+- [ ] **CRITICAL**: Update core/indexer.py to generate unique theorem_id values
+- [ ] Include namespace context in theorem names (e.g., "Polynomial.eval" vs "List.eval")  
+- [ ] Handle anonymous theorems with deterministic unique IDs (e.g., "example_42")
+- [ ] Test with Defs.lean to verify zero duplicate theorem_id values
+- [ ] Ensure backward compatibility with existing tests
+
+### 5.2 Fix Proof Boundary Detection ❌ NOT STARTED  
+- [ ] **CRITICAL**: Improve regex patterns in core/indexer.py for proof detection
+- [ ] Better handling of multi-line declarations spanning multiple lines
+- [ ] Enhanced detection of both `:=` (term-mode) and `by` (tactic-mode) proofs
+- [ ] Improved indentation-based proof end detection
+- [ ] Test with Mathlib files to achieve <5% "no proof found" rate
+
+### 5.3 Fix Automation Scoring ❌ NOT STARTED
+- [ ] **CRITICAL**: Update core/features.py to avoid false negative tactic detection
+- [ ] Improve proof text extraction from detected boundaries  
+- [ ] Enhanced confidence scoring in core/scoring.py
+- [ ] Ensure theorems with detected proofs get non-zero automation scores
+- [ ] Test scoring accuracy on real Mathlib theorems
+
+### 5.4 Validation with Real Files ❌ NOT STARTED
+- [ ] Test fixes against tests/fixtures/mathlib_lean_files/Defs.lean
+- [ ] Test fixes against tests/fixtures/mathlib_lean_files/Coeff.lean  
+- [ ] Test fixes against tests/fixtures/mathlib_lean_files/Degree.lean
+- [ ] Verify all existing tests still pass (no regressions)
+- [ ] Document improvements and remaining limitations
 
 ---
 

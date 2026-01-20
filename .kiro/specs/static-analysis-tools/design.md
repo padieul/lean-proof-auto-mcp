@@ -785,6 +785,177 @@ def test_target_echo(file_path, theorem_id):
 - Aim for >90% code coverage
 
 
+## Phase 5: Critical Architectural Fixes for Mathlib Files
+
+### Overview
+Testing with real Mathlib files revealed three critical architectural issues that require immediate fixes to the core modules. These fixes address fundamental problems with name collisions, proof detection accuracy, and automation scoring coverage.
+
+### Issue 1: Theorem Name Collisions (CRITICAL)
+
+**Problem**: Current implementation generates duplicate theorem_id values when multiple theorems have the same name (e.g., 47+ "eval" theorems in Defs.lean).
+
+**Root Cause**: The `build_index()` function in `core/indexer.py` uses only the theorem name for `theorem_id` generation, ignoring namespace context and position-based disambiguation.
+
+**Architectural Solution**:
+
+**Enhanced theorem_id Generation Strategy**:
+```python
+def _generate_unique_theorem_id(full_name: str, kind: str, start_line: int, 
+                               existing_ids: Set[str]) -> str:
+    """Generate unique theorem_id with collision resolution.
+    
+    Strategy:
+    1. Use full namespace path if available (e.g., "Polynomial.eval")
+    2. For unnamed theorems, use kind + line number (e.g., "example_42")
+    3. For collisions, append line number (e.g., "eval_123")
+    4. Ensure uniqueness within file scope
+    """
+```
+
+**Core Module Changes**:
+- **core/indexer.py**: Update `build_index()` to track existing theorem_id values and resolve collisions
+- **core/indexer.py**: Enhance namespace extraction from full theorem names
+- **core/indexer.py**: Add position-based disambiguation for anonymous theorems
+- **core/format.py**: Update sorting to handle new theorem_id format
+
+**Backward Compatibility**: Existing tests continue to work as theorem_id format is enhanced, not changed fundamentally.
+
+### Issue 2: Proof Boundary Detection Failures (CRITICAL)
+
+**Problem**: Current implementation fails to detect proofs in ~30% of valid theorems, particularly with multi-line declarations and complex proof structures.
+
+**Root Cause**: The `_find_declaration_spans()` function in `core/indexer.py` uses overly restrictive regex patterns and insufficient lookahead for proof markers.
+
+**Architectural Solution**:
+
+**Enhanced Proof Detection Strategy**:
+```python
+def _find_declaration_spans_enhanced(lines: List[str], start_line: int, 
+                                   start_col: int) -> tuple[Optional[Span], Optional[Span]]:
+    """Improved declaration and proof span detection.
+    
+    Enhancements:
+    1. Multi-line declaration support (theorem name on different line than colon)
+    2. Better := vs by detection with context awareness
+    3. Improved indentation-based proof end detection
+    4. Handling of nested proof structures (have, suffices blocks)
+    5. Better term-mode vs tactic-mode distinction
+    """
+```
+
+**Core Module Changes**:
+- **core/indexer.py**: Replace `_find_declaration_spans()` with enhanced multi-line aware version
+- **core/indexer.py**: Improve `_find_proof_end()` with better indentation analysis
+- **core/indexer.py**: Add `_find_term_proof_end()` enhancements for complex expressions
+- **core/indexer.py**: Better handling of proof keywords (`by`, `:=`, `where`) in various contexts
+
+**Detection Improvements**:
+- Support theorem declarations spanning multiple lines
+- Better recognition of proof start markers in various syntactic contexts
+- Enhanced indentation-based proof boundary detection
+- Improved handling of nested proof constructs
+
+### Issue 3: Automation Scoring False Negatives (CRITICAL)
+
+**Problem**: Many theorems with valid detected proofs receive 0.0 automation scores due to tactic detection failures and poor confidence scoring.
+
+**Root Cause**: The `detect_tactics()` function in `core/features.py` misses tactics due to context issues, and `_calculate_confidence()` is overly conservative.
+
+**Architectural Solution**:
+
+**Enhanced Tactic Detection Strategy**:
+```python
+def detect_tactics_enhanced(proof_text: str, source_context: SourceText, 
+                          proof_span: Span) -> Set[str]:
+    """Improved tactic detection with context awareness.
+    
+    Enhancements:
+    1. Better handling of tactic variants and aliases
+    2. Context-aware detection (avoid false positives in strings/comments)
+    3. Multi-line tactic recognition (tactics split across lines)
+    4. Detection of tactic combinators (;, <;>, try, repeat)
+    5. Recognition of custom tactics and macros
+    """
+```
+
+**Enhanced Confidence Scoring**:
+```python
+def _calculate_confidence_enhanced(proof_text: str, proof_span: Span, 
+                                 tactic_kinds: Set[str], decl: TheoremDecl) -> float:
+    """Improved confidence calculation with multiple signals.
+    
+    Signals:
+    1. Proof structure quality (proper indentation, clear boundaries)
+    2. Tactic diversity and appropriateness
+    3. Proof length relative to declaration complexity
+    4. Presence of proof keywords and markers
+    5. Absence of suspicious patterns (incomplete proofs, errors)
+    """
+```
+
+**Core Module Changes**:
+- **core/features.py**: Replace `detect_tactics()` with enhanced context-aware version
+- **core/features.py**: Update `_calculate_confidence()` with multi-signal approach
+- **core/features.py**: Add tactic variant recognition (e.g., `simp_all`, `rw_mod_cast`)
+- **core/features.py**: Improve proof text extraction quality assessment
+- **core/scoring.py**: Update scoring heuristics to use enhanced confidence signals
+
+### Implementation Strategy
+
+**Phase 5.1: Unique Theorem ID Generation**
+1. Update `core/indexer.py` with collision-aware theorem_id generation
+2. Add namespace context extraction from full theorem names
+3. Implement position-based disambiguation for anonymous theorems
+4. Update tests to verify zero collisions on Mathlib files
+
+**Phase 5.2: Enhanced Proof Detection**
+1. Replace proof boundary detection with multi-line aware implementation
+2. Improve indentation-based proof end detection
+3. Add better support for complex proof structures
+4. Test detection accuracy on real Mathlib files (target: <5% failures)
+
+**Phase 5.3: Improved Automation Scoring**
+1. Enhance tactic detection with context awareness and variant recognition
+2. Update confidence scoring with multi-signal approach
+3. Improve proof quality assessment
+4. Test scoring coverage on real Mathlib files (target: >90% non-zero scores)
+
+**Phase 5.4: Integration and Validation**
+1. Run full test suite to ensure no regressions
+2. Validate fixes against all three Mathlib test files
+3. Measure improvement in success metrics
+4. Document architectural changes and remaining limitations
+
+### Backward Compatibility Strategy
+
+**API Compatibility**: All JSON schemas remain unchanged - fixes are internal to core modules.
+
+**Test Compatibility**: Existing unit tests and contract tests continue to pass with enhanced implementations.
+
+**Behavioral Compatibility**: Tools produce the same output format with improved accuracy and coverage.
+
+### Success Metrics for Phase 5
+
+**Name Collision Resolution**: 
+- Before: 47+ duplicate "eval" theorem_id values in Defs.lean
+- After: 0 duplicate theorem_id values in any file
+
+**Proof Detection Accuracy**:
+- Before: ~30% "no proof found" cases on valid theorems
+- After: <5% "no proof found" cases on well-formed Lean files
+
+**Automation Scoring Coverage**:
+- Before: Many theorems with valid proofs get 0.0 scores
+- After: >90% of theorems with detected proofs get non-zero automation scores
+
+### Risk Mitigation
+
+**Regression Risk**: Comprehensive test suite ensures existing functionality remains intact while fixes are applied.
+
+**Performance Risk**: Enhanced algorithms maintain O(n) complexity for file processing, with minimal performance impact.
+
+**Compatibility Risk**: Internal implementation changes do not affect external APIs or JSON schemas.
+
 ## Future Extensions (Post v0.1)
 
 ### Enhanced Parsing

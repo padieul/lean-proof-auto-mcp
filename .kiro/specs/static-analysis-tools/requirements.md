@@ -3,6 +3,11 @@
 ## Overview
 Implement static analysis tools for Lean proof files using a phased approach: stubs → tests → implementation. The tools share a common core for parsing, indexing, and feature extraction, with thin wrappers for tool-specific logic.
 
+**CRITICAL FIXES NEEDED**: Testing with real Mathlib files revealed major issues that must be addressed:
+- **Name Collision Crisis**: 47+ theorems named "eval" in a single file
+- **Proof Detection Failures**: ~30% "no proof found" for theorems that clearly have proofs  
+- **Zero Automation Scores**: Many theorems with valid proofs get 0.0 scores
+
 ## User Stories
 
 ### 0. As a developer, I want crisp JSON schemas for both tools
@@ -20,7 +25,7 @@ Implement static analysis tools for Lean proof files using a phased approach: st
 - 1.2 Tool returns valid JSON conforming to `docs/mcp/schemas/scan_file.json`
 - 1.3 Response includes: api_version, status, run_id, tool, file, summary, diagnostics
 - 1.4 Summary contains theorem_count and notes array
-- 1.5 Tool emits stable theorem_id for each theorem (used by scan_theorem)
+- 1.5 Tool emits stable theorem_id for each theorem (used by scan_theorem) **CRITICAL: Must be unique per file - zero name collisions**
 - 1.6 Tool computes lightweight per-theorem features (proof length, tactic keywords)
 - 1.7 Tool includes automation signals matching scan_theorem format:
   - whole_goal_potential: {aesop: float, grind: float}
@@ -90,6 +95,17 @@ Implement static analysis tools for Lean proof files using a phased approach: st
   - Implement scan_theorem using shared core
   - All contract tests pass
 - 5.6 Each phase is independently testable and deployable
+
+### 6. As a developer, I want the tools to work correctly on real Mathlib files
+**Acceptance Criteria:**
+- 6.1 **CRITICAL FIX**: Zero duplicate theorem_id values within any single file
+- 6.2 **CRITICAL FIX**: <5% "no proof found" cases on well-formed Lean files (currently ~30%)
+- 6.3 **CRITICAL FIX**: >90% of theorems with detected proofs get non-zero automation scores
+- 6.4 Theorem names include sufficient context to distinguish overloads (e.g., "Polynomial.eval" vs "List.eval")
+- 6.5 Anonymous theorems get deterministic unique identifiers (e.g., "example_42", "instance_15")
+- 6.6 Improved proof boundary detection for both `:=` and `by` patterns
+- 6.7 Better handling of multi-line declarations and complex proof structures
+- 6.8 Enhanced tactic detection to avoid false negatives in scoring
 
 ## Schema Specifications
 
@@ -287,3 +303,7 @@ src/lean_proof_auto_mcp/
 - Core modules have >90% test coverage
 - Tools return valid JSON for all test cases
 - Zero external process dependencies
+- **CRITICAL SUCCESS METRICS**:
+  - **Name Collision Resolution**: 0 duplicate theorem_id values per file (was 47+ "eval" theorems)
+  - **Proof Detection Accuracy**: <5% "no proof found" cases (was ~30%)
+  - **Automation Scoring Coverage**: >90% of detected proofs get meaningful scores (was many zeros)

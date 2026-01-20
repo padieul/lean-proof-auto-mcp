@@ -5,7 +5,7 @@ of theorem-like declarations in Lean files and looking them up by ID or range.
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .lean_syntax import detect_string_literals, strip_comments
 from .source import SourceText, Span
@@ -29,7 +29,7 @@ class TheoremDecl:
     kind: str
     decl_span: Span
     proof_span: Span | None = None
-    attributes: list[str] = None
+    attributes: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         """Validate theorem declaration invariants."""
@@ -80,7 +80,7 @@ def build_index(source: SourceText) -> FileIndex:
 
     # Find all theorem-like declarations
     decls = []
-    existing_ids = set()  # Track existing theorem_id values to avoid collisions
+    existing_ids: set[str] = set()  # Track existing theorem_id values to avoid collisions
 
     # Pattern to match theorem-like declarations
     # Matches: theorem|lemma|example|instance followed by optional name and eventually a colon
@@ -93,7 +93,7 @@ def build_index(source: SourceText) -> FileIndex:
     lines = clean_text.splitlines()
 
     # Track namespace context for proper theorem_id generation
-    current_namespace_stack = []
+    current_namespace_stack: list[str] = []
 
     for match in re.finditer(decl_pattern, clean_text, re.MULTILINE):
         kind = match.group(1)

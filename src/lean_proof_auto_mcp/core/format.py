@@ -7,6 +7,8 @@ This module provides functions to:
 - Ensure all output is deterministic (sorted lists, rounded floats)
 """
 
+from typing import Any
+
 
 def stable_sort_theorems(theorems: list[dict]) -> list[dict]:
     """
@@ -44,7 +46,7 @@ def normalize_notes(notes: list[str], max_length: int = 200) -> list[str]:
     return trimmed_notes
 
 
-def ensure_deterministic(data: dict) -> dict:
+def ensure_deterministic(data: dict[str, Any]) -> dict[str, Any]:
     """
     Ensure all lists are sorted and floats rounded consistently.
 
@@ -54,7 +56,7 @@ def ensure_deterministic(data: dict) -> dict:
     Returns:
         New dictionary with normalized values for deterministic output
     """
-    result = {}
+    result: dict[str, Any] = {}
 
     for key, value in data.items():
         if isinstance(value, dict):
@@ -62,7 +64,7 @@ def ensure_deterministic(data: dict) -> dict:
             result[key] = ensure_deterministic(value)
         elif isinstance(value, list):
             # Process lists
-            normalized_list = []
+            normalized_list: list[Any] = []
             for item in value:
                 if isinstance(item, dict):
                     normalized_list.append(ensure_deterministic(item))
@@ -92,7 +94,7 @@ def ensure_deterministic(data: dict) -> dict:
     return result
 
 
-def _round_automation_scores(automation: dict) -> dict:
+def _round_automation_scores(automation: dict[str, Any]) -> dict[str, Any]:
     """
     Helper function to round automation scores to 2 decimal places.
 
@@ -102,7 +104,7 @@ def _round_automation_scores(automation: dict) -> dict:
     Returns:
         Automation dict with rounded scores
     """
-    result = {}
+    result: dict[str, Any] = {}
 
     for key, value in automation.items():
         if isinstance(value, dict):

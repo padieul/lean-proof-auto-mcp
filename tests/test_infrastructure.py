@@ -3,7 +3,7 @@
 
 def test_jsonschema_available():
     """Verify jsonschema library is available."""
-    from jsonschema import validate
+    from jsonschema import validate  # type: ignore[import-untyped]
 
     # Simple schema validation test
     schema = {"type": "object", "properties": {"name": {"type": "string"}}}

@@ -118,7 +118,7 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
                 profile = compute_profile(features, structure=None)
 
                 # Build theorem object
-                theorem_obj = {
+                theorem_obj: dict[str, Any] = {
                     "theorem_id": decl.theorem_id,
                     "name": decl.name,
                     "kind": decl.kind,

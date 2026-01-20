@@ -41,8 +41,8 @@ class TestStripComments:
   trivial"""
         result = strip_comments(text)
         expected = """theorem example : True := by
-
-
+  
+  
   trivial"""
         assert result == expected
 

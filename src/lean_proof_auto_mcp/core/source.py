@@ -130,7 +130,7 @@ class SourceText:
         result_lines = []
 
         # Find the base indentation level from non-empty lines
-        indentation_counts = {}
+        indentation_counts: dict[int, int] = {}
         for line in lines:
             stripped = line.strip()
             if stripped and not stripped.startswith("--"):  # Skip empty lines and comments

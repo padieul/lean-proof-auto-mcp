@@ -18,6 +18,7 @@ from ..core.ranking import (
     TheoremData,
     assign_tiers,
     generate_reasons,
+    get_available_objectives,
     rank_theorems,
 )
 from ..core.source import SourceText
@@ -93,6 +94,18 @@ def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
     objective = args.get("objective", "balanced")
     if not isinstance(objective, str):
         raise ValueError("rank_targets: 'objective' must be a string")
+    
+    # Validate objective and provide helpful error message
+    if objective not in OBJECTIVE_WEIGHTS:
+        available = get_available_objectives()
+        objective_list = "\n".join([
+            f"  - {obj['name']}: {obj['description']}"
+            for obj in available
+        ])
+        raise ValueError(
+            f"rank_targets: invalid objective '{objective}'\n"
+            f"Available objectives:\n{objective_list}"
+        )
 
     limit = args.get("limit", 30)
     if not isinstance(limit, int):
@@ -514,6 +527,7 @@ def _format_response(
         "summary": summary,
         "diagnostics": diagnostics,
         "metadata": metadata,
+        "available_objectives": get_available_objectives(),  # NEW FIELD
     }
 
     # Ensure deterministic output

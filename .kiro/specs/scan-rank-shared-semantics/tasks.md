@@ -183,29 +183,29 @@
 
 ## 7. Objective Discovery
 
-- [ ] 7 Implement objective discovery system
+- [x] 7 Implement objective discovery system
   - Complete all subtasks: metadata structure and integration
   - **BREAKING CHANGE**: All responses now include available_objectives
   - **Validates: Requirements US-3, Design D4**
 
-- [ ] 7.1 Create OBJECTIVE_METADATA structure
+- [x] 7.1 Create OBJECTIVE_METADATA structure
   - Create `OBJECTIVE_METADATA` dict in `core/ranking.py`
   - Include name, description, use_case, weights for each objective
   - Keep `OBJECTIVE_WEIGHTS` for backward compatibility (extract from metadata)
   - **Validates: Requirements US-3 (AC 3.1, 3.2, 3.4), Design D4**
 
-- [ ] 7.2 Implement get_available_objectives function
+- [x] 7.2 Implement get_available_objectives function
   - Create `get_available_objectives()` function returning list of objective metadata
   - Format as list of dicts with name, description, use_case, weights
   - **Validates: Requirements US-3 (AC 3.1, 3.2), Design D4**
 
-- [ ] 7.3 Add available_objectives to response
+- [x] 7.3 Add available_objectives to response
   - Call `get_available_objectives()` in `_format_response()`
   - Add `available_objectives` field to response
   - **BREAKING CHANGE**: Response structure changed
   - **Validates: Requirements US-3 (AC 3.1), Design D4**
 
-- [ ] 7.4 Improve error messages for invalid objectives
+- [x] 7.4 Improve error messages for invalid objectives
   - Update `_coerce_args()` to include available objectives in error message
   - Format as bulleted list with descriptions
   - **Validates: Requirements US-3 (AC 3.3), Design D4**

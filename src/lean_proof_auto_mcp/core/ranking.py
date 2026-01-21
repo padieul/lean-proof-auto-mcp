@@ -301,37 +301,96 @@ def compute_risk(signals: dict[str, Any], config: "RiskScoringConfig") -> float:
     return round(risk, 2)
 
 
-# Objective weight configurations (immutable)
-OBJECTIVE_WEIGHTS = {
+# Objective metadata with descriptions and use cases (immutable)
+OBJECTIVE_METADATA = {
     "maximize_success": {
-        "success_likelihood": 0.50,
-        "impact": 0.10,
-        "annotation_value": 0.10,
-        "subgoal_potential": 0.10,
-        "risk": -0.20,
+        "name": "maximize_success",
+        "description": "Prioritize theorems most likely to be automated successfully",
+        "use_case": "When you want quick wins and high success rate",
+        "weights": {
+            "success_likelihood": 0.50,
+            "impact": 0.10,
+            "annotation_value": 0.10,
+            "subgoal_potential": 0.10,
+            "risk": -0.20,
+        },
     },
     "maximize_impact": {
-        "success_likelihood": 0.20,
-        "impact": 0.40,
-        "annotation_value": 0.30,
-        "subgoal_potential": 0.05,
-        "risk": -0.05,
+        "name": "maximize_impact",
+        "description": "Prioritize theorems that save the most time when automated",
+        "use_case": "When you want maximum ROI on automation effort",
+        "weights": {
+            "success_likelihood": 0.20,
+            "impact": 0.40,
+            "annotation_value": 0.30,
+            "subgoal_potential": 0.05,
+            "risk": -0.05,
+        },
     },
     "maximize_subgoal_automation": {
-        "success_likelihood": 0.15,
-        "impact": 0.15,
-        "annotation_value": 0.20,
-        "subgoal_potential": 0.40,
-        "risk": -0.10,
+        "name": "maximize_subgoal_automation",
+        "description": "Prioritize theorems with good partial automation opportunities",
+        "use_case": "When you want to automate proof steps rather than whole goals",
+        "weights": {
+            "success_likelihood": 0.15,
+            "impact": 0.15,
+            "annotation_value": 0.20,
+            "subgoal_potential": 0.40,
+            "risk": -0.10,
+        },
     },
     "balanced": {
-        "success_likelihood": 0.25,
-        "impact": 0.25,
-        "annotation_value": 0.20,
-        "subgoal_potential": 0.20,
-        "risk": -0.10,
+        "name": "balanced",
+        "description": "Balanced weighting across all factors",
+        "use_case": "When you want a general-purpose ranking",
+        "weights": {
+            "success_likelihood": 0.25,
+            "impact": 0.25,
+            "annotation_value": 0.20,
+            "subgoal_potential": 0.20,
+            "risk": -0.10,
+        },
     },
 }
+
+# Objective weight configurations (immutable) - extracted from metadata for backward compatibility
+OBJECTIVE_WEIGHTS = {
+    name: meta["weights"]
+    for name, meta in OBJECTIVE_METADATA.items()
+}
+
+
+def get_available_objectives() -> list[dict[str, Any]]:
+    """Return objective metadata for client discovery.
+    
+    Provides comprehensive information about each ranking objective,
+    including its name, description, use case, and weight configuration.
+    This enables clients to discover valid objectives without trial-and-error.
+    
+    Returns:
+        List of objective metadata dictionaries with:
+        - name: Objective identifier (string)
+        - description: What this objective optimizes for (string)
+        - use_case: When to use this objective (string)
+        - weights: Component weight configuration (dict)
+    
+    Example:
+        >>> objectives = get_available_objectives()
+        >>> for obj in objectives:
+        ...     print(f"{obj['name']}: {obj['description']}")
+        maximize_success: Prioritize theorems most likely to be automated successfully
+        maximize_impact: Prioritize theorems that save the most time when automated
+        ...
+    """
+    return [
+        {
+            "name": meta["name"],
+            "description": meta["description"],
+            "use_case": meta["use_case"],
+            "weights": meta["weights"],
+        }
+        for meta in OBJECTIVE_METADATA.values()
+    ]
 
 
 def compute_final_score(components: ComponentScores, objective: str) -> float:

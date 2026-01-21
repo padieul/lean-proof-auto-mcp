@@ -75,7 +75,7 @@ class TheoremData:
             raise ValueError("start_line must be <= end_line")
 
 
-def compute_success_likelihood(signals: dict[str, Any]) -> float:
+def compute_success_likelihood(signals: dict[str, Any], config: "SuccessLikelihoodScoringConfig") -> float:
     """Compute success likelihood score from automation signals.
 
     Estimates probability that automation will successfully solve the theorem
@@ -83,6 +83,7 @@ def compute_success_likelihood(signals: dict[str, Any]) -> float:
 
     Args:
         signals: Automation signals from scan_file
+        config: Success likelihood scoring configuration
 
     Returns:
         Score in [0.0, 1.0] indicating success likelihood
@@ -103,22 +104,26 @@ def compute_success_likelihood(signals: dict[str, Any]) -> float:
     # Compute complexity penalty
     complexity_penalty = 0.0
     if has_induction or has_cases:
-        complexity_penalty += 0.2
-    if proof_lines > 30:
-        complexity_penalty += 0.1
-    if local_lemmas_count > 3:
-        complexity_penalty += 0.1
-    complexity_penalty = min(0.5, complexity_penalty)
+        complexity_penalty += config.complexity_induction_or_cases_penalty
+    if proof_lines > config.complexity_long_proof_threshold:
+        complexity_penalty += config.complexity_long_proof_penalty
+    if local_lemmas_count > config.complexity_many_local_lemmas_threshold:
+        complexity_penalty += config.complexity_many_local_lemmas_penalty
+    complexity_penalty = min(config.complexity_max_penalty, complexity_penalty)
 
     # Compute final score
-    score = 0.6 * max_potential + 0.3 * confidence - 0.1 * complexity_penalty
+    score = (
+        config.component_weight_max_potential * max_potential
+        + config.component_weight_confidence * confidence
+        + config.component_weight_complexity_penalty * complexity_penalty
+    )
 
     # Clamp and round
     score = max(0.0, min(1.0, score))
     return float(round(score, 2))
 
 
-def compute_impact(signals: dict[str, Any]) -> float:
+def compute_impact(signals: dict[str, Any], config: "ImpactScoringConfig") -> float:
     """Compute impact score from automation signals.
 
     Estimates value of automating this theorem based on proof length,
@@ -126,6 +131,7 @@ def compute_impact(signals: dict[str, Any]) -> float:
 
     Args:
         signals: Automation signals from scan_file
+        config: Impact scoring configuration
 
     Returns:
         Score in [0.0, 1.0] indicating automation impact
@@ -136,25 +142,28 @@ def compute_impact(signals: dict[str, Any]) -> float:
     local_lemmas_count = signals.get("local_lemmas_count", 0)
 
     # Compute proof length score (saturating)
-    if proof_lines == 0:
-        proof_length_score = 0.0
-    elif proof_lines <= 5:
-        proof_length_score = 0.2
-    elif proof_lines <= 10:
-        proof_length_score = 0.4
-    elif proof_lines <= 20:
-        proof_length_score = 0.6
-    elif proof_lines <= 40:
-        proof_length_score = 0.8
-    else:
-        proof_length_score = 1.0
+    proof_length_score = 0.0
+    for length_config in config.proof_length_scores:
+        min_lines = length_config.min_lines if length_config.min_lines is not None else 0
+        max_lines = length_config.max_lines if length_config.max_lines is not None else float('inf')
+        
+        if min_lines <= proof_lines <= max_lines:
+            proof_length_score = length_config.score
+            break
 
     # Compute reusability score
     # Based on local lemmas (indicates complexity worth reusing)
-    reusability_score = min(1.0, local_lemmas_count * 0.2)
+    reusability_score = min(
+        config.reusability_max_score,
+        local_lemmas_count * config.reusability_score_per_local_lemma
+    )
 
     # Compute final score
-    score = 0.5 * proof_length_score + 0.3 * annotation_value + 0.2 * reusability_score
+    score = (
+        config.component_weight_proof_length * proof_length_score
+        + config.component_weight_annotation_value * annotation_value
+        + config.component_weight_reusability * reusability_score
+    )
 
     # Clamp and round
     score = max(0.0, min(1.0, score))
@@ -162,7 +171,7 @@ def compute_impact(signals: dict[str, Any]) -> float:
 
 
 def compute_subgoal_potential(
-    signals: dict[str, Any], structure: dict[str, Any] | None = None
+    signals: dict[str, Any], structure: dict[str, Any] | None = None, config: "SubgoalPotentialScoringConfig | None" = None
 ) -> float:
     """Compute subgoal potential score from automation signals.
 
@@ -172,10 +181,17 @@ def compute_subgoal_potential(
     Args:
         signals: Automation signals from scan_file
         structure: Optional deep structure data from scan_theorem
+        config: Optional subgoal potential scoring configuration. If None, loads default config.
 
     Returns:
         Score in [0.0, 1.0] indicating subgoal automation potential
     """
+    # Load default config if not provided
+    if config is None:
+        from .config import load_default_config
+        full_config = load_default_config()
+        config = full_config.subgoal_potential_scoring
+    
     # Extract signals with defaults
     subgoal_potential = signals.get("subgoal_potential", {})
     confidence = signals.get("confidence", 0.0)
@@ -192,16 +208,20 @@ def compute_subgoal_potential(
         blocks = structure.get("blocks", [])
 
         if cases:
-            structure_bonus += 0.2
+            structure_bonus += min(
+                config.structure_cases_max_bonus,
+                len(cases) * config.structure_cases_bonus_per_case
+            )
 
         # Check for rewrite_simp blocks
         rewrite_simp_blocks = [b for b in blocks if b.get("kind") == "rewrite_simp"]
         if rewrite_simp_blocks:
-            structure_bonus += 0.15
+            structure_bonus += min(
+                config.rewrite_blocks_max_bonus,
+                len(rewrite_simp_blocks) * config.rewrite_blocks_bonus_per_block
+            )
 
-        # Multiple blocks bonus
-        if len(blocks) > 1:
-            structure_bonus += 0.1
+        # Multiple blocks bonus (already included in rewrite_blocks calculation)
 
     structure_bonus = min(1.0, structure_bonus)
 
@@ -213,7 +233,7 @@ def compute_subgoal_potential(
     return float(round(score, 2))
 
 
-def compute_risk(signals: dict[str, Any]) -> float:
+def compute_risk(signals: dict[str, Any], config: "RiskScoringConfig") -> float:
     """Compute risk score from automation signals.
 
     Heuristic penalty for likely global changes or non-local side effects
@@ -221,6 +241,7 @@ def compute_risk(signals: dict[str, Any]) -> float:
 
     Args:
         signals: Automation signals from scan_file
+        config: Risk scoring configuration
 
     Returns:
         Score in [0.0, 1.0] indicating automation risk
@@ -234,42 +255,42 @@ def compute_risk(signals: dict[str, Any]) -> float:
 
     # Compute global change risk
     global_change_risk = 0.0
-    if rewrite_count > 5:
-        global_change_risk = 0.6
-    elif simp_count > 3:
-        global_change_risk = 0.4
+    if rewrite_count > config.global_change_rewrite_heavy_threshold:
+        global_change_risk = config.global_change_rewrite_heavy_risk
+    elif simp_count > config.global_change_simp_heavy_threshold:
+        global_change_risk = config.global_change_simp_heavy_risk
 
     # Check for "simp?" in notes (indicates need for simp set refinement)
     if any("simp?" in note.lower() for note in notes):
-        global_change_risk = max(global_change_risk, 0.8)
+        global_change_risk = max(global_change_risk, config.global_change_simp_question_mark_risk)
 
     # Compute simp risk
     simp_risk = 0.0
-    if simp_count > 3:
-        simp_risk = 0.6
-    elif simp_count > 1:
-        simp_risk = 0.3
+    if simp_count > config.simp_heavy_threshold:
+        simp_risk = config.simp_heavy_risk
+    elif simp_count > config.simp_moderate_threshold:
+        simp_risk = config.simp_moderate_risk
 
     # Compute local lemma risk
     local_lemma_risk = 0.0
-    if local_lemmas_count > 3:
-        local_lemma_risk = 0.5
-    elif local_lemmas_count > 1:
-        local_lemma_risk = 0.2
+    if local_lemmas_count > config.local_lemma_heavy_threshold:
+        local_lemma_risk = config.local_lemma_heavy_risk
+    elif local_lemmas_count > config.local_lemma_moderate_threshold:
+        local_lemma_risk = config.local_lemma_moderate_risk
 
     # Compute low confidence risk
     low_confidence_risk = 0.0
-    if confidence < 0.4:
-        low_confidence_risk = 0.7
-    elif confidence < 0.6:
-        low_confidence_risk = 0.4
+    if confidence < config.low_confidence_very_low_threshold:
+        low_confidence_risk = config.low_confidence_very_low_risk
+    elif confidence < config.low_confidence_low_threshold:
+        low_confidence_risk = config.low_confidence_low_risk
 
     # Compute final risk score
     risk = (
-        0.3 * global_change_risk
-        + 0.3 * simp_risk
-        + 0.2 * local_lemma_risk
-        + 0.2 * low_confidence_risk
+        config.component_weight_global_change * global_change_risk
+        + config.component_weight_simp * simp_risk
+        + config.component_weight_local_lemma * local_lemma_risk
+        + config.component_weight_confidence * low_confidence_risk
     )
 
     # Clamp and round

@@ -43,26 +43,26 @@
 
 ## 2. Refactor Scoring Functions for Configuration
 
-- [ ] 2 Refactor all scoring functions to use configuration
+- [x] 2 Refactor all scoring functions to use configuration
   - Complete all subtasks: update all scoring functions in scoring.py and ranking.py
   - **BREAKING CHANGE**: All functions now require config parameter
   - **Validates: Requirements US-7, Design D7**
 
-- [ ] 2.1 Refactor confidence calculation (features.py)
+- [x] 2.1 Refactor confidence calculation (features.py)
   - Update `_calculate_confidence()` to accept `ConfidenceConfig` parameter
   - Replace all hardcoded values with config values
   - Update `extract_features()` to accept optional config parameter (defaults to package config)
   - **BREAKING CHANGE**: Function signature changed
   - **Validates: Requirements US-7 (AC 7.1), Design D7**
 
-- [ ] 2.2 Refactor aesop and grind scoring (scoring.py)
+- [x] 2.2 Refactor aesop and grind scoring (scoring.py)
   - Update `score_aesop_potential()` to accept `HeuristicsConfig` parameter
   - Update `score_grind_potential()` to accept `HeuristicsConfig` parameter
   - Replace all hardcoded values with config.aesop_scoring and config.grind_scoring values
   - **BREAKING CHANGE**: Function signatures changed
   - **Validates: Requirements US-7 (AC 7.1), Design D7**
 
-- [ ] 2.3 Refactor annotation value and subgoal scoring (scoring.py)
+- [x] 2.3 Refactor annotation value and subgoal scoring (scoring.py)
   - Update `score_annotation_value()` to accept `HeuristicsConfig` parameter
   - Update `_score_aesop_subgoal_potential()` to accept `HeuristicsConfig` parameter
   - Update `_score_grind_subgoal_potential()` to accept `HeuristicsConfig` parameter
@@ -70,13 +70,13 @@
   - **BREAKING CHANGE**: Function signatures changed
   - **Validates: Requirements US-7 (AC 7.1), Design D7**
 
-- [ ] 2.4 Refactor compute_profile to use configuration
+- [x] 2.4 Refactor compute_profile to use configuration
   - Update `compute_profile()` to accept `HeuristicsConfig` parameter (required, no default)
   - Pass config to all scoring functions
   - **BREAKING CHANGE**: Function signature changed, config now required
   - **Validates: Requirements US-7 (AC 7.1), Design D7**
 
-- [ ] 2.5 Refactor ranking functions for configuration
+- [x] 2.5 Refactor ranking functions for configuration
   - Update `compute_success_likelihood()` to accept `HeuristicsConfig` parameter
   - Update `compute_impact()` to accept `HeuristicsConfig` parameter
   - Update `compute_risk()` to accept `HeuristicsConfig` parameter

@@ -76,11 +76,11 @@
 
 ## 3. Unit Tests
 
-- [ ] 3 Create all unit tests
+- [x] 3 Create all unit tests
   - Complete all subtasks: component scoring tests, ranking logic tests, and tool entry point tests
   - **Validates: Requirements US-2, US-3, US-4, NFR-1, NFR-5**
 
-- [ ] 3.1 Create unit tests for component scoring
+- [x] 3.1 Create unit tests for component scoring
   - Create `tests/unit/core/test_ranking.py`
   - Test `compute_success_likelihood()` with various inputs (high/low confidence, complexity penalties)
   - Test `compute_impact()` with various proof lengths and annotation values
@@ -89,14 +89,14 @@
   - Verify all scores are in [0.0, 1.0] range
   - **Validates: Requirements US-4 (AC 4.3)**
 
-- [ ] 3.2 Create unit tests for ranking logic
+- [x] 3.2 Create unit tests for ranking logic
   - Test objective weight configurations are correct
   - Test `compute_final_score()` applies weights correctly
   - Test `rank_theorems()` stable sorting (score desc, theorem_id, start_line)
   - Test tie-breaking rules
   - **Validates: Requirements US-2 (AC 2.2, 2.5), NFR-1**
 
-- [ ] 3.3 Create unit tests for tool entry point
+- [x] 3.3 Create unit tests for tool entry point
   - Create `tests/unit/tools/test_rank_targets.py`
   - Test `_coerce_args()` with valid and invalid inputs
   - Test error response formatting
@@ -106,21 +106,21 @@
 
 ## 4. Property-Based Tests
 
-- [ ] 4 Create all property-based tests
+- [x] 4 Create all property-based tests
   - Complete all subtasks: determinism/stability tests, objective consistency tests, and filtering/bounds tests
   - **Validates: Requirements US-1, US-2, US-3, US-4, NFR-1, Design P1-P6**
 
-- [ ] 4.1 Create property tests for determinism and stability
+- [x] 4.1 Create property tests for determinism and stability
   - Create `tests/property/test_rank_targets_properties.py` following test_scan_file_properties.py pattern
   - Write property test for deterministic output (same inputs produce identical JSON)
   - Write property test for stable sorting (scores monotonic, tie-breaking consistent)
   - **Validates: Requirements US-1 (AC 1.3), NFR-1, Design P1, P2, P3**
 
-- [ ] 4.2 Create property tests for objective consistency
+- [x] 4.2 Create property tests for objective consistency
   - Write property test verifying different objectives produce different rankings (when sufficient theorems)
   - **Validates: Requirements US-2 (AC 2.3), Design P6**
 
-- [ ] 4.3 Create property tests for filtering and bounds
+- [x] 4.3 Create property tests for filtering and bounds
   - Write property test for confidence filtering (all returned theorems >= min_confidence)
   - Write property test for score bounds (all scores in [0.0, 1.0])
   - **Validates: Requirements US-3 (AC 3.1, 3.2), US-4 (AC 4.3), Design P4, P5**

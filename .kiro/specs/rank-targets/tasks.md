@@ -6,18 +6,18 @@
 
 ## 1. Core Ranking Module
 
-- [ ] 1 Implement complete core ranking module
+- [x] 1 Implement complete core ranking module
   - Complete all subtasks: data structures, scoring functions, ranking logic, and reason generation
   - **Validates: Requirements US-2, US-4, NFR-1, NFR-3**
 
-- [ ] 1.1 Create ranking.py module with data structures
+- [x] 1.1 Create ranking.py module with data structures
   - Create `src/lean_proof_auto_mcp/core/ranking.py` with frozen dataclasses following hexagonal architecture
   - Implement `ComponentScores` dataclass with validation (success_likelihood, impact, annotation_value, subgoal_potential, risk all in [0.0, 1.0])
   - Implement `TheoremData` dataclass for internal representation (theorem_id, range, signals, structure)
   - Follow existing patterns from core.scoring and core.features modules
   - **Validates: Requirements US-4 (AC 4.1, 4.3), NFR-1**
 
-- [ ] 1.2 Implement component scoring functions
+- [x] 1.2 Implement component scoring functions
   - Implement `compute_success_likelihood()` using whole_goal_potential, confidence, and complexity penalty
   - Implement `compute_impact()` using proof_length_score, annotation_value, and reusability_score
   - Implement `compute_subgoal_potential()` using subgoal_potential signals and structure bonus
@@ -26,13 +26,13 @@
   - Use same rounding approach as core.scoring module
   - **Validates: Requirements US-4 (AC 4.1, 4.3), NFR-1, NFR-3**
 
-- [ ] 1.3 Implement objective ranking logic
+- [x] 1.3 Implement objective ranking logic
   - Define objective weight configurations as immutable dicts (maximize_success, maximize_impact, maximize_subgoal_automation, balanced)
   - Implement `compute_final_score()` function applying objective weights to component scores
   - Implement `rank_theorems()` function with stable sorting (score desc, then theorem_id, then start_line)
   - **Validates: Requirements US-2 (AC 2.1, 2.2, 2.5), NFR-1**
 
-- [ ] 1.4 Implement reason generation
+- [x] 1.4 Implement reason generation
   - Implement `generate_reasons()` function producing human-readable explanations
   - Reasons must reference specific features from scan_file analysis
   - Limit to 10 reasons max, 200 chars each
@@ -41,25 +41,25 @@
 
 ## 2. Tool Entry Point
 
-- [ ] 2 Implement complete rank_targets tool
+- [x] 2 Implement complete rank_targets tool
   - Complete all subtasks: argument parsing, data loading, filtering/ranking, and error handling
   - **Validates: Requirements US-1, US-3, US-5, US-6, NFR-1, NFR-4, NFR-5**
 
-- [ ] 2.1 Create rank_targets.py tool with argument parsing
+- [x] 2.1 Create rank_targets.py tool with argument parsing
   - Create `src/lean_proof_auto_mcp/tools/rank_targets.py` following scan_file/scan_theorem pattern
   - Implement `RankTargetsArgs` frozen dataclass with all parameters
   - Implement `_coerce_args()` function with validation (required: file; optional: objective, limit, include_components, include_reasons, use_deep_structure, min_confidence)
   - Return structured error responses for invalid inputs
   - **Validates: Requirements US-1 (AC 1.1), US-3 (AC 3.1), NFR-5**
 
-- [ ] 2.2 Implement data loading and integration
+- [x] 2.2 Implement data loading and integration
   - Implement `_load_theorem_data()` function calling scan_file
   - Optionally call scan_theorem when use_deep_structure=true
   - Handle missing optional fields with defaults and diagnostics
   - Merge scan_file and scan_theorem data into TheoremData objects
   - **Validates: Requirements US-5 (AC 5.1, 5.2), US-6 (AC 6.1, 6.2, 6.3)**
 
-- [ ] 2.3 Implement filtering, ranking, and response formatting
+- [x] 2.3 Implement filtering, ranking, and response formatting
   - Implement confidence filtering using min_confidence parameter
   - Apply objective-based ranking using core.ranking module
   - Implement `_format_response()` function building JSON response with summary statistics
@@ -67,7 +67,7 @@
   - Use `ensure_deterministic()` from core.format for output normalization
   - **Validates: Requirements US-1 (AC 1.2, 1.3), US-3 (AC 3.2, 3.3), US-4 (AC 4.5), NFR-1, NFR-4**
 
-- [ ] 2.4 Implement main tool function with error handling
+- [x] 2.4 Implement main tool function with error handling
   - Implement `rank_targets()` function orchestrating all steps
   - Handle all errors with structured JSON responses (status="fail")
   - Include diagnostics with severity levels (error, warning, info)

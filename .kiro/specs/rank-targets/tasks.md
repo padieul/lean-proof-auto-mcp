@@ -127,18 +127,18 @@
 
 ## 5. Contract Tests
 
-- [ ] 5 Create JSON schemas and contract tests
+- [x] 5 Create JSON schemas and contract tests
   - Complete all subtasks: JSON schema creation and contract test implementation
   - **Validates: Requirements NFR-4**
 
-- [ ] 5.1 Create JSON schemas
+- [x] 5.1 Create JSON schemas
   - Create `docs/mcp/schemas/rank_targets.json` following scan_file.json pattern
   - Define input schema with required/optional fields
   - Define output schema with ranking structure
   - Reference common.json for shared types
   - **Validates: Requirements NFR-4**
 
-- [ ] 5.2 Create contract tests
+- [x] 5.2 Create contract tests
   - Create `tests/mcp_contract/test_rank_targets_contract.py` following test_scan_file_contract.py pattern
   - Test input schema validation
   - Test output schema validation
@@ -148,11 +148,11 @@
 
 ## 6. Integration Tests
 
-- [ ] 6 Create integration tests and performance benchmarks
+- [x] 6 Create integration tests and performance benchmarks
   - Complete all subtasks: end-to-end integration tests and performance benchmarks
   - **Validates: Requirements US-1, US-2, US-5, NFR-2**
 
-- [ ] 6.1 Create end-to-end integration tests
+- [x] 6.1 Create end-to-end integration tests
   - Create `tests/integration/test_rank_targets_integration.py`
   - Test with real Lean files from fixtures (Coeff.lean, Defs.lean, Degree.lean)
   - Test all four objectives produce valid rankings
@@ -160,7 +160,7 @@
   - Test error scenarios (missing file, invalid objective)
   - **Validates: Requirements US-1 (AC 1.1, 1.2, 1.4), US-2 (AC 2.1), US-5 (AC 5.2)**
 
-- [ ] 6.2 Create performance benchmarks
+- [x] 6.2 Create performance benchmarks
   - Test performance with 200 theorems without deep structure (target < 50ms)
   - Test performance with 200 theorems with deep structure (target < 200ms)
   - Include computation_time_ms in metadata

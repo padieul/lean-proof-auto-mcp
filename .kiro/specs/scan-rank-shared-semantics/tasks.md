@@ -6,11 +6,11 @@
 
 ## 1. Configuration System (Foundation)
 
-- [ ] 1 Implement complete configuration system
+- [x] 1 Implement complete configuration system
   - Complete all subtasks: config module, YAML file, and validation
   - **Validates: Requirements US-7, NFR-6**
 
-- [ ] 1.1 Create config.py module with protocol and dataclasses
+- [x] 1.1 Create config.py module with protocol and dataclasses
   - Create `src/lean_proof_auto_mcp/core/config.py` with hexagonal architecture
   - Implement `HeuristicsConfig` protocol (port) defining configuration interface
   - Implement all config dataclasses (ConfidenceConfig, AesopScoringConfig, GrindScoringConfig, etc.)
@@ -19,7 +19,7 @@
   - Validate all thresholds are positive integers
   - **Validates: Requirements US-7 (AC 7.1, 7.5, 7.6), NFR-6, Design D7**
 
-- [ ] 1.2 Create YAML configuration adapter
+- [x] 1.2 Create YAML configuration adapter
   - Implement `YamlHeuristicsConfig` adapter class
   - Implement `load()` classmethod loading from file path or package default
   - Implement `_from_dict()` classmethod parsing YAML data into config objects
@@ -28,14 +28,14 @@
   - Implement `load_default_config()` and `load_config(path)` functions
   - **Validates: Requirements US-7 (AC 7.2, 7.3, 7.6), NFR-6, Design D7**
 
-- [ ] 1.3 Create default heuristics.yaml configuration file
+- [x] 1.3 Create default heuristics.yaml configuration file
   - Create `src/lean_proof_auto_mcp/heuristics.yaml` with all default values
   - Include all sections: confidence, aesop_scoring, grind_scoring, annotation_value_scoring, subgoal_potential_scoring, risk_scoring, impact_scoring, success_likelihood_scoring, objectives, already_automated, tiers
   - Document each parameter with inline comments
   - Set version to "1.0"
   - **Validates: Requirements US-7 (AC 7.3), Design D7**
 
-- [ ] 1.4 Add environment variable support
+- [x] 1.4 Add environment variable support
   - Support `LEAN_PROOF_AUTO_MCP_CONFIG` environment variable for default config path
   - Update `load_default_config()` to check environment variable before using package default
   - Document environment variable in config module docstring

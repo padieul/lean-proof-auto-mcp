@@ -265,12 +265,12 @@
 
 ## 10. Update All Tests
 
-- [ ] 10 Rewrite all tests for breaking changes
+- [-] 10 Rewrite all tests for breaking changes
   - Complete all subtasks: update unit tests, property tests, contract tests, integration tests
   - **BREAKING CHANGE**: All test expectations changed
   - **Validates: All requirements**
 
-- [ ] 10.1 Update unit tests for configuration system
+- [x] 10.1 Update unit tests for configuration system
   - Create `tests/unit/core/test_config.py`
   - Test `load_default_config()` loads successfully
   - Test `load_config(path)` with custom config
@@ -279,7 +279,7 @@
   - Test environment variable support
   - **Validates: Requirements US-7 (AC 7.5, 7.6), NFR-6**
 
-- [ ] 10.2 Update unit tests for scoring functions
+- [x] 10.2 Update unit tests for scoring functions
   - Update `tests/unit/core/test_scoring.py`
   - Update all test calls to pass config parameter
   - Test that config values are actually used (not hardcoded)
@@ -287,7 +287,7 @@
   - **BREAKING CHANGE**: All test signatures changed
   - **Validates: Requirements US-1, US-7**
 
-- [ ] 10.3 Update unit tests for ranking functions
+- [x] 10.3 Update unit tests for ranking functions
   - Update `tests/unit/core/test_ranking.py`
   - Update all test calls to pass config parameter
   - Test `already_automated_penalty` component
@@ -296,7 +296,7 @@
   - **BREAKING CHANGE**: All test signatures changed
   - **Validates: Requirements US-3, US-4, US-5, US-7**
 
-- [ ] 10.4 Create unit tests for automation detection
+- [x] 10.4 Create unit tests for automation detection
   - Create `tests/unit/core/test_automation_detection.py`
   - Test `PatternBasedDetector` with various proof patterns
   - Test tactic detection (aesop, grind, simp)
@@ -305,7 +305,7 @@
   - Test no false positives (manual proofs not detected)
   - **Validates: Requirements US-2 (AC 2.5, 2.6)**
 
-- [ ] 10.5 Update unit tests for rank_targets tool
+- [x] 10.5 Update unit tests for rank_targets tool
   - Update `tests/unit/tools/test_rank_targets.py`
   - Test `skip_already_automated` parameter (required, no default)
   - Test `config_path` parameter
@@ -314,7 +314,7 @@
   - **BREAKING CHANGE**: All test expectations changed
   - **Validates: Requirements US-2, US-3, US-4, US-7**
 
-- [ ] 10.6 Update property-based tests
+- [x] 10.6 Update property-based tests
   - Update `tests/property/test_rank_targets_properties.py`
   - Update all test calls to include `skip_already_automated` parameter
   - Add property test for tier assignment (percentile-based)
@@ -323,7 +323,7 @@
   - **BREAKING CHANGE**: All test expectations changed
   - **Validates: All requirements**
 
-- [ ] 10.7 Update contract tests
+- [x] 10.7 Update contract tests
   - Update `tests/mcp_contract/test_rank_targets_contract.py`
   - Update `tests/mcp_contract/test_scan_file_contract.py`
   - Update `tests/mcp_contract/test_scan_theorem_contract.py`
@@ -332,7 +332,7 @@
   - **BREAKING CHANGE**: All schemas changed
   - **Validates: All requirements**
 
-- [ ] 10.8 Update integration tests
+- [x] 10.8 Update integration tests
   - Update `tests/integration/test_rank_targets_integration.py`
   - Update all test calls to include `skip_already_automated` parameter
   - Test with custom configuration file
@@ -348,7 +348,7 @@
   - **BREAKING CHANGE**: Complete documentation rewrite
   - **Validates: All requirements**
 
-- [ ] 11.1 Rewrite JSON schemas
+- [x] 11.1 Rewrite JSON schemas
   - Update `docs/mcp/schemas/rank_targets.json` for API 1.0
   - Update `docs/mcp/schemas/scan_file.json` for API 1.0
   - Update `docs/mcp/schemas/scan_theorem.json` for API 1.0

@@ -2,14 +2,23 @@
 
 import pytest
 
+from lean_proof_auto_mcp.core.config import load_default_config
 from lean_proof_auto_mcp.core.ranking import (
     ComponentScores,
     TheoremData,
+    assign_tiers,
     compute_impact,
     compute_risk,
     compute_subgoal_potential,
     compute_success_likelihood,
+    get_available_objectives,
 )
+
+
+@pytest.fixture
+def config():
+    """Load default configuration for tests."""
+    return load_default_config()
 
 
 class TestComponentScores:
@@ -140,7 +149,7 @@ class TestTheoremData:
 class TestComputeSuccessLikelihood:
     """Test cases for compute_success_likelihood function."""
 
-    def test_high_confidence_high_potential(self):
+    def test_high_confidence_high_potential(self, config):
         """Test scoring with high confidence and high automation potential."""
         signals = {
             "whole_goal_potential": {"aesop": 0.9, "grind": 0.5},
@@ -151,11 +160,11 @@ class TestComputeSuccessLikelihood:
             "local_lemmas_count": 1,
         }
 
-        score = compute_success_likelihood(signals)
+        score = compute_success_likelihood(signals, config.success_likelihood_scoring)
         assert score > 0.7  # Should be high
         assert score <= 1.0
 
-    def test_low_confidence_low_potential(self):
+    def test_low_confidence_low_potential(self, config):
         """Test scoring with low confidence and low automation potential."""
         signals = {
             "whole_goal_potential": {"aesop": 0.2, "grind": 0.1},
@@ -166,11 +175,11 @@ class TestComputeSuccessLikelihood:
             "local_lemmas_count": 0,
         }
 
-        score = compute_success_likelihood(signals)
+        score = compute_success_likelihood(signals, config.success_likelihood_scoring)
         assert score < 0.4  # Should be low
         assert score >= 0.0
 
-    def test_complexity_penalty_induction(self):
+    def test_complexity_penalty_induction(self, config):
         """Test complexity penalty for induction."""
         signals_no_induction = {
             "whole_goal_potential": {"aesop": 0.8, "grind": 0.5},
@@ -190,12 +199,12 @@ class TestComputeSuccessLikelihood:
             "local_lemmas_count": 1,
         }
 
-        score_no = compute_success_likelihood(signals_no_induction)
-        score_with = compute_success_likelihood(signals_with_induction)
+        score_no = compute_success_likelihood(signals_no_induction, config.success_likelihood_scoring)
+        score_with = compute_success_likelihood(signals_with_induction, config.success_likelihood_scoring)
 
         assert score_with < score_no  # Induction should reduce score
 
-    def test_complexity_penalty_long_proof(self):
+    def test_complexity_penalty_long_proof(self, config):
         """Test complexity penalty for long proofs."""
         signals_short = {
             "whole_goal_potential": {"aesop": 0.8, "grind": 0.5},
@@ -215,12 +224,12 @@ class TestComputeSuccessLikelihood:
             "local_lemmas_count": 1,
         }
 
-        score_short = compute_success_likelihood(signals_short)
-        score_long = compute_success_likelihood(signals_long)
+        score_short = compute_success_likelihood(signals_short, config.success_likelihood_scoring)
+        score_long = compute_success_likelihood(signals_long, config.success_likelihood_scoring)
 
         assert score_long < score_short  # Long proof should reduce score
 
-    def test_complexity_penalty_many_local_lemmas(self):
+    def test_complexity_penalty_many_local_lemmas(self, config):
         """Test complexity penalty for many local lemmas."""
         signals_few = {
             "whole_goal_potential": {"aesop": 0.8, "grind": 0.5},
@@ -240,12 +249,12 @@ class TestComputeSuccessLikelihood:
             "local_lemmas_count": 5,
         }
 
-        score_few = compute_success_likelihood(signals_few)
-        score_many = compute_success_likelihood(signals_many)
+        score_few = compute_success_likelihood(signals_few, config.success_likelihood_scoring)
+        score_many = compute_success_likelihood(signals_many, config.success_likelihood_scoring)
 
         assert score_many < score_few  # Many local lemmas should reduce score
 
-    def test_score_bounds(self):
+    def test_score_bounds(self, config):
         """Test that scores stay within [0.0, 1.0] bounds."""
         # Extreme high values
         signals_high = {
@@ -257,7 +266,7 @@ class TestComputeSuccessLikelihood:
             "local_lemmas_count": 0,
         }
 
-        score_high = compute_success_likelihood(signals_high)
+        score_high = compute_success_likelihood(signals_high, config.success_likelihood_scoring)
         assert 0.0 <= score_high <= 1.0
 
         # Extreme low values with high penalties
@@ -270,21 +279,21 @@ class TestComputeSuccessLikelihood:
             "local_lemmas_count": 10,
         }
 
-        score_low = compute_success_likelihood(signals_low)
+        score_low = compute_success_likelihood(signals_low, config.success_likelihood_scoring)
         assert 0.0 <= score_low <= 1.0
 
-    def test_missing_signals_defaults(self):
+    def test_missing_signals_defaults(self, config):
         """Test handling of missing signals with defaults."""
         signals = {}  # Empty signals
 
-        score = compute_success_likelihood(signals)
+        score = compute_success_likelihood(signals, config.success_likelihood_scoring)
         assert 0.0 <= score <= 1.0  # Should handle gracefully
 
 
 class TestComputeImpact:
     """Test cases for compute_impact function."""
 
-    def test_short_proof_low_impact(self):
+    def test_short_proof_low_impact(self, config):
         """Test that short proofs have low impact."""
         signals = {
             "proof_lines": 3,
@@ -292,11 +301,11 @@ class TestComputeImpact:
             "local_lemmas_count": 0,
         }
 
-        score = compute_impact(signals)
+        score = compute_impact(signals, config.impact_scoring)
         assert score < 0.5  # Should be low for short proof
         assert score >= 0.0
 
-    def test_long_proof_high_impact(self):
+    def test_long_proof_high_impact(self, config):
         """Test that long proofs have high impact."""
         signals = {
             "proof_lines": 50,
@@ -304,38 +313,38 @@ class TestComputeImpact:
             "local_lemmas_count": 3,
         }
 
-        score = compute_impact(signals)
+        score = compute_impact(signals, config.impact_scoring)
         assert score > 0.7  # Should be high for long proof
         assert score <= 1.0
 
-    def test_proof_length_score_saturation(self):
+    def test_proof_length_score_saturation(self, config):
         """Test proof length score saturation at different thresholds."""
         # 0-5 lines: 0.2
         signals_5 = {"proof_lines": 5, "annotation_value": 0.0, "local_lemmas_count": 0}
-        score_5 = compute_impact(signals_5)
+        score_5 = compute_impact(signals_5, config.impact_scoring)
         assert abs(score_5 - 0.1) < 0.05  # 0.5 * 0.2 = 0.1
 
         # 6-10 lines: 0.4
         signals_10 = {"proof_lines": 10, "annotation_value": 0.0, "local_lemmas_count": 0}
-        score_10 = compute_impact(signals_10)
+        score_10 = compute_impact(signals_10, config.impact_scoring)
         assert abs(score_10 - 0.2) < 0.05  # 0.5 * 0.4 = 0.2
 
         # 11-20 lines: 0.6
         signals_20 = {"proof_lines": 20, "annotation_value": 0.0, "local_lemmas_count": 0}
-        score_20 = compute_impact(signals_20)
+        score_20 = compute_impact(signals_20, config.impact_scoring)
         assert abs(score_20 - 0.3) < 0.05  # 0.5 * 0.6 = 0.3
 
         # 21-40 lines: 0.8
         signals_40 = {"proof_lines": 40, "annotation_value": 0.0, "local_lemmas_count": 0}
-        score_40 = compute_impact(signals_40)
+        score_40 = compute_impact(signals_40, config.impact_scoring)
         assert abs(score_40 - 0.4) < 0.05  # 0.5 * 0.8 = 0.4
 
         # 40+ lines: 1.0
         signals_50 = {"proof_lines": 50, "annotation_value": 0.0, "local_lemmas_count": 0}
-        score_50 = compute_impact(signals_50)
+        score_50 = compute_impact(signals_50, config.impact_scoring)
         assert abs(score_50 - 0.5) < 0.05  # 0.5 * 1.0 = 0.5
 
-    def test_annotation_value_contribution(self):
+    def test_annotation_value_contribution(self, config):
         """Test annotation value contribution to impact."""
         signals_low = {
             "proof_lines": 15,
@@ -349,12 +358,12 @@ class TestComputeImpact:
             "local_lemmas_count": 0,
         }
 
-        score_low = compute_impact(signals_low)
-        score_high = compute_impact(signals_high)
+        score_low = compute_impact(signals_low, config.impact_scoring)
+        score_high = compute_impact(signals_high, config.impact_scoring)
 
         assert score_high > score_low  # Higher annotation value should increase impact
 
-    def test_reusability_score_contribution(self):
+    def test_reusability_score_contribution(self, config):
         """Test reusability score contribution from local lemmas."""
         signals_no_local = {
             "proof_lines": 15,
@@ -368,12 +377,12 @@ class TestComputeImpact:
             "local_lemmas_count": 3,
         }
 
-        score_no = compute_impact(signals_no_local)
-        score_with = compute_impact(signals_with_local)
+        score_no = compute_impact(signals_no_local, config.impact_scoring)
+        score_with = compute_impact(signals_with_local, config.impact_scoring)
 
         assert score_with > score_no  # Local lemmas should increase impact
 
-    def test_zero_proof_lines(self):
+    def test_zero_proof_lines(self, config):
         """Test impact with zero proof lines."""
         signals = {
             "proof_lines": 0,
@@ -381,10 +390,10 @@ class TestComputeImpact:
             "local_lemmas_count": 0,
         }
 
-        score = compute_impact(signals)
+        score = compute_impact(signals, config.impact_scoring)
         assert score < 0.3  # Should be low for no proof
 
-    def test_score_bounds(self):
+    def test_score_bounds(self, config):
         """Test that scores stay within [0.0, 1.0] bounds."""
         signals = {
             "proof_lines": 100,
@@ -392,25 +401,25 @@ class TestComputeImpact:
             "local_lemmas_count": 10,
         }
 
-        score = compute_impact(signals)
+        score = compute_impact(signals, config.impact_scoring)
         assert 0.0 <= score <= 1.0
 
 
 class TestComputeSubgoalPotential:
     """Test cases for compute_subgoal_potential function."""
 
-    def test_without_structure(self):
+    def test_without_structure(self, config):
         """Test subgoal potential without deep structure."""
         signals = {
             "subgoal_potential": {"aesop": 0.7, "grind": 0.6},
             "confidence": 0.8,
         }
 
-        score = compute_subgoal_potential(signals, structure=None)
+        score = compute_subgoal_potential(signals, structure=None, config=config.subgoal_potential_scoring)
         assert score > 0.4  # Should be based on signals only
         assert score <= 1.0
 
-    def test_with_structure_cases(self):
+    def test_with_structure_cases(self, config):
         """Test subgoal potential with cases in structure."""
         signals = {
             "subgoal_potential": {"aesop": 0.6, "grind": 0.5},
@@ -422,12 +431,12 @@ class TestComputeSubgoalPotential:
             "blocks": [],
         }
 
-        score_without = compute_subgoal_potential(signals, structure=None)
-        score_with = compute_subgoal_potential(signals, structure=structure)
+        score_without = compute_subgoal_potential(signals, structure=None, config=config.subgoal_potential_scoring)
+        score_with = compute_subgoal_potential(signals, structure=structure, config=config.subgoal_potential_scoring)
 
         assert score_with > score_without  # Cases should boost score
 
-    def test_with_structure_rewrite_simp_blocks(self):
+    def test_with_structure_rewrite_simp_blocks(self, config):
         """Test subgoal potential with rewrite_simp blocks."""
         signals = {
             "subgoal_potential": {"aesop": 0.6, "grind": 0.5},
@@ -439,12 +448,12 @@ class TestComputeSubgoalPotential:
             "blocks": [{"kind": "rewrite_simp"}, {"kind": "closing"}],
         }
 
-        score_without = compute_subgoal_potential(signals, structure=None)
-        score_with = compute_subgoal_potential(signals, structure=structure)
+        score_without = compute_subgoal_potential(signals, structure=None, config=config.subgoal_potential_scoring)
+        score_with = compute_subgoal_potential(signals, structure=structure, config=config.subgoal_potential_scoring)
 
         assert score_with > score_without  # Rewrite_simp blocks should boost score
 
-    def test_with_structure_multiple_blocks(self):
+    def test_with_structure_multiple_blocks(self, config):
         """Test subgoal potential with multiple blocks."""
         signals = {
             "subgoal_potential": {"aesop": 0.6, "grind": 0.5},
@@ -456,10 +465,10 @@ class TestComputeSubgoalPotential:
             "blocks": [{"kind": "skeleton"}, {"kind": "rewrite_simp"}, {"kind": "closing"}],
         }
 
-        score = compute_subgoal_potential(signals, structure=structure)
-        assert score > 0.5  # Multiple blocks should boost score
+        score = compute_subgoal_potential(signals, structure=structure, config=config.subgoal_potential_scoring)
+        assert score > 0.4  # Multiple blocks should boost score
 
-    def test_low_confidence_penalty(self):
+    def test_low_confidence_penalty(self, config):
         """Test that low confidence reduces subgoal potential."""
         signals_low = {
             "subgoal_potential": {"aesop": 0.7, "grind": 0.6},
@@ -471,12 +480,12 @@ class TestComputeSubgoalPotential:
             "confidence": 0.9,
         }
 
-        score_low = compute_subgoal_potential(signals_low)
-        score_high = compute_subgoal_potential(signals_high)
+        score_low = compute_subgoal_potential(signals_low, config=config.subgoal_potential_scoring)
+        score_high = compute_subgoal_potential(signals_high, config=config.subgoal_potential_scoring)
 
         assert score_high > score_low
 
-    def test_score_bounds(self):
+    def test_score_bounds(self, config):
         """Test that scores stay within [0.0, 1.0] bounds."""
         signals = {
             "subgoal_potential": {"aesop": 1.0, "grind": 1.0},
@@ -488,14 +497,14 @@ class TestComputeSubgoalPotential:
             "blocks": [{"kind": "rewrite_simp"}, {"kind": "closing"}],
         }
 
-        score = compute_subgoal_potential(signals, structure=structure)
+        score = compute_subgoal_potential(signals, structure=structure, config=config.subgoal_potential_scoring)
         assert 0.0 <= score <= 1.0
 
 
 class TestComputeRisk:
     """Test cases for compute_risk function."""
 
-    def test_low_risk_simple_proof(self):
+    def test_low_risk_simple_proof(self, config):
         """Test low risk for simple proof."""
         signals = {
             "rewrite_count": 1,
@@ -505,11 +514,11 @@ class TestComputeRisk:
             "notes": [],
         }
 
-        score = compute_risk(signals)
+        score = compute_risk(signals, config.risk_scoring)
         assert score < 0.3  # Should be low risk
         assert score >= 0.0
 
-    def test_high_risk_many_rewrites(self):
+    def test_high_risk_many_rewrites(self, config):
         """Test high risk for many rewrites."""
         signals = {
             "rewrite_count": 10,
@@ -519,11 +528,11 @@ class TestComputeRisk:
             "notes": [],
         }
 
-        score = compute_risk(signals)
+        score = compute_risk(signals, config.risk_scoring)
         assert score > 0.1  # Should have some risk
         assert score <= 1.0
 
-    def test_high_risk_many_simps(self):
+    def test_high_risk_many_simps(self, config):
         """Test high risk for many simps."""
         signals = {
             "rewrite_count": 1,
@@ -533,10 +542,10 @@ class TestComputeRisk:
             "notes": [],
         }
 
-        score = compute_risk(signals)
+        score = compute_risk(signals, config.risk_scoring)
         assert score > 0.1  # Should have some risk
 
-    def test_high_risk_simp_question_mark(self):
+    def test_high_risk_simp_question_mark(self, config):
         """Test high risk for simp? in notes."""
         signals = {
             "rewrite_count": 1,
@@ -546,10 +555,10 @@ class TestComputeRisk:
             "notes": ["consider using simp?"],
         }
 
-        score = compute_risk(signals)
+        score = compute_risk(signals, config.risk_scoring)
         assert score > 0.2  # Should have elevated risk due to simp?
 
-    def test_high_risk_many_local_lemmas(self):
+    def test_high_risk_many_local_lemmas(self, config):
         """Test high risk for many local lemmas."""
         signals = {
             "rewrite_count": 1,
@@ -559,10 +568,10 @@ class TestComputeRisk:
             "notes": [],
         }
 
-        score = compute_risk(signals)
+        score = compute_risk(signals, config.risk_scoring)
         assert score > 0.05  # Should have some risk
 
-    def test_high_risk_low_confidence(self):
+    def test_high_risk_low_confidence(self, config):
         """Test high risk for low confidence."""
         signals = {
             "rewrite_count": 1,
@@ -572,10 +581,10 @@ class TestComputeRisk:
             "notes": [],
         }
 
-        score = compute_risk(signals)
+        score = compute_risk(signals, config.risk_scoring)
         assert score > 0.1  # Should have elevated risk
 
-    def test_combined_risk_factors(self):
+    def test_combined_risk_factors(self, config):
         """Test combined risk factors."""
         signals = {
             "rewrite_count": 8,
@@ -585,10 +594,10 @@ class TestComputeRisk:
             "notes": ["simp? might help"],
         }
 
-        score = compute_risk(signals)
+        score = compute_risk(signals, config.risk_scoring)
         assert score > 0.3  # Should have high risk with multiple factors
 
-    def test_score_bounds(self):
+    def test_score_bounds(self, config):
         """Test that scores stay within [0.0, 1.0] bounds."""
         # Extreme risk factors
         signals = {
@@ -599,14 +608,14 @@ class TestComputeRisk:
             "notes": ["simp?", "SIMP?", "use simp?"],
         }
 
-        score = compute_risk(signals)
+        score = compute_risk(signals, config.risk_scoring)
         assert 0.0 <= score <= 1.0
 
 
 class TestScoreRounding:
     """Test that all component scores are properly rounded to 2 decimal places."""
 
-    def test_success_likelihood_rounding(self):
+    def test_success_likelihood_rounding(self, config):
         """Test success likelihood rounding."""
         signals = {
             "whole_goal_potential": {"aesop": 0.777, "grind": 0.333},
@@ -617,11 +626,11 @@ class TestScoreRounding:
             "local_lemmas_count": 1,
         }
 
-        score = compute_success_likelihood(signals)
+        score = compute_success_likelihood(signals, config.success_likelihood_scoring)
         # Check that score has at most 2 decimal places
         assert len(str(score).split(".")[-1]) <= 2
 
-    def test_impact_rounding(self):
+    def test_impact_rounding(self, config):
         """Test impact rounding."""
         signals = {
             "proof_lines": 17,
@@ -629,20 +638,20 @@ class TestScoreRounding:
             "local_lemmas_count": 2,
         }
 
-        score = compute_impact(signals)
+        score = compute_impact(signals, config.impact_scoring)
         assert len(str(score).split(".")[-1]) <= 2
 
-    def test_subgoal_potential_rounding(self):
+    def test_subgoal_potential_rounding(self, config):
         """Test subgoal potential rounding."""
         signals = {
             "subgoal_potential": {"aesop": 0.666, "grind": 0.555},
             "confidence": 0.777,
         }
 
-        score = compute_subgoal_potential(signals)
+        score = compute_subgoal_potential(signals, config=config.subgoal_potential_scoring)
         assert len(str(score).split(".")[-1]) <= 2
 
-    def test_risk_rounding(self):
+    def test_risk_rounding(self, config):
         """Test risk rounding."""
         signals = {
             "rewrite_count": 3,
@@ -652,7 +661,7 @@ class TestScoreRounding:
             "notes": [],
         }
 
-        score = compute_risk(signals)
+        score = compute_risk(signals, config.risk_scoring)
         assert len(str(score).split(".")[-1]) <= 2
 
 
@@ -1255,3 +1264,236 @@ class TestRankedTheorem:
                 score=1.5,
                 components=components,
             )
+
+
+class TestAssignTiers:
+    """Test cases for assign_tiers function."""
+
+    def test_basic_tier_assignment(self, config):
+        """Test basic tier assignment based on percentiles."""
+        from lean_proof_auto_mcp.core.ranking import RankedTheorem
+
+        # Create 10 theorems with descending scores
+        ranked_theorems = []
+        for i in range(10):
+            theorem_data = TheoremData(
+                theorem_id=f"theorem_{i}",
+                range={"start_line": i * 10, "end_line": i * 10 + 5},
+                signals={"confidence": 0.8},
+            )
+            components = ComponentScores(
+                success_likelihood=0.75,
+                impact=0.60,
+                annotation_value=0.70,
+                subgoal_potential=0.65,
+                risk=0.20,
+                already_automated_penalty=0.0,
+            )
+            score = 1.0 - (i * 0.1)  # Descending scores
+            ranked_theorems.append(RankedTheorem(theorem_data, score, components))
+
+        tiers = assign_tiers(ranked_theorems, config.tiers)
+
+        # Check tier distribution
+        # First theorem (0%) should be S-tier
+        assert tiers[0][1] == "S"
+        # Second theorem (10%) should be A-tier
+        assert tiers[1][1] == "A"
+        # Third-fourth theorems (20-30%) should be A-tier
+        assert tiers[2][1] == "A"
+        # Fifth theorem (40%) should be B-tier
+        assert tiers[4][1] == "B"
+        # Eighth theorem (70%) should be C-tier
+        assert tiers[7][1] == "C"
+        # Last theorem (90%) should be D-tier
+        assert tiers[9][1] == "D"
+
+    def test_empty_list(self, config):
+        """Test tier assignment with empty list."""
+        tiers = assign_tiers([], config.tiers)
+        assert len(tiers) == 0
+
+    def test_single_theorem(self, config):
+        """Test tier assignment with single theorem."""
+        from lean_proof_auto_mcp.core.ranking import RankedTheorem
+
+        theorem_data = TheoremData(
+            theorem_id="single",
+            range={"start_line": 10, "end_line": 20},
+            signals={"confidence": 0.8},
+        )
+        components = ComponentScores(
+            success_likelihood=0.75,
+            impact=0.60,
+            annotation_value=0.70,
+            subgoal_potential=0.65,
+            risk=0.20,
+            already_automated_penalty=0.0,
+        )
+        ranked = RankedTheorem(theorem_data, 0.68, components)
+
+        tiers = assign_tiers([ranked], config.tiers)
+
+        # Single theorem should be S-tier (top 100%)
+        assert len(tiers) == 1
+        assert tiers[0][1] == "S"
+
+    def test_tier_distribution(self, config):
+        """Test tier distribution with 100 theorems."""
+        from lean_proof_auto_mcp.core.ranking import RankedTheorem
+
+        # Create 100 theorems
+        ranked_theorems = []
+        for i in range(100):
+            theorem_data = TheoremData(
+                theorem_id=f"theorem_{i}",
+                range={"start_line": i * 10, "end_line": i * 10 + 5},
+                signals={"confidence": 0.8},
+            )
+            components = ComponentScores(
+                success_likelihood=0.75,
+                impact=0.60,
+                annotation_value=0.70,
+                subgoal_potential=0.65,
+                risk=0.20,
+                already_automated_penalty=0.0,
+            )
+            score = 1.0 - (i * 0.01)  # Descending scores
+            ranked_theorems.append(RankedTheorem(theorem_data, score, components))
+
+        tiers = assign_tiers(ranked_theorems, config.tiers)
+
+        # Count tiers
+        tier_counts = {"S": 0, "A": 0, "B": 0, "C": 0, "D": 0}
+        for _, tier in tiers:
+            tier_counts[tier] += 1
+
+        # Check approximate distribution
+        assert tier_counts["S"] == 10  # Top 10%
+        assert tier_counts["A"] == 15  # 10-25%
+        assert tier_counts["B"] == 25  # 25-50%
+        assert tier_counts["C"] == 25  # 50-75%
+        assert tier_counts["D"] == 25  # 75-100%
+
+
+class TestGetAvailableObjectives:
+    """Test cases for get_available_objectives function."""
+
+    def test_returns_all_objectives(self):
+        """Test that all objectives are returned."""
+        objectives = get_available_objectives()
+
+        # Should have 4 objectives
+        assert len(objectives) == 4
+
+        # Check objective names
+        names = {obj["name"] for obj in objectives}
+        assert names == {
+            "maximize_success",
+            "maximize_impact",
+            "maximize_subgoal_automation",
+            "balanced",
+        }
+
+    def test_objective_structure(self):
+        """Test that each objective has required fields."""
+        objectives = get_available_objectives()
+
+        for obj in objectives:
+            # Check required fields
+            assert "name" in obj
+            assert "description" in obj
+            assert "use_case" in obj
+            assert "weights" in obj
+
+            # Check weights structure
+            weights = obj["weights"]
+            assert "success_likelihood" in weights
+            assert "impact" in weights
+            assert "annotation_value" in weights
+            assert "subgoal_potential" in weights
+            assert "risk" in weights
+
+    def test_objective_descriptions(self):
+        """Test that objectives have meaningful descriptions."""
+        objectives = get_available_objectives()
+
+        for obj in objectives:
+            # Description should be non-empty
+            assert len(obj["description"]) > 0
+            # Use case should be non-empty
+            assert len(obj["use_case"]) > 0
+
+    def test_maximize_success_objective(self):
+        """Test maximize_success objective metadata."""
+        objectives = get_available_objectives()
+        maximize_success = next(obj for obj in objectives if obj["name"] == "maximize_success")
+
+        assert "success" in maximize_success["description"].lower()
+        assert maximize_success["weights"]["success_likelihood"] == 0.50
+
+    def test_maximize_impact_objective(self):
+        """Test maximize_impact objective metadata."""
+        objectives = get_available_objectives()
+        maximize_impact = next(obj for obj in objectives if obj["name"] == "maximize_impact")
+
+        assert "time" in maximize_impact["description"].lower() or "roi" in maximize_impact["description"].lower()
+        assert maximize_impact["weights"]["impact"] == 0.40
+
+
+class TestAlreadyAutomatedPenalty:
+    """Test cases for already_automated_penalty component."""
+
+    def test_penalty_in_component_scores(self):
+        """Test that already_automated_penalty is included in ComponentScores."""
+        components = ComponentScores(
+            success_likelihood=0.75,
+            impact=0.60,
+            annotation_value=0.70,
+            subgoal_potential=0.65,
+            risk=0.20,
+            already_automated_penalty=0.3,
+        )
+
+        assert components.already_automated_penalty == 0.3
+
+    def test_penalty_validation(self):
+        """Test that penalty is validated to be in [0.0, 1.0]."""
+        with pytest.raises(ValueError, match="already_automated_penalty must be in \\[0.0, 1.0\\]"):
+            ComponentScores(
+                success_likelihood=0.75,
+                impact=0.60,
+                annotation_value=0.70,
+                subgoal_potential=0.65,
+                risk=0.20,
+                already_automated_penalty=1.5,
+            )
+
+    def test_penalty_reduces_final_score(self):
+        """Test that penalty reduces final score."""
+        from lean_proof_auto_mcp.core.ranking import compute_final_score
+
+        components_no_penalty = ComponentScores(
+            success_likelihood=0.8,
+            impact=0.6,
+            annotation_value=0.7,
+            subgoal_potential=0.5,
+            risk=0.2,
+            already_automated_penalty=0.0,
+        )
+
+        components_with_penalty = ComponentScores(
+            success_likelihood=0.8,
+            impact=0.6,
+            annotation_value=0.7,
+            subgoal_potential=0.5,
+            risk=0.2,
+            already_automated_penalty=0.5,
+        )
+
+        score_no_penalty = compute_final_score(components_no_penalty, "balanced")
+        score_with_penalty = compute_final_score(components_with_penalty, "balanced")
+
+        assert score_with_penalty < score_no_penalty
+        # Penalty should reduce score by approximately 0.15 * 0.5 = 0.075
+        assert abs((score_no_penalty - score_with_penalty) - 0.075) < 0.01

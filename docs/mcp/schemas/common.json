@@ -6,8 +6,8 @@
   "$defs": {
     "api_version": {
       "type": "string",
-      "pattern": "^0\\.[0-9]+$",
-      "description": "Tool API major.minor for v0; bump minor for backward-compatible changes."
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Tool API major.minor version; bump major for breaking changes, minor for backward-compatible changes."
     },
     "run_id": {
       "type": "string",

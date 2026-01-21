@@ -5,4 +5,4 @@ def test_import_and_version():
     import lean_proof_auto_mcp
 
     assert hasattr(lean_proof_auto_mcp, "__version__")
-    assert lean_proof_auto_mcp.__version__ == "0.0.0"
+    assert lean_proof_auto_mcp.__version__ == "0.1.0"

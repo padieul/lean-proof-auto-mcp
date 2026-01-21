@@ -21,6 +21,7 @@ class ComponentScores:
         annotation_value: ROI estimate for adding automation annotations
         subgoal_potential: Value of automating individual subgoals
         risk: Heuristic penalty for likely global changes or side effects
+        already_automated_penalty: Penalty for theorems already using automation
     """
 
     success_likelihood: float
@@ -28,6 +29,7 @@ class ComponentScores:
     annotation_value: float
     subgoal_potential: float
     risk: float
+    already_automated_penalty: float
 
     def __post_init__(self) -> None:
         """Validate component score invariants."""
@@ -37,6 +39,7 @@ class ComponentScores:
             "annotation_value": self.annotation_value,
             "subgoal_potential": self.subgoal_potential,
             "risk": self.risk,
+            "already_automated_penalty": self.already_automated_penalty,
         }
 
         for name, score in scores.items():
@@ -359,6 +362,7 @@ def compute_final_score(components: ComponentScores, objective: str) -> float:
         + weights["annotation_value"] * components.annotation_value
         + weights["subgoal_potential"] * components.subgoal_potential
         + weights["risk"] * components.risk
+        - 0.15 * components.already_automated_penalty
     )
 
     # Clamp and round
@@ -405,8 +409,13 @@ def rank_theorems(
     Raises:
         ValueError: If objective is not recognized or min_confidence is invalid
     """
+    from .config import load_default_config
+    
     if not (0.0 <= min_confidence <= 1.0):
         raise ValueError(f"min_confidence must be in [0.0, 1.0], got {min_confidence}")
+
+    # Load configuration
+    config = load_default_config()
 
     # Filter by confidence
     filtered_theorems = [t for t in theorems if t.signals.get("confidence", 0.0) >= min_confidence]
@@ -416,11 +425,12 @@ def rank_theorems(
     for theorem in filtered_theorems:
         # Compute component scores
         components = ComponentScores(
-            success_likelihood=compute_success_likelihood(theorem.signals),
-            impact=compute_impact(theorem.signals),
+            success_likelihood=compute_success_likelihood(theorem.signals, config.success_likelihood_scoring),
+            impact=compute_impact(theorem.signals, config.impact_scoring),
             annotation_value=theorem.signals.get("annotation_value", 0.0),
-            subgoal_potential=compute_subgoal_potential(theorem.signals, theorem.structure),
-            risk=compute_risk(theorem.signals),
+            subgoal_potential=compute_subgoal_potential(theorem.signals, theorem.structure, config.subgoal_potential_scoring),
+            risk=compute_risk(theorem.signals, config.risk_scoring),
+            already_automated_penalty=theorem.signals.get("automation_penalty", 0.0),
         )
 
         # Compute final score
@@ -442,6 +452,49 @@ def rank_theorems(
     )
 
     return ranked
+
+
+def assign_tiers(ranked_theorems: list[RankedTheorem], config: "TierConfig") -> list[tuple[RankedTheorem, str]]:
+    """Assign S/A/B/C/D tiers based on percentile rank.
+    
+    Tiers are relative to the file, not absolute scores:
+    - S-tier: Top percentile (exceptional candidates)
+    - A-tier: Next percentile range (strong candidates)
+    - B-tier: Next percentile range (good candidates)
+    - C-tier: Next percentile range (acceptable candidates)
+    - D-tier: Remaining (weak candidates)
+    
+    Args:
+        ranked_theorems: List of theorems already sorted by score (desc)
+        config: Tier configuration with percentile thresholds
+    
+    Returns:
+        List of (theorem, tier) tuples
+    """
+    n = len(ranked_theorems)
+    if n == 0:
+        return []
+    
+    result = []
+    for i, theorem in enumerate(ranked_theorems):
+        # Calculate percentile (0-100)
+        percentile = (i / n) * 100
+        
+        # Assign tier based on percentile thresholds from config
+        if percentile < config.s_tier_percentile:
+            tier = "S"
+        elif percentile < config.a_tier_percentile:
+            tier = "A"
+        elif percentile < config.b_tier_percentile:
+            tier = "B"
+        elif percentile < config.c_tier_percentile:
+            tier = "C"
+        else:
+            tier = "D"
+        
+        result.append((theorem, tier))
+    
+    return result
 
 
 def generate_reasons(

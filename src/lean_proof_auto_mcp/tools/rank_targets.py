@@ -16,6 +16,7 @@ from ..core.format import ensure_deterministic
 from ..core.ranking import (
     OBJECTIVE_WEIGHTS,
     TheoremData,
+    assign_tiers,
     generate_reasons,
     rank_theorems,
 )
@@ -425,10 +426,16 @@ def _format_response(
     """
     # Generate run_id
     run_id = _generate_run_id(args.file, "rank")
+    
+    # Load configuration for tier assignment
+    config = load_default_config()
+    
+    # Assign tiers to ranked theorems
+    theorems_with_tiers = assign_tiers(ranked_theorems, config.tiers)
 
     # Build ranking array
     ranking = []
-    for ranked in ranked_theorems[: args.limit]:
+    for (ranked, tier) in theorems_with_tiers[: args.limit]:
         theorem_data = ranked.theorem_data
         components = ranked.components
 
@@ -440,6 +447,7 @@ def _format_response(
                 "end_line": theorem_data.range["end_line"],
             },
             "score": ranked.score,
+            "tier": tier,  # NEW FIELD
         }
 
         # Optionally include components
@@ -467,6 +475,15 @@ def _format_response(
         }
 
         ranking.append(theorem_obj)
+    
+    # Calculate tier distribution for all ranked theorems (not just returned ones)
+    tier_counts = {
+        "S": sum(1 for _, t in theorems_with_tiers if t == "S"),
+        "A": sum(1 for _, t in theorems_with_tiers if t == "A"),
+        "B": sum(1 for _, t in theorems_with_tiers if t == "B"),
+        "C": sum(1 for _, t in theorems_with_tiers if t == "C"),
+        "D": sum(1 for _, t in theorems_with_tiers if t == "D"),
+    }
 
     # Build summary
     summary = {
@@ -474,6 +491,7 @@ def _format_response(
         "returned": len(ranking),
         "skipped_low_confidence": skipped_low_confidence,
         "skipped_already_automated": skipped_already_automated,
+        "tier_distribution": tier_counts,  # NEW FIELD
     }
 
     # Build metadata
@@ -540,7 +558,13 @@ def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
             "file": file_value,
             "objective": objective_value,
             "ranking": [],
-            "summary": {"total": 0, "returned": 0, "skipped_low_confidence": 0, "skipped_already_automated": 0},
+            "summary": {
+                "total": 0,
+                "returned": 0,
+                "skipped_low_confidence": 0,
+                "skipped_already_automated": 0,
+                "tier_distribution": {"S": 0, "A": 0, "B": 0, "C": 0, "D": 0},
+            },
             "diagnostics": [{"severity": "error", "message": str(e)}],
             "metadata": {"deep_structure_used": False, "computation_time_ms": 0.0},
         }
@@ -592,7 +616,13 @@ def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
             "file": parsed.file,
             "objective": parsed.objective,
             "ranking": [],
-            "summary": {"total": 0, "returned": 0, "skipped_low_confidence": 0, "skipped_already_automated": 0},
+            "summary": {
+                "total": 0,
+                "returned": 0,
+                "skipped_low_confidence": 0,
+                "skipped_already_automated": 0,
+                "tier_distribution": {"S": 0, "A": 0, "B": 0, "C": 0, "D": 0},
+            },
             "diagnostics": [{"severity": "error", "message": f"Analysis error: {str(e)}"}],
             "metadata": {
                 "deep_structure_used": parsed.use_deep_structure,

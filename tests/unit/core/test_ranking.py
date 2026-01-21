@@ -23,6 +23,7 @@ class TestComponentScores:
             annotation_value=0.70,
             subgoal_potential=0.65,
             risk=0.20,
+            already_automated_penalty=0.0,
         )
 
         assert scores.success_likelihood == 0.75
@@ -30,6 +31,7 @@ class TestComponentScores:
         assert scores.annotation_value == 0.70
         assert scores.subgoal_potential == 0.65
         assert scores.risk == 0.20
+        assert scores.already_automated_penalty == 0.0
 
     def test_invalid_success_likelihood_low(self):
         """Test validation of success_likelihood (too low)."""
@@ -40,6 +42,7 @@ class TestComponentScores:
                 annotation_value=0.70,
                 subgoal_potential=0.65,
                 risk=0.20,
+                already_automated_penalty=0.0,
             )
 
     def test_invalid_success_likelihood_high(self):
@@ -51,6 +54,7 @@ class TestComponentScores:
                 annotation_value=0.70,
                 subgoal_potential=0.65,
                 risk=0.20,
+                already_automated_penalty=0.0,
             )
 
     def test_invalid_impact(self):
@@ -62,6 +66,7 @@ class TestComponentScores:
                 annotation_value=0.70,
                 subgoal_potential=0.65,
                 risk=0.20,
+                already_automated_penalty=0.0,
             )
 
     def test_invalid_risk(self):
@@ -73,6 +78,7 @@ class TestComponentScores:
                 annotation_value=0.70,
                 subgoal_potential=0.65,
                 risk=-0.1,
+                already_automated_penalty=0.0,
             )
 
 
@@ -729,6 +735,7 @@ class TestComputeFinalScore:
             annotation_value=0.7,
             subgoal_potential=0.5,
             risk=0.2,
+            already_automated_penalty=0.0,
         )
 
         score = compute_final_score(components, "balanced")
@@ -745,6 +752,7 @@ class TestComputeFinalScore:
             annotation_value=0.3,
             subgoal_potential=0.3,
             risk=0.1,
+            already_automated_penalty=0.0,
         )
 
         score = compute_final_score(components, "maximize_success")
@@ -761,6 +769,7 @@ class TestComputeFinalScore:
             annotation_value=0.8,
             subgoal_potential=0.3,
             risk=0.1,
+            already_automated_penalty=0.0,
         )
 
         score = compute_final_score(components, "maximize_impact")
@@ -777,6 +786,7 @@ class TestComputeFinalScore:
             annotation_value=0.7,
             subgoal_potential=0.5,
             risk=0.1,
+            already_automated_penalty=0.0,
         )
 
         components_high_risk = ComponentScores(
@@ -785,6 +795,7 @@ class TestComputeFinalScore:
             annotation_value=0.7,
             subgoal_potential=0.5,
             risk=0.8,
+            already_automated_penalty=0.0,
         )
 
         score_low = compute_final_score(components_low_risk, "balanced")
@@ -802,6 +813,7 @@ class TestComputeFinalScore:
             annotation_value=0.7,
             subgoal_potential=0.5,
             risk=0.2,
+            already_automated_penalty=0.0,
         )
 
         with pytest.raises(ValueError, match="Unknown objective"):
@@ -818,6 +830,7 @@ class TestComputeFinalScore:
             annotation_value=1.0,
             subgoal_potential=1.0,
             risk=0.0,
+            already_automated_penalty=0.0,
         )
 
         score_high = compute_final_score(components_high, "balanced")
@@ -830,6 +843,7 @@ class TestComputeFinalScore:
             annotation_value=0.0,
             subgoal_potential=0.0,
             risk=1.0,
+            already_automated_penalty=0.0,
         )
 
         score_low = compute_final_score(components_low, "balanced")
@@ -1177,6 +1191,7 @@ class TestRankedTheorem:
             annotation_value=0.70,
             subgoal_potential=0.65,
             risk=0.20,
+            already_automated_penalty=0.0,
         )
 
         ranked = RankedTheorem(
@@ -1205,6 +1220,7 @@ class TestRankedTheorem:
             annotation_value=0.70,
             subgoal_potential=0.65,
             risk=0.20,
+            already_automated_penalty=0.0,
         )
 
         with pytest.raises(ValueError, match="score must be in \\[0.0, 1.0\\]"):
@@ -1230,6 +1246,7 @@ class TestRankedTheorem:
             annotation_value=0.70,
             subgoal_potential=0.65,
             risk=0.20,
+            already_automated_penalty=0.0,
         )
 
         with pytest.raises(ValueError, match="score must be in \\[0.0, 1.0\\]"):

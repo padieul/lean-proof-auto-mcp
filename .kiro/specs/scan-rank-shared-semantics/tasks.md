@@ -130,24 +130,24 @@
 
 ## 5. Already-Automated Penalty Component
 
-- [ ] 5 Add already-automated penalty to ranking
+- [x] 5 Add already-automated penalty to ranking
   - Complete subtasks: update ComponentScores and ranking logic
   - **BREAKING CHANGE**: ComponentScores now includes already_automated_penalty
   - **Validates: Requirements US-5, Design D6**
 
-- [ ] 5.1 Update ComponentScores dataclass
+- [x] 5.1 Update ComponentScores dataclass
   - Add `already_automated_penalty: float` field to `ComponentScores` in `core/ranking.py`
   - Update `__post_init__` validation to include new field
   - **BREAKING CHANGE**: ComponentScores structure changed
   - **Validates: Requirements US-5 (AC 5.1, 5.2, 5.3, 5.4, 5.5), Design D6**
 
-- [ ] 5.2 Update compute_final_score to apply penalty
+- [x] 5.2 Update compute_final_score to apply penalty
   - Update `compute_final_score()` to subtract `0.15 * components.already_automated_penalty`
   - Apply penalty consistently across all objectives
   - **BREAKING CHANGE**: Scoring formula changed
   - **Validates: Requirements US-5 (AC 5.6, 5.7), Design D6**
 
-- [ ] 5.3 Update rank_theorems to include penalty
+- [x] 5.3 Update rank_theorems to include penalty
   - Extract `automation_penalty` from theorem signals
   - Pass to `ComponentScores` constructor
   - **BREAKING CHANGE**: Ranking logic changed
@@ -155,26 +155,26 @@
 
 ## 6. Tier System
 
-- [ ] 6 Implement S/A/B/C/D tier system
+- [x] 6 Implement S/A/B/C/D tier system
   - Complete all subtasks: tier assignment function and integration
   - **BREAKING CHANGE**: All responses now include tier field
   - **Validates: Requirements US-4, Design D3**
 
-- [ ] 6.1 Implement assign_tiers function
+- [x] 6.1 Implement assign_tiers function
   - Create `assign_tiers()` function in `core/ranking.py`
   - Calculate percentile rank for each theorem
   - Assign tiers based on percentile: S (<10%), A (10-25%), B (25-50%), C (50-75%), D (75-100%)
   - Return list of (theorem, tier) tuples
   - **Validates: Requirements US-4 (AC 4.1, 4.2, 4.3), Design D3**
 
-- [ ] 6.2 Add tier configuration
+- [x] 6.2 Add tier configuration
   - Add `tiers` section to `heuristics.yaml`
   - Include s_tier_percentile, a_tier_percentile, b_tier_percentile, c_tier_percentile
   - Add `TierConfig` dataclass with validation (thresholds must be monotonic)
   - Add to `HeuristicsConfig` protocol
   - **Validates: Requirements US-4 (AC 4.3), US-7, Design D3, D7**
 
-- [ ] 6.3 Integrate tiers into rank_targets response
+- [x] 6.3 Integrate tiers into rank_targets response
   - Call `assign_tiers()` after ranking theorems
   - Add `tier` field to each theorem in ranking array
   - Add `tier_distribution` to summary (counts for each tier)

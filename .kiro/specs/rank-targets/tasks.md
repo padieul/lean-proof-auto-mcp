@@ -168,7 +168,7 @@
 
 ## 7. MCP Server Integration
 
-- [ ] 7 Register tool with MCP server
+- [x] 7 Register tool with MCP server
   - Add rank_targets import to `src/lean_proof_auto_mcp/tools/__init__.py`
   - Register rank_targets in router in `src/lean_proof_auto_mcp/server.py`
   - Add @app.tool decorator for rank_targets following scan_file/scan_theorem pattern
@@ -176,7 +176,7 @@
 
 ## 8. Documentation
 
-- [ ] 8 Update tool documentation
+- [x] 8 Update tool documentation
   - Update `docs/mcp/tool_contract.md` with rank_targets API contract
   - Document all parameters, objectives, and response structure
   - Include examples for each objective
@@ -184,18 +184,18 @@
 
 ## 9. Final Validation
 
-- [ ] 9 Complete final validation
+- [x] 9 Complete final validation
   - Complete all subtasks: run complete test suite and perform manual testing
   - **Validates: All requirements**
 
-- [ ] 9.1 Run complete test suite
+- [x] 9.1 Run complete test suite
   - Run all unit tests and verify pass
   - Run all property-based tests and verify pass
   - Run all contract tests and verify pass
   - Run all integration tests and verify pass
   - **Validates: All requirements**
 
-- [ ] 9.2 Manual testing and validation
+- [x] 9.2 Manual testing and validation
   - Test with various Lean files from fixtures
   - Test all four objectives produce sensible rankings
   - Test edge cases (empty file, single theorem, low confidence theorems)

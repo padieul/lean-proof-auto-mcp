@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lean-proof-auto-mcp/schemas/rank_targets.json",
+  "title": "rank_targets tool response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["api_version", "status", "run_id", "tool", "file", "objective", "ranking", "summary", "diagnostics", "metadata"],
+  "properties": {
+    "api_version": { "$ref": "common.json#/$defs/api_version" },
+    "status": { "$ref": "common.json#/$defs/status" },
+    "run_id": { "$ref": "common.json#/$defs/run_id" },
+    "tool": {
+      "type": "string",
+      "const": "rank_targets"
+    },
+    "file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "objective": {
+      "type": "string",
+      "enum": ["maximize_success", "maximize_impact", "maximize_subgoal_automation", "balanced"]
+    },
+    "ranking": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["theorem_id", "range", "score", "signals"],
+        "properties": {
+          "theorem_id": { "type": "string", "minLength": 1 },
+          "range": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["start_line", "end_line"],
+            "properties": {
+              "start_line": { "type": "integer", "minimum": 0 },
+              "end_line": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+          "components": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["success_likelihood", "impact", "annotation_value", "subgoal_potential", "risk"],
+            "properties": {
+              "success_likelihood": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+              "impact": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+              "annotation_value": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+              "subgoal_potential": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+              "risk": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+            }
+          },
+          "reasons": {
+            "type": "array",
+            "items": { "type": "string" },
+            "maxItems": 10
+          },
+          "signals": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["whole_goal_potential", "subgoal_potential", "annotation_value", "proof_lines", "confidence"],
+            "properties": {
+              "whole_goal_potential": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["aesop", "grind"],
+                "properties": {
+                  "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+                  "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+                }
+              },
+              "subgoal_potential": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["aesop", "grind"],
+                "properties": {
+                  "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+                  "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+                }
+              },
+              "annotation_value": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+              "proof_lines": { "type": "integer", "minimum": 0 },
+              "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "returned", "skipped_low_confidence"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "returned": { "type": "integer", "minimum": 0 },
+        "skipped_low_confidence": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": { "$ref": "common.json#/$defs/diagnostic" }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deep_structure_used", "computation_time_ms"],
+      "properties": {
+        "scan_file_run_id": { "type": "string" },
+        "deep_structure_used": { "type": "boolean" },
+        "computation_time_ms": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

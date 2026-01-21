@@ -650,7 +650,6 @@ class TestScoreRounding:
         assert len(str(score).split(".")[-1]) <= 2
 
 
-
 class TestObjectiveWeights:
     """Test cases for objective weight configurations."""
 

@@ -4,14 +4,10 @@ Tests end-to-end functionality with real Lean files, including all objectives,
 deep structure mode, and error scenarios.
 """
 
-import os
 import time
 from pathlib import Path
 
-import pytest
-
 from lean_proof_auto_mcp.tools.rank_targets import rank_targets
-
 
 # Fixture paths
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "mathlib_lean_files"
@@ -86,12 +82,8 @@ class TestRankTargetsIntegration:
 
     def test_different_objectives_produce_different_rankings(self):
         """Test that different objectives produce different rankings."""
-        success_result = rank_targets(
-            {"file": DEGREE_LEAN, "objective": "maximize_success"}
-        )
-        impact_result = rank_targets(
-            {"file": DEGREE_LEAN, "objective": "maximize_impact"}
-        )
+        success_result = rank_targets({"file": DEGREE_LEAN, "objective": "maximize_success"})
+        impact_result = rank_targets({"file": DEGREE_LEAN, "objective": "maximize_impact"})
 
         # Both should succeed
         assert success_result["status"] == "success"
@@ -110,14 +102,10 @@ class TestRankTargetsIntegration:
     def test_deep_structure_mode(self):
         """Test deep structure mode integration with scan_theorem."""
         # Test without deep structure
-        result_shallow = rank_targets(
-            {"file": COEFF_LEAN, "use_deep_structure": False}
-        )
+        result_shallow = rank_targets({"file": COEFF_LEAN, "use_deep_structure": False})
 
         # Test with deep structure
-        result_deep = rank_targets(
-            {"file": COEFF_LEAN, "use_deep_structure": True}
-        )
+        result_deep = rank_targets({"file": COEFF_LEAN, "use_deep_structure": True})
 
         # Both should succeed
         assert result_shallow["status"] == "success"
@@ -176,14 +164,10 @@ class TestRankTargetsIntegration:
     def test_include_components_flag(self):
         """Test include_components flag controls component output."""
         # With components
-        result_with = rank_targets(
-            {"file": COEFF_LEAN, "include_components": True}
-        )
+        result_with = rank_targets({"file": COEFF_LEAN, "include_components": True})
 
         # Without components
-        result_without = rank_targets(
-            {"file": COEFF_LEAN, "include_components": False}
-        )
+        result_without = rank_targets({"file": COEFF_LEAN, "include_components": False})
 
         # Both should succeed
         assert result_with["status"] == "success"
@@ -199,14 +183,10 @@ class TestRankTargetsIntegration:
     def test_include_reasons_flag(self):
         """Test include_reasons flag controls reason output."""
         # With reasons
-        result_with = rank_targets(
-            {"file": DEFS_LEAN, "include_reasons": True}
-        )
+        result_with = rank_targets({"file": DEFS_LEAN, "include_reasons": True})
 
         # Without reasons
-        result_without = rank_targets(
-            {"file": DEFS_LEAN, "include_reasons": False}
-        )
+        result_without = rank_targets({"file": DEFS_LEAN, "include_reasons": False})
 
         # Both should succeed
         assert result_with["status"] == "success"
@@ -227,7 +207,7 @@ class TestRankTargetsIntegration:
         # Should either fail or succeed with empty results
         # (scan_file may handle missing files gracefully)
         assert result["status"] in ["fail", "success"]
-        
+
         if result["status"] == "fail":
             # Should have error diagnostic
             assert "diagnostics" in result
@@ -239,9 +219,7 @@ class TestRankTargetsIntegration:
 
     def test_invalid_objective_error(self):
         """Test error handling for invalid objective."""
-        result = rank_targets(
-            {"file": COEFF_LEAN, "objective": "invalid_objective"}
-        )
+        result = rank_targets({"file": COEFF_LEAN, "objective": "invalid_objective"})
 
         # Should fail gracefully
         assert result["status"] == "fail"
@@ -284,13 +262,9 @@ class TestRankTargetsIntegration:
         # Rankings should be identical
         assert len(result1["ranking"]) == len(result2["ranking"])
 
-        for i, (t1, t2) in enumerate(zip(result1["ranking"], result2["ranking"])):
-            assert t1["theorem_id"] == t2["theorem_id"], (
-                f"Theorem IDs differ at index {i}"
-            )
-            assert t1["score"] == t2["score"], (
-                f"Scores differ at index {i}"
-            )
+        for i, (t1, t2) in enumerate(zip(result1["ranking"], result2["ranking"], strict=True)):
+            assert t1["theorem_id"] == t2["theorem_id"], f"Theorem IDs differ at index {i}"
+            assert t1["score"] == t2["score"], f"Scores differ at index {i}"
 
     def test_performance_target_without_deep_structure(self):
         """Test performance target: < 50ms for 200 theorems without deep structure.
@@ -298,9 +272,7 @@ class TestRankTargetsIntegration:
         Note: This is a soft target and may vary by system.
         """
         # Use largest fixture file
-        result = rank_targets(
-            {"file": DEGREE_LEAN, "use_deep_structure": False}
-        )
+        result = rank_targets({"file": DEGREE_LEAN, "use_deep_structure": False})
 
         assert result["status"] == "success"
 
@@ -312,10 +284,7 @@ class TestRankTargetsIntegration:
 
         # Soft assertion - warn if exceeds target but don't fail
         if computation_time_ms > 50:
-            print(
-                f"WARNING: Performance target exceeded: "
-                f"{computation_time_ms:.2f}ms > 50ms"
-            )
+            print(f"WARNING: Performance target exceeded: {computation_time_ms:.2f}ms > 50ms")
 
     def test_response_structure_completeness(self):
         """Test that response contains all required fields."""
@@ -385,9 +354,7 @@ class TestRankTargetsPerformance:
         """Benchmark: < 50ms for 200 theorems without deep structure."""
         # Use largest fixture
         start_time = time.time()
-        result = rank_targets(
-            {"file": DEGREE_LEAN, "use_deep_structure": False}
-        )
+        result = rank_targets({"file": DEGREE_LEAN, "use_deep_structure": False})
         end_time = time.time()
 
         elapsed_ms = (end_time - start_time) * 1000
@@ -396,10 +363,10 @@ class TestRankTargetsPerformance:
 
         # Log results
         theorem_count = result["summary"]["total"]
-        print(f"\nBenchmark (no deep structure):")
+        print("\nBenchmark (no deep structure):")
         print(f"  Theorems: {theorem_count}")
         print(f"  Time: {elapsed_ms:.2f}ms")
-        print(f"  Target: < 50ms")
+        print("  Target: < 50ms")
 
         # Metadata should also report time
         reported_time = result["metadata"]["computation_time_ms"]
@@ -412,9 +379,7 @@ class TestRankTargetsPerformance:
         """
         # Use smaller fixture for deep structure test
         start_time = time.time()
-        result = rank_targets(
-            {"file": COEFF_LEAN, "use_deep_structure": True, "limit": 10}
-        )
+        result = rank_targets({"file": COEFF_LEAN, "use_deep_structure": True, "limit": 10})
         end_time = time.time()
 
         elapsed_ms = (end_time - start_time) * 1000
@@ -423,10 +388,10 @@ class TestRankTargetsPerformance:
 
         # Log results
         theorem_count = result["summary"]["total"]
-        print(f"\nBenchmark (with deep structure):")
+        print("\nBenchmark (with deep structure):")
         print(f"  Theorems: {theorem_count}")
         print(f"  Time: {elapsed_ms:.2f}ms")
-        print(f"  Target: < 200ms (for 200 theorems)")
+        print("  Target: < 200ms (for 200 theorems)")
 
         # Metadata should report deep structure usage
         assert result["metadata"]["deep_structure_used"] is True

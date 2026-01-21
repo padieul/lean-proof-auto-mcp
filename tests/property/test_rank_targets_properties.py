@@ -39,14 +39,16 @@ def valid_lean_files(draw) -> str:
 @st.composite
 def objectives(draw) -> str:
     """Generate valid objective names."""
-    return draw(
-        st.sampled_from(
-            [
-                "maximize_success",
-                "maximize_impact",
-                "maximize_subgoal_automation",
-                "balanced",
-            ]
+    return str(
+        draw(
+            st.sampled_from(
+                [
+                    "maximize_success",
+                    "maximize_impact",
+                    "maximize_subgoal_automation",
+                    "balanced",
+                ]
+            )
         )
     )
 
@@ -123,10 +125,11 @@ class TestRankTargetsProperties:
 
                 assert score_i >= score_next, (
                     f"Scores not monotonic: ranking[{i}].score={score_i} < "
-                    f"ranking[{i+1}].score={score_next}"
+                    f"ranking[{i + 1}].score={score_next}"
                 )
 
-                # Check tie-breaking: if scores equal, theorem_id should be lexicographically ordered
+                # Check tie-breaking: if scores equal, theorem_id should be
+                # lexicographically ordered
                 if score_i == score_next:
                     theorem_id_i = ranking[i]["theorem_id"]
                     theorem_id_next = ranking[i + 1]["theorem_id"]
@@ -177,9 +180,7 @@ class TestRankTargetsProperties:
 
             if common_ids:
                 # At least one common theorem should have different scores
-                scores_differ = any(
-                    success_scores[tid] != impact_scores[tid] for tid in common_ids
-                )
+                scores_differ = any(success_scores[tid] != impact_scores[tid] for tid in common_ids)
 
                 assert scores_differ, (
                     "Different objectives should produce different scores for at least one theorem"
@@ -254,7 +255,9 @@ class TestRankTargetsProperties:
         # Summary required fields
         assert "total" in result["summary"], "Missing summary.total"
         assert "returned" in result["summary"], "Missing summary.returned"
-        assert "skipped_low_confidence" in result["summary"], "Missing summary.skipped_low_confidence"
+        assert "skipped_low_confidence" in result["summary"], (
+            "Missing summary.skipped_low_confidence"
+        )
 
         # Metadata required fields
         assert "deep_structure_used" in result["metadata"], "Missing metadata.deep_structure_used"
@@ -280,17 +283,17 @@ class TestRankTargetsProperties:
         # Summary type checks
         assert isinstance(result["summary"]["total"], int), "summary.total must be integer"
         assert isinstance(result["summary"]["returned"], int), "summary.returned must be integer"
-        assert isinstance(
-            result["summary"]["skipped_low_confidence"], int
-        ), "summary.skipped_low_confidence must be integer"
+        assert isinstance(result["summary"]["skipped_low_confidence"], int), (
+            "summary.skipped_low_confidence must be integer"
+        )
 
         # Metadata type checks
-        assert isinstance(
-            result["metadata"]["deep_structure_used"], bool
-        ), "metadata.deep_structure_used must be boolean"
-        assert isinstance(
-            result["metadata"]["computation_time_ms"], (int, float)
-        ), "metadata.computation_time_ms must be number"
+        assert isinstance(result["metadata"]["deep_structure_used"], bool), (
+            "metadata.deep_structure_used must be boolean"
+        )
+        assert isinstance(result["metadata"]["computation_time_ms"], (int, float)), (
+            "metadata.computation_time_ms must be number"
+        )
 
         # Ranking item type checks
         for theorem in result["ranking"]:
@@ -326,8 +329,7 @@ class TestRankTargetsProperties:
 
         # returned should match ranking length
         assert summary["returned"] == len(ranking), (
-            f"summary.returned ({summary['returned']}) must match "
-            f"ranking length ({len(ranking)})"
+            f"summary.returned ({summary['returned']}) must match ranking length ({len(ranking)})"
         )
 
         # returned should be <= total
@@ -357,9 +359,7 @@ class TestRankTargetsProperties:
         limit = args.get("limit", 30)
         ranking_length = len(result["ranking"])
 
-        assert ranking_length <= limit, (
-            f"Ranking length ({ranking_length}) exceeds limit ({limit})"
-        )
+        assert ranking_length <= limit, f"Ranking length ({ranking_length}) exceeds limit ({limit})"
 
     @given(args=rank_targets_args())
     def test_objective_echo(self, args: dict[str, Any]) -> None:
@@ -447,8 +447,7 @@ class TestRankTargetsProperties:
 
                     # Max 10 reasons
                     assert len(reasons) <= 10, (
-                        f"Theorem {theorem['theorem_id']} has {len(reasons)} reasons, "
-                        "max is 10"
+                        f"Theorem {theorem['theorem_id']} has {len(reasons)} reasons, max is 10"
                     )
 
                     # Each reason max 200 chars

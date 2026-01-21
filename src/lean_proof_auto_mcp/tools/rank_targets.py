@@ -13,13 +13,7 @@ from typing import Any
 from ..core.format import ensure_deterministic
 from ..core.ranking import (
     OBJECTIVE_WEIGHTS,
-    ComponentScores,
     TheoremData,
-    compute_final_score,
-    compute_impact,
-    compute_risk,
-    compute_subgoal_potential,
-    compute_success_likelihood,
     generate_reasons,
     rank_theorems,
 )
@@ -66,9 +60,7 @@ class RankTargetsArgs:
             raise ValueError(f"limit must be in [1, 500], got {self.limit}")
 
         if not (0.0 <= self.min_confidence <= 1.0):
-            raise ValueError(
-                f"min_confidence must be in [0.0, 1.0], got {self.min_confidence}"
-            )
+            raise ValueError(f"min_confidence must be in [0.0, 1.0], got {self.min_confidence}")
 
 
 def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
@@ -123,7 +115,6 @@ def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
         use_deep_structure=use_deep_structure,
         min_confidence=float(min_confidence),
     )
-
 
 
 def _load_theorem_data(
@@ -294,7 +285,6 @@ def _load_theorem_data(
     return theorem_data_list, diagnostics, scan_file_run_id
 
 
-
 def _generate_run_id(file_path: str, prefix: str) -> str:
     """Generate a deterministic run_id for testing compatibility.
 
@@ -366,9 +356,7 @@ def _format_response(
 
         # Optionally include reasons
         if args.include_reasons:
-            reasons = generate_reasons(
-                theorem_data.signals, components, theorem_data.structure
-            )
+            reasons = generate_reasons(theorem_data.signals, components, theorem_data.structure)
             theorem_obj["reasons"] = reasons
 
         # Include signals for transparency
@@ -413,7 +401,6 @@ def _format_response(
 
     # Ensure deterministic output
     return ensure_deterministic(response)
-
 
 
 def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
@@ -471,9 +458,7 @@ def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
         total_theorems = len(theorem_data_list)
 
         # Rank theorems with confidence filtering
-        ranked_theorems = rank_theorems(
-            theorem_data_list, parsed.objective, parsed.min_confidence
-        )
+        ranked_theorems = rank_theorems(theorem_data_list, parsed.objective, parsed.min_confidence)
 
         # Calculate how many were skipped due to confidence
         skipped_low_confidence = total_theorems - len(ranked_theorems)

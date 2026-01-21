@@ -124,7 +124,12 @@ class TestRankTargetsArgs:
 
     def test_all_objectives_valid(self):
         """Test that all documented objectives are valid."""
-        objectives = ["maximize_success", "maximize_impact", "maximize_subgoal_automation", "balanced"]
+        objectives = [
+            "maximize_success",
+            "maximize_impact",
+            "maximize_subgoal_automation",
+            "balanced",
+        ]
 
         for objective in objectives:
             args = RankTargetsArgs(

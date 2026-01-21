@@ -222,22 +222,27 @@ def test_rank_targets_field_types():
     # Summary types
     assert isinstance(resp["summary"]["total"], int), "summary.total must be integer"
     assert isinstance(resp["summary"]["returned"], int), "summary.returned must be integer"
-    assert isinstance(
-        resp["summary"]["skipped_low_confidence"], int
-    ), "summary.skipped_low_confidence must be integer"
+    assert isinstance(resp["summary"]["skipped_low_confidence"], int), (
+        "summary.skipped_low_confidence must be integer"
+    )
 
     # Metadata types
-    assert isinstance(
-        resp["metadata"]["deep_structure_used"], bool
-    ), "metadata.deep_structure_used must be boolean"
-    assert isinstance(
-        resp["metadata"]["computation_time_ms"], (int, float)
-    ), "metadata.computation_time_ms must be number"
+    assert isinstance(resp["metadata"]["deep_structure_used"], bool), (
+        "metadata.deep_structure_used must be boolean"
+    )
+    assert isinstance(resp["metadata"]["computation_time_ms"], (int, float)), (
+        "metadata.computation_time_ms must be number"
+    )
 
 
 def test_rank_targets_objective_enum_validation():
     """Test that objective field validates against enum values."""
-    valid_objectives = ["maximize_success", "maximize_impact", "maximize_subgoal_automation", "balanced"]
+    valid_objectives = [
+        "maximize_success",
+        "maximize_impact",
+        "maximize_subgoal_automation",
+        "balanced",
+    ]
 
     # Test each valid objective
     for objective in valid_objectives:
@@ -320,9 +325,9 @@ def test_rank_targets_summary_counts_non_negative():
     resp = rank_targets({"file": "test.lean"})
     assert resp["summary"]["total"] >= 0, "summary.total must be non-negative"
     assert resp["summary"]["returned"] >= 0, "summary.returned must be non-negative"
-    assert (
-        resp["summary"]["skipped_low_confidence"] >= 0
-    ), "summary.skipped_low_confidence must be non-negative"
+    assert resp["summary"]["skipped_low_confidence"] >= 0, (
+        "summary.skipped_low_confidence must be non-negative"
+    )
 
 
 def test_rank_targets_summary_counts_consistent():
@@ -459,9 +464,7 @@ def test_rank_targets_status_valid():
 def test_rank_targets_computation_time_non_negative():
     """Test that computation_time_ms is non-negative."""
     resp = rank_targets({"file": "test.lean"})
-    assert resp["metadata"]["computation_time_ms"] >= 0, (
-        "computation_time_ms must be non-negative"
-    )
+    assert resp["metadata"]["computation_time_ms"] >= 0, "computation_time_ms must be non-negative"
 
 
 def test_rank_targets_with_include_components_false():

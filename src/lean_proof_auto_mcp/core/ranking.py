@@ -75,7 +75,6 @@ class TheoremData:
             raise ValueError("start_line must be <= end_line")
 
 
-
 def compute_success_likelihood(signals: dict[str, Any]) -> float:
     """Compute success likelihood score from automation signals.
 
@@ -116,7 +115,7 @@ def compute_success_likelihood(signals: dict[str, Any]) -> float:
 
     # Clamp and round
     score = max(0.0, min(1.0, score))
-    return round(score, 2)
+    return float(round(score, 2))
 
 
 def compute_impact(signals: dict[str, Any]) -> float:
@@ -159,7 +158,7 @@ def compute_impact(signals: dict[str, Any]) -> float:
 
     # Clamp and round
     score = max(0.0, min(1.0, score))
-    return round(score, 2)
+    return float(round(score, 2))
 
 
 def compute_subgoal_potential(
@@ -211,7 +210,7 @@ def compute_subgoal_potential(
 
     # Clamp and round
     score = max(0.0, min(1.0, score))
-    return round(score, 2)
+    return float(round(score, 2))
 
 
 def compute_risk(signals: dict[str, Any]) -> float:
@@ -276,7 +275,6 @@ def compute_risk(signals: dict[str, Any]) -> float:
     # Clamp and round
     risk = max(0.0, min(1.0, risk))
     return round(risk, 2)
-
 
 
 # Objective weight configurations (immutable)
@@ -390,9 +388,7 @@ def rank_theorems(
         raise ValueError(f"min_confidence must be in [0.0, 1.0], got {min_confidence}")
 
     # Filter by confidence
-    filtered_theorems = [
-        t for t in theorems if t.signals.get("confidence", 0.0) >= min_confidence
-    ]
+    filtered_theorems = [t for t in theorems if t.signals.get("confidence", 0.0) >= min_confidence]
 
     # Compute scores for each theorem
     ranked = []
@@ -425,7 +421,6 @@ def rank_theorems(
     )
 
     return ranked
-
 
 
 def generate_reasons(

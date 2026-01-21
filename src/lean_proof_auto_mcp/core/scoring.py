@@ -456,6 +456,11 @@ def _generate_notes(
     """
     notes = []
 
+    # CRITICAL: Add numeric confidence for downstream tools
+    # This enables rank_targets to extract and use confidence values
+    if features.confidence > 0.0:
+        notes.append(f"confidence: {features.confidence:.2f}")
+
     # Enhanced note about proof detection and confidence
     if features.proof_lines == 0:
         if features.confidence == 0.0:

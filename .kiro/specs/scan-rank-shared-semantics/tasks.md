@@ -87,12 +87,12 @@
 
 ## 3. Confidence Fix
 
-- [ ] 3 Fix confidence to expose numeric values
+- [x] 3 Fix confidence to expose numeric values
   - Complete subtask: update _generate_notes to include numeric confidence
   - **BREAKING CHANGE**: Note format changed
   - **Validates: Requirements US-1, Design D1**
 
-- [ ] 3.1 Add numeric confidence to notes
+- [x] 3.1 Add numeric confidence to notes
   - Update `_generate_notes()` in `core/scoring.py`
   - Add `notes.append(f"confidence: {features.confidence:.2f}")` as FIRST note when confidence > 0.0
   - Keep existing qualitative notes after numeric note
@@ -101,11 +101,11 @@
 
 ## 4. Already-Automated Detection
 
-- [ ] 4 Implement already-automated detection system
+- [x] 4 Implement already-automated detection system
   - Complete all subtasks: detection module, integration with rank_targets
   - **Validates: Requirements US-2, US-5, Design D2**
 
-- [ ] 4.1 Create automation_detection.py module
+- [x] 4.1 Create automation_detection.py module
   - Create `src/lean_proof_auto_mcp/core/automation_detection.py`
   - Implement `AutomationStatus` frozen dataclass (is_automated, automation_type, penalty, detected_patterns)
   - Implement `AutomationDetector` protocol (port)
@@ -114,14 +114,14 @@
   - Implement `AutomationDetectionConfig` frozen dataclass
   - **Validates: Requirements US-2 (AC 2.2, 2.5, 2.6), Design D2**
 
-- [ ] 4.2 Add automation detection to configuration
+- [x] 4.2 Add automation detection to configuration
   - Add `automation_detection` section to `heuristics.yaml`
   - Include tactic_penalty, attribute_penalty, trivial_penalty
   - Include tactic_patterns, attribute_patterns, trivial_patterns lists
   - Add `AutomationDetectionConfig` to `HeuristicsConfig` protocol
   - **Validates: Requirements US-2 (AC 2.2), US-7, Design D2, D7**
 
-- [ ] 4.3 Integrate detection with rank_targets
+- [x] 4.3 Integrate detection with rank_targets
   - Update `_load_theorem_data()` to detect automation for each theorem
   - Add automation status to theorem signals (already_automated, automation_penalty, automation_type)
   - Implement filtering when `skip_already_automated=true`

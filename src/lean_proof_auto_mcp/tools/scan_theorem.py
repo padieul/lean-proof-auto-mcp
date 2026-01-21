@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from ..core.config import load_config, load_default_config
 from ..core.features import extract_features
 from ..core.format import ensure_deterministic, normalize_notes
 from ..core.indexer import build_index, find_by_id, find_by_range
@@ -10,7 +11,7 @@ from ..core.scoring import compute_profile
 from ..core.segmenter import segment_proof
 from ..core.source import SourceText
 
-API_VERSION = "0.1"
+API_VERSION = "1.0"
 
 
 @dataclass(frozen=True)
@@ -23,6 +24,7 @@ class TheoremTarget:
 class ScanTheoremArgs:
     file: str
     target: TheoremTarget
+    config_path: str | None
 
 
 def _coerce_args(args: dict[str, Any]) -> ScanTheoremArgs:
@@ -66,8 +68,12 @@ def _coerce_args(args: dict[str, Any]) -> ScanTheoremArgs:
             raise ValueError("scan_theorem: 'end_line' must be an integer >= 1")
         parsed_range = (start_line, end_line)
 
+    config_path = args.get("config_path")
+    if config_path is not None and not isinstance(config_path, str):
+        raise ValueError("scan_theorem: 'config_path' must be a string or null")
+
     return ScanTheoremArgs(
-        file=file, target=TheoremTarget(theorem_id=parsed_theorem_id, range=parsed_range)
+        file=file, target=TheoremTarget(theorem_id=parsed_theorem_id, range=parsed_range), config_path=config_path
     )
 
 
@@ -108,6 +114,12 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
     run_id = _generate_run_id(parsed.file, "scan-theorem")
 
     try:
+        # Load configuration
+        if parsed.config_path:
+            config = load_config(Path(parsed.config_path))
+        else:
+            config = load_default_config()
+        
         # Try to read file (I/O boundary)
         from pathlib import Path
 
@@ -172,7 +184,7 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
         # Extract features and structure
         features = extract_features(source, target_decl)
         structure = segment_proof(source, target_decl)
-        profile = compute_profile(features, structure)
+        profile = compute_profile(features, structure, config)
 
         # Build target object for response (echo input)
         target_response: dict[str, Any] = {}

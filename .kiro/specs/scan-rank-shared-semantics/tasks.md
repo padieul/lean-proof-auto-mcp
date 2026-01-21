@@ -212,31 +212,31 @@
 
 ## 8. Update rank_targets Tool
 
-- [ ] 8 Update rank_targets tool for breaking changes
+- [x] 8 Update rank_targets tool for breaking changes
   - Complete all subtasks: update parameters, response format, and API version
   - **BREAKING CHANGE**: Multiple parameter and response changes
   - **Validates: All requirements**
 
-- [ ] 8.1 Add skip_already_automated parameter
+- [x] 8.1 Add skip_already_automated parameter
   - Add `skip_already_automated: bool` to `RankTargetsArgs` dataclass
   - Update `_coerce_args()` to parse parameter (REQUIRED, no default)
   - Raise error if parameter is missing
   - **BREAKING CHANGE**: New required parameter
   - **Validates: Requirements US-2 (AC 2.1), Design D5**
 
-- [ ] 8.2 Add config_path parameter
+- [x] 8.2 Add config_path parameter
   - Add `config_path: str | None` to `RankTargetsArgs` dataclass
   - Update `_coerce_args()` to parse optional parameter
   - **Validates: Requirements US-7 (AC 7.4), Design D7**
 
-- [ ] 8.3 Update rank_targets to load configuration
+- [x] 8.3 Update rank_targets to load configuration
   - Load config from `config_path` if provided, else from environment variable, else package default
   - Pass config to all scoring functions
   - Add `config_source` to metadata (path, environment, or default)
   - **BREAKING CHANGE**: Configuration now required for all scoring
   - **Validates: Requirements US-7 (AC 7.2, 7.4), Design D7**
 
-- [ ] 8.4 Update API version to 1.0
+- [x] 8.4 Update API version to 1.0
   - Change `API_VERSION` constant from "0.1" to "1.0"
   - Update all response formatting to use new version
   - **BREAKING CHANGE**: API version bump indicates breaking changes
@@ -244,19 +244,19 @@
 
 ## 9. Update scan_file and scan_theorem Tools
 
-- [ ] 9 Update scan_file and scan_theorem for breaking changes
+- [x] 9 Update scan_file and scan_theorem for breaking changes
   - Complete all subtasks: update both tools to use configuration and new API version
   - **BREAKING CHANGE**: API version and note format changed
   - **Validates: Requirements US-1**
 
-- [ ] 9.1 Update scan_file to use configuration
+- [x] 9.1 Update scan_file to use configuration
   - Update `scan_file()` to load configuration (optional parameter or environment variable)
   - Pass config to `compute_profile()`
   - Update API version to "1.0"
   - **BREAKING CHANGE**: API version changed, note format changed
   - **Validates: Requirements US-1, Design D1**
 
-- [ ] 9.2 Update scan_theorem to use configuration
+- [x] 9.2 Update scan_theorem to use configuration
   - Update `scan_theorem()` to load configuration (optional parameter or environment variable)
   - Pass config to `compute_profile()`
   - Update API version to "1.0"

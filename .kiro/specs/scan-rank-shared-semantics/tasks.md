@@ -343,7 +343,7 @@
 
 ## 11. Update Documentation
 
-- [ ] 11 Rewrite all documentation for breaking changes
+- [x] 11 Rewrite all documentation for breaking changes
   - Complete all subtasks: schemas, user guide, API changelog, README
   - **BREAKING CHANGE**: Complete documentation rewrite
   - **Validates: All requirements**
@@ -357,7 +357,7 @@
   - **BREAKING CHANGE**: Schemas completely rewritten
   - **Validates: Requirements NFR-4**
 
-- [ ] 11.2 Rewrite tool contract documentation
+- [x] 11.2 Rewrite tool contract documentation
   - Update `docs/mcp/tool_contract.md`
   - Document all breaking changes
   - Document new parameters (skip_already_automated, config_path)
@@ -367,7 +367,7 @@
   - **BREAKING CHANGE**: Documentation completely rewritten
   - **Validates: Requirements NFR-3, NFR-4**
 
-- [ ] 11.3 Create configuration guide
+- [x] 11.3 Create configuration guide
   - Create `docs/configuration.md`
   - Explain configuration system architecture
   - Document all configuration parameters
@@ -376,7 +376,7 @@
   - Explain how to validate configuration files
   - **Validates: Requirements US-7, NFR-6**
 
-- [ ] 11.4 Update README
+- [x] 11.4 Update README
   - Update all examples to API 1.0
   - Add configuration section
   - Add tier system explanation
@@ -385,7 +385,7 @@
   - **BREAKING CHANGE**: All examples rewritten
   - **Validates: All requirements**
 
-- [ ] 11.5 Create API changelog
+- [x] 11.5 Create API changelog
   - Create `docs/CHANGELOG.md` or update existing
   - Document API version 1.0 breaking changes
   - List all removed/changed/added features

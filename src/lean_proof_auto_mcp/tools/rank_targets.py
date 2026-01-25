@@ -591,6 +591,7 @@ def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
             },
             "diagnostics": [{"severity": "error", "message": str(e)}],
             "metadata": {"deep_structure_used": False, "computation_time_ms": 0.0},
+            "available_objectives": get_available_objectives(),
         }
 
     # Generate run_id
@@ -671,4 +672,5 @@ def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
                 "deep_structure_used": parsed.use_deep_structure,
                 "computation_time_ms": round(computation_time_ms, 2),
             },
+            "available_objectives": get_available_objectives(),
         }

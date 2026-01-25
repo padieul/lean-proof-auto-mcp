@@ -665,18 +665,21 @@ class TestEnhancedTacticDetection:
         """Test that term-mode proofs get reasonable confidence scores."""
         from lean_proof_auto_mcp.core.features import _calculate_confidence
         from lean_proof_auto_mcp.core.source import Span
+        from lean_proof_auto_mcp.core.config import load_default_config
+
+        config = load_default_config()
 
         # Test term-mode proof with inference placeholder
         proof_text = "eval₂_list_sum .."
         tactic_kinds = {"inference_placeholder"}
         span = Span(1, 0, 1, 20)
-        confidence = _calculate_confidence(proof_text, span, tactic_kinds)
+        confidence = _calculate_confidence(proof_text, span, tactic_kinds, config.confidence)
         assert confidence > 0.0, f"Expected positive confidence, got {confidence}"
 
         # Test rfl proof
         proof_text2 = "rfl"
         tactic_kinds2 = {"rfl"}
-        confidence2 = _calculate_confidence(proof_text2, span, tactic_kinds2)
+        confidence2 = _calculate_confidence(proof_text2, span, tactic_kinds2, config.confidence)
         assert confidence2 > 0.0, f"Expected positive confidence for rfl, got {confidence2}"
 
     def test_extract_features_with_term_proof(self):

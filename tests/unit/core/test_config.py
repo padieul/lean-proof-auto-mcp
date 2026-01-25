@@ -6,7 +6,7 @@ Tests configuration loading, validation, and environment variable support.
 import os
 import pytest
 from pathlib import Path
-from src.lean_proof_auto_mcp.core.config import (
+from lean_proof_auto_mcp.core.config import (
     load_default_config,
     load_config,
     YamlHeuristicsConfig,

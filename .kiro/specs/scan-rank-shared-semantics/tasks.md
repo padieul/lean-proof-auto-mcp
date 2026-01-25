@@ -396,11 +396,11 @@
 
 ## 12. Final Validation
 
-- [ ] 12 Complete final validation
+- [x] 12 Complete final validation
   - Complete all subtasks: run complete test suite and perform manual testing
   - **Validates: All requirements**
 
-- [ ] 12.1 Run complete test suite
+- [x] 12.1 Run complete test suite
   - Run all unit tests and verify pass
   - Run all property-based tests and verify pass
   - Run all contract tests and verify pass
@@ -408,7 +408,7 @@
   - Verify no tests skipped or disabled
   - **Validates: All requirements**
 
-- [ ] 12.2 Manual testing with real files
+- [x] 12.2 Manual testing with real files
   - Test rank_targets with various Lean files
   - Test all four objectives produce sensible rankings
   - Test skip_already_automated filtering
@@ -419,13 +419,13 @@
   - Verify available_objectives is helpful
   - **Validates: All requirements**
 
-- [ ] 12.3 Performance validation
+- [x] 12.3 Performance validation
   - Verify performance overhead < 10ms for 200 theorems
   - Verify configuration loading is fast (~5ms)
   - Verify no performance regressions
   - **Validates: Requirements NFR-2**
 
-- [ ] 12.4 Documentation review
+- [x] 12.4 Documentation review
   - Verify all documentation is accurate
   - Verify all examples work
   - Verify migration guide is complete

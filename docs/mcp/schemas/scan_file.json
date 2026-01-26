@@ -1,12 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://lean-proof-auto-mcp/schemas/scan_file.json",
-  "title": "scan_file tool response",
+  "title": "scan_file tool response (API 1.0)",
   "type": "object",
   "additionalProperties": false,
   "required": ["api_version", "status", "run_id", "tool", "file", "summary"],
   "properties": {
-    "api_version": { "$ref": "common.json#/$defs/api_version" },
+    "api_version": { 
+      "$ref": "common.json#/$defs/api_version",
+      "const": "1.0",
+      "description": "API version 1.0 - BREAKING CHANGES from 0.x (numeric confidence in notes)"
+    },
     "status": { "$ref": "common.json#/$defs/status" },
     "run_id": { "$ref": "common.json#/$defs/run_id" },
     "tool": {
@@ -15,42 +19,74 @@
     },
     "file": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Path to the Lean file being scanned"
     },
     "summary": {
       "type": "object",
       "additionalProperties": false,
       "required": ["theorem_count", "notes"],
       "properties": {
-        "theorem_count": { "type": "integer", "minimum": 0 },
+        "theorem_count": { 
+          "type": "integer", 
+          "minimum": 0,
+          "description": "Total number of theorems found in the file"
+        },
         "notes": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": { "type": "string" },
+          "description": "Summary notes about the file analysis"
         }
       }
     },
     "theorems": {
       "type": "array",
+      "description": "List of theorems found in the file with automation analysis",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": ["theorem_id", "name", "kind", "location", "automation"],
         "properties": {
-          "theorem_id": { "type": "string", "minLength": 1 },
-          "name": { "type": "string", "minLength": 1 },
+          "theorem_id": { 
+            "type": "string", 
+            "minLength": 1,
+            "description": "Unique identifier for the theorem"
+          },
+          "name": { 
+            "type": "string", 
+            "minLength": 1,
+            "description": "Name of the theorem"
+          },
           "kind": {
             "type": "string",
-            "enum": ["theorem", "lemma", "example", "instance"]
+            "enum": ["theorem", "lemma", "example", "instance"],
+            "description": "Type of declaration"
           },
           "location": {
             "type": "object",
             "additionalProperties": false,
             "required": ["decl_start", "decl_end"],
             "properties": {
-              "decl_start": { "type": "integer", "minimum": 1 },
-              "decl_end": { "type": "integer", "minimum": 1 },
-              "proof_start": { "type": "integer", "minimum": 1 },
-              "proof_end": { "type": "integer", "minimum": 1 }
+              "decl_start": { 
+                "type": "integer", 
+                "minimum": 1,
+                "description": "Starting line of declaration (1-indexed)"
+              },
+              "decl_end": { 
+                "type": "integer", 
+                "minimum": 1,
+                "description": "Ending line of declaration (1-indexed)"
+              },
+              "proof_start": { 
+                "type": "integer", 
+                "minimum": 1,
+                "description": "Starting line of proof (1-indexed, if present)"
+              },
+              "proof_end": { 
+                "type": "integer", 
+                "minimum": 1,
+                "description": "Ending line of proof (1-indexed, if present)"
+              }
             }
           },
           "automation": {
@@ -63,8 +99,18 @@
                 "additionalProperties": false,
                 "required": ["aesop", "grind"],
                 "properties": {
-                  "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-                  "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+                  "aesop": { 
+                    "type": "number", 
+                    "minimum": 0.0, 
+                    "maximum": 1.0,
+                    "description": "Potential for aesop to solve the whole goal"
+                  },
+                  "grind": { 
+                    "type": "number", 
+                    "minimum": 0.0, 
+                    "maximum": 1.0,
+                    "description": "Potential for grind to solve the whole goal"
+                  }
                 }
               },
               "subgoal_potential": {
@@ -72,23 +118,40 @@
                 "additionalProperties": false,
                 "required": ["aesop", "grind"],
                 "properties": {
-                  "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-                  "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+                  "aesop": { 
+                    "type": "number", 
+                    "minimum": 0.0, 
+                    "maximum": 1.0,
+                    "description": "Potential for aesop to solve proof subgoals"
+                  },
+                  "grind": { 
+                    "type": "number", 
+                    "minimum": 0.0, 
+                    "maximum": 1.0,
+                    "description": "Potential for grind to solve proof subgoals"
+                  }
                 }
               },
-              "annotation_value": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+              "annotation_value": { 
+                "type": "number", 
+                "minimum": 0.0, 
+                "maximum": 1.0,
+                "description": "Value of adding automation annotations"
+              }
             }
           },
           "notes": {
             "type": "array",
-            "items": { "type": "string" }
+            "items": { "type": "string" },
+            "description": "Explanatory notes about the theorem (BREAKING CHANGE: now includes numeric confidence as first note, e.g., 'confidence: 0.85')"
           }
         }
       }
     },
     "diagnostics": {
       "type": "array",
-      "items": { "$ref": "common.json#/$defs/diagnostic" }
+      "items": { "$ref": "common.json#/$defs/diagnostic" },
+      "description": "Diagnostic messages from the scan"
     }
   }
 }

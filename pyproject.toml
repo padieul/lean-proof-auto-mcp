@@ -27,6 +27,7 @@ dev = [
   "jsonschema>=4.21",
   "jsonschema-specifications>=2023.12.1",
   "hypothesis>=6.0",
+  "types-pyyaml>=6.0.12.20250915",
 ]
 
 [tool.ruff]
@@ -59,6 +60,9 @@ addopts = [
   "-q",
   "--strict-markers",
   "--strict-config",
+]
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 
 [tool.mypy]

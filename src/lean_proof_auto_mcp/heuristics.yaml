@@ -1,0 +1,270 @@
+# Heuristics Configuration for Lean Proof Automation MCP
+# Version 1.0
+#
+# This file contains all configurable parameters for scoring and ranking
+# automation potential in Lean theorems. All scores and bonuses are in
+# the range [0.0, 1.0], and all penalties are in the range [-1.0, 0.0].
+
+version: "1.0"
+
+# Confidence calculation parameters
+# These control how confident we are in proof detection and analysis
+confidence:
+  base_score: 0.3  # Starting confidence level
+  bonuses:
+    proof_structure: 0.2  # Bonus for well-structured proofs
+    tactic_detection: 0.2  # Bonus for detecting tactics
+    structural_tactics: 0.15  # Bonus for structural tactics (intro, apply, etc.)
+    term_mode_patterns: 0.15  # Bonus for term-mode proof patterns
+    automation_tactics: 0.1  # Bonus for automation tactics (simp, omega, etc.)
+    indentation_consistency: 0.05  # Bonus for consistent indentation
+  penalties:
+    sorry: -0.3  # Penalty for incomplete proofs
+    error_patterns: -0.1  # Penalty for error indicators
+  thresholds:
+    proof_length_min: 1  # Minimum proof lines for confidence
+    proof_length_max: 50  # Maximum proof lines for full confidence
+    proof_length_max_bonus: 0.05  # Bonus for appropriate length
+
+# Aesop scoring parameters
+# Aesop works well on structural proofs with constructors and destructors
+aesop_scoring:
+  base_score: 0.2  # Starting score for aesop potential
+  confidence_bonuses:
+    high: { threshold: 0.8, bonus: 0.3 }  # High confidence boost
+    good: { threshold: 0.6, bonus: 0.2 }  # Good confidence boost
+    moderate: { threshold: 0.4, bonus: 0.1 }  # Moderate confidence boost
+    low: { threshold: 0.0, bonus: 0.05 }  # Any confidence is better than none
+  structural_tactics:
+    bonus_per_tactic: 0.08  # Bonus per structural tactic detected
+    max_bonus: 0.3  # Maximum bonus from structural tactics
+  term_mode:
+    bonus_per_pattern: 0.1  # Bonus per term-mode pattern
+    max_bonus: 0.25  # Maximum bonus from term-mode patterns
+  proof_length_bonuses:
+    - { max_lines: 5, bonus: 0.2 }  # Very short proofs
+    - { max_lines: 10, bonus: 0.15 }  # Short proofs
+    - { max_lines: 20, bonus: 0.1 }  # Medium proofs
+  penalties:
+    rewrite_heavy: { threshold: 5, penalty: -0.15 }  # Heavy rewriting
+    rewrite_moderate: { threshold: 2, penalty: -0.08 }  # Moderate rewriting
+    simp_heavy: { threshold: 3, penalty: -0.1 }  # Heavy simp usage
+  bonuses:
+    tactic_mode: 0.05  # Bonus for tactic-mode proofs
+
+
+# Grind scoring parameters
+# Grind excels at equational reasoning and simplification
+grind_scoring:
+  base_score: 0.15  # Starting score for grind potential
+  confidence_bonuses:
+    high: { threshold: 0.8, bonus: 0.25 }  # High confidence boost
+    good: { threshold: 0.6, bonus: 0.18 }  # Good confidence boost
+    moderate: { threshold: 0.4, bonus: 0.1 }  # Moderate confidence boost
+    low: { threshold: 0.0, bonus: 0.05 }  # Any confidence is better than none
+  rewrite:
+    bonus_per_count: 0.06  # Bonus per rewrite occurrence
+    max_bonus: 0.35  # Maximum bonus from rewrites
+  simp:
+    bonus_per_count: 0.08  # Bonus per simp occurrence
+    max_bonus: 0.25  # Maximum bonus from simp
+  algebraic_terms:
+    bonus_per_pattern: 0.08  # Bonus per algebraic term pattern
+    max_bonus: 0.2  # Maximum bonus from algebraic terms
+  proof_length_bonuses:
+    - { min_lines: 5, max_lines: 30, bonus: 0.15 }  # Medium-length proofs
+    - { max_lines: 5, bonus: 0.08 }  # Short proofs
+  penalties:
+    induction: -0.15  # Penalty for induction (structural reasoning)
+    cases: -0.1  # Penalty for case analysis
+  algebraic_tactics:
+    bonus_per_tactic: 0.08  # Bonus per algebraic tactic
+    max_bonus: 0.2  # Maximum bonus from algebraic tactics
+  bonuses:
+    pure_term_proof: 0.1  # Bonus for pure term-mode proofs
+
+# Annotation value scoring parameters
+# Estimates ROI for adding automation annotations
+annotation_value_scoring:
+  base_score: 0.05  # Starting annotation value
+  confidence_bonuses:
+    high: { threshold: 0.8, bonus: 0.25 }  # High confidence proofs are great candidates
+    good: { threshold: 0.6, bonus: 0.18 }  # Good confidence proofs are good candidates
+    moderate: { threshold: 0.4, bonus: 0.1 }  # Some confidence is still valuable
+    low: { threshold: 0.0, bonus: 0.05 }  # Any confidence is better than none
+  penalties:
+    low_confidence: -0.1  # Penalty for low confidence
+  proof_length_bonuses:
+    - { min_lines: 20, bonus: 0.3 }  # Long proofs have high value
+    - { min_lines: 10, bonus: 0.2 }  # Medium proofs have good value
+    - { min_lines: 5, bonus: 0.15 }  # Short proofs have some value
+    - { min_lines: 2, bonus: 0.1 }  # Even very short proofs can have value
+  local_lemmas:
+    bonus_per_count: 0.08  # Bonus per local lemma
+    max_bonus: 0.25  # Maximum bonus from local lemmas
+  tactic_diversity_bonuses:
+    - { min_diversity: 5, bonus: 0.15 }  # High diversity
+    - { min_diversity: 3, bonus: 0.1 }  # Medium diversity
+    - { min_diversity: 0, bonus: 0.05 }  # Any detected patterns
+  rewrite_bonuses:
+    - { min_count: 3, bonus: 0.12 }  # Many rewrites
+    - { min_count: 0, bonus: 0.08 }  # Some rewrites
+  simp_bonuses:
+    - { min_count: 2, bonus: 0.08 }  # Multiple simps
+    - { min_count: 0, bonus: 0.05 }  # Some simp usage
+  bonuses:
+    term_application: 0.1  # Complex term applications
+    structural_proof: 0.1  # Structural proofs with cases
+
+
+# Subgoal potential scoring parameters
+# Estimates potential for automating individual subgoals
+subgoal_potential_scoring:
+  confidence_multipliers:
+    high: { threshold: 0.8, multiplier: 0.8 }  # High confidence gets better base
+    good: { threshold: 0.6, multiplier: 0.7 }  # Good confidence
+    moderate: { threshold: 0.4, multiplier: 0.6 }  # Some confidence
+    low: { threshold: 0.0, multiplier: 0.5 }  # Low confidence
+    none: { threshold: 0.0, multiplier: 0.0 }  # No confidence means no potential
+  bonuses:
+    induction_or_cases: 0.25  # Can automate branches
+    term_application: 0.1  # Term applications create good subgoals
+    algebraic_term: 0.12  # Algebraic terms create good subgoals
+  structure_cases:
+    bonus_per_case: 0.04  # Bonus per case branch
+    max_bonus: 0.2  # Maximum bonus from cases
+  rewrite_blocks:
+    bonus_per_block: 0.08  # Bonus per rewrite block
+    max_bonus: 0.2  # Maximum bonus from rewrite blocks
+
+# Risk scoring parameters
+# Estimates risk of automation breaking or causing issues
+risk_scoring:
+  global_change_risk:
+    rewrite_heavy: { threshold: 5, risk: 0.6 }  # Heavy rewriting is risky
+    simp_heavy: { threshold: 3, risk: 0.4 }  # Heavy simp is risky
+    simp_question_mark: 0.8  # simp? is very risky (changes global state)
+  simp_risk:
+    heavy: { threshold: 3, risk: 0.6 }  # Heavy simp usage
+    moderate: { threshold: 1, risk: 0.3 }  # Moderate simp usage
+  local_lemma_risk:
+    heavy: { threshold: 3, risk: 0.5 }  # Many local lemmas
+    moderate: { threshold: 1, risk: 0.2 }  # Some local lemmas
+  low_confidence_risk:
+    very_low: { threshold: 0.4, risk: 0.7 }  # Very low confidence
+    low: { threshold: 0.6, risk: 0.4 }  # Low confidence
+  component_weights:
+    global_change: 0.3  # Weight for global change risk
+    simp: 0.3  # Weight for simp risk
+    local_lemma: 0.2  # Weight for local lemma risk
+    confidence: 0.2  # Weight for confidence risk
+
+# Impact scoring parameters
+# Estimates time saved by automation
+impact_scoring:
+  proof_length_scores:
+    - { max_lines: 0, score: 0.0 }  # No proof
+    - { max_lines: 5, score: 0.2 }  # Very short
+    - { max_lines: 10, score: 0.4 }  # Short
+    - { max_lines: 20, score: 0.6 }  # Medium
+    - { max_lines: 40, score: 0.8 }  # Long
+    - { min_lines: 40, score: 1.0 }  # Very long
+  reusability:
+    score_per_local_lemma: 0.2  # Score per local lemma (reusable)
+    max_score: 1.0  # Maximum reusability score
+  component_weights:
+    proof_length: 0.5  # Weight for proof length
+    annotation_value: 0.3  # Weight for annotation value
+    reusability: 0.2  # Weight for reusability
+
+
+# Success likelihood scoring parameters
+# Estimates likelihood of successful automation
+success_likelihood_scoring:
+  complexity_penalties:
+    induction_or_cases: 0.2  # Penalty for structural complexity
+    long_proof: { threshold: 30, penalty: 0.1 }  # Penalty for long proofs
+    many_local_lemmas: { threshold: 3, penalty: 0.1 }  # Penalty for many local lemmas
+    max_penalty: 0.5  # Maximum complexity penalty
+  component_weights:
+    max_potential: 0.6  # Weight for maximum automation potential
+    confidence: 0.3  # Weight for confidence
+    complexity_penalty: -0.1  # Weight for complexity penalty (negative)
+
+# Objective configurations
+# Different ranking strategies for different use cases
+objectives:
+  maximize_success:
+    description: "Prioritize theorems most likely to be automated successfully"
+    use_case: "When you want quick wins and high success rate"
+    weights:
+      success_likelihood: 0.50
+      impact: 0.10
+      annotation_value: 0.10
+      subgoal_potential: 0.10
+      risk: -0.20
+  
+  maximize_impact:
+    description: "Prioritize theorems that save the most time when automated"
+    use_case: "When you want maximum ROI on automation effort"
+    weights:
+      success_likelihood: 0.20
+      impact: 0.40
+      annotation_value: 0.30
+      subgoal_potential: 0.05
+      risk: -0.05
+  
+  maximize_subgoal_automation:
+    description: "Prioritize theorems with good partial automation opportunities"
+    use_case: "When you want to automate proof steps rather than whole goals"
+    weights:
+      success_likelihood: 0.15
+      impact: 0.15
+      annotation_value: 0.20
+      subgoal_potential: 0.40
+      risk: -0.10
+  
+  balanced:
+    description: "Balanced weighting across all factors"
+    use_case: "When you want a general-purpose ranking"
+    weights:
+      success_likelihood: 0.25
+      impact: 0.25
+      annotation_value: 0.20
+      subgoal_potential: 0.20
+      risk: -0.10
+
+# Already-automated detection parameters
+# Detects theorems that already use automation tactics or attributes
+already_automated:
+  penalties:
+    tactic_usage: 0.3  # Penalty for using automation tactics
+    attribute: 0.5  # Penalty for automation attributes
+    trivial_proof: 0.8  # Penalty for trivial proofs (rfl, trivial)
+  tactic_patterns:
+    - "by aesop"
+    - "by grind"
+    - "by simp"
+    - "by omega"
+    - "by decide"
+    - "by tauto"
+    - "aesop"
+    - "grind"
+    - "simp"
+  attribute_patterns:
+    - "@[aesop"
+    - "@[simp"
+  trivial_patterns:
+    - ":= rfl"
+    - "by rfl"
+    - ":= trivial"
+    - "by trivial"
+
+# Tier threshold parameters
+# Percentile thresholds for S/A/B/C/D tier assignment
+tiers:
+  s_tier_percentile: 10  # Top 10% are S-tier
+  a_tier_percentile: 25  # Top 10-25% are A-tier
+  b_tier_percentile: 50  # Top 25-50% are B-tier
+  c_tier_percentile: 75  # Top 50-75% are C-tier
+  # Bottom 25% are D-tier (implicit)

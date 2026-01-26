@@ -6,7 +6,16 @@ principles with immutable data structures and explicit validation.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .config import (
+        ImpactScoringConfig,
+        RiskScoringConfig,
+        SubgoalPotentialScoringConfig,
+        SuccessLikelihoodScoringConfig,
+        TierConfig,
+    )
 
 
 @dataclass(frozen=True)
@@ -21,6 +30,7 @@ class ComponentScores:
         annotation_value: ROI estimate for adding automation annotations
         subgoal_potential: Value of automating individual subgoals
         risk: Heuristic penalty for likely global changes or side effects
+        already_automated_penalty: Penalty for theorems already using automation
     """
 
     success_likelihood: float
@@ -28,6 +38,7 @@ class ComponentScores:
     annotation_value: float
     subgoal_potential: float
     risk: float
+    already_automated_penalty: float
 
     def __post_init__(self) -> None:
         """Validate component score invariants."""
@@ -37,6 +48,7 @@ class ComponentScores:
             "annotation_value": self.annotation_value,
             "subgoal_potential": self.subgoal_potential,
             "risk": self.risk,
+            "already_automated_penalty": self.already_automated_penalty,
         }
 
         for name, score in scores.items():
@@ -75,7 +87,9 @@ class TheoremData:
             raise ValueError("start_line must be <= end_line")
 
 
-def compute_success_likelihood(signals: dict[str, Any]) -> float:
+def compute_success_likelihood(
+    signals: dict[str, Any], config: "SuccessLikelihoodScoringConfig"
+) -> float:
     """Compute success likelihood score from automation signals.
 
     Estimates probability that automation will successfully solve the theorem
@@ -83,6 +97,7 @@ def compute_success_likelihood(signals: dict[str, Any]) -> float:
 
     Args:
         signals: Automation signals from scan_file
+        config: Success likelihood scoring configuration
 
     Returns:
         Score in [0.0, 1.0] indicating success likelihood
@@ -103,22 +118,26 @@ def compute_success_likelihood(signals: dict[str, Any]) -> float:
     # Compute complexity penalty
     complexity_penalty = 0.0
     if has_induction or has_cases:
-        complexity_penalty += 0.2
-    if proof_lines > 30:
-        complexity_penalty += 0.1
-    if local_lemmas_count > 3:
-        complexity_penalty += 0.1
-    complexity_penalty = min(0.5, complexity_penalty)
+        complexity_penalty += config.complexity_induction_or_cases_penalty
+    if proof_lines > config.complexity_long_proof_threshold:
+        complexity_penalty += config.complexity_long_proof_penalty
+    if local_lemmas_count > config.complexity_many_local_lemmas_threshold:
+        complexity_penalty += config.complexity_many_local_lemmas_penalty
+    complexity_penalty = min(config.complexity_max_penalty, complexity_penalty)
 
     # Compute final score
-    score = 0.6 * max_potential + 0.3 * confidence - 0.1 * complexity_penalty
+    score = (
+        config.component_weight_max_potential * max_potential
+        + config.component_weight_confidence * confidence
+        + config.component_weight_complexity_penalty * complexity_penalty
+    )
 
     # Clamp and round
     score = max(0.0, min(1.0, score))
     return float(round(score, 2))
 
 
-def compute_impact(signals: dict[str, Any]) -> float:
+def compute_impact(signals: dict[str, Any], config: "ImpactScoringConfig") -> float:
     """Compute impact score from automation signals.
 
     Estimates value of automating this theorem based on proof length,
@@ -126,6 +145,7 @@ def compute_impact(signals: dict[str, Any]) -> float:
 
     Args:
         signals: Automation signals from scan_file
+        config: Impact scoring configuration
 
     Returns:
         Score in [0.0, 1.0] indicating automation impact
@@ -136,25 +156,27 @@ def compute_impact(signals: dict[str, Any]) -> float:
     local_lemmas_count = signals.get("local_lemmas_count", 0)
 
     # Compute proof length score (saturating)
-    if proof_lines == 0:
-        proof_length_score = 0.0
-    elif proof_lines <= 5:
-        proof_length_score = 0.2
-    elif proof_lines <= 10:
-        proof_length_score = 0.4
-    elif proof_lines <= 20:
-        proof_length_score = 0.6
-    elif proof_lines <= 40:
-        proof_length_score = 0.8
-    else:
-        proof_length_score = 1.0
+    proof_length_score = 0.0
+    for length_config in config.proof_length_scores:
+        min_lines = length_config.min_lines if length_config.min_lines is not None else 0
+        max_lines = length_config.max_lines if length_config.max_lines is not None else float("inf")
+
+        if min_lines <= proof_lines <= max_lines:
+            proof_length_score = length_config.score
+            break
 
     # Compute reusability score
     # Based on local lemmas (indicates complexity worth reusing)
-    reusability_score = min(1.0, local_lemmas_count * 0.2)
+    reusability_score = min(
+        config.reusability_max_score, local_lemmas_count * config.reusability_score_per_local_lemma
+    )
 
     # Compute final score
-    score = 0.5 * proof_length_score + 0.3 * annotation_value + 0.2 * reusability_score
+    score = (
+        config.component_weight_proof_length * proof_length_score
+        + config.component_weight_annotation_value * annotation_value
+        + config.component_weight_reusability * reusability_score
+    )
 
     # Clamp and round
     score = max(0.0, min(1.0, score))
@@ -162,7 +184,9 @@ def compute_impact(signals: dict[str, Any]) -> float:
 
 
 def compute_subgoal_potential(
-    signals: dict[str, Any], structure: dict[str, Any] | None = None
+    signals: dict[str, Any],
+    structure: dict[str, Any] | None = None,
+    config: "SubgoalPotentialScoringConfig | None" = None,
 ) -> float:
     """Compute subgoal potential score from automation signals.
 
@@ -172,10 +196,18 @@ def compute_subgoal_potential(
     Args:
         signals: Automation signals from scan_file
         structure: Optional deep structure data from scan_theorem
+        config: Optional subgoal potential scoring configuration. If None, loads default config.
 
     Returns:
         Score in [0.0, 1.0] indicating subgoal automation potential
     """
+    # Load default config if not provided
+    if config is None:
+        from .config import load_default_config
+
+        full_config = load_default_config()
+        config = full_config.subgoal_potential_scoring
+
     # Extract signals with defaults
     subgoal_potential = signals.get("subgoal_potential", {})
     confidence = signals.get("confidence", 0.0)
@@ -192,16 +224,19 @@ def compute_subgoal_potential(
         blocks = structure.get("blocks", [])
 
         if cases:
-            structure_bonus += 0.2
+            structure_bonus += min(
+                config.structure_cases_max_bonus, len(cases) * config.structure_cases_bonus_per_case
+            )
 
         # Check for rewrite_simp blocks
         rewrite_simp_blocks = [b for b in blocks if b.get("kind") == "rewrite_simp"]
         if rewrite_simp_blocks:
-            structure_bonus += 0.15
+            structure_bonus += min(
+                config.rewrite_blocks_max_bonus,
+                len(rewrite_simp_blocks) * config.rewrite_blocks_bonus_per_block,
+            )
 
-        # Multiple blocks bonus
-        if len(blocks) > 1:
-            structure_bonus += 0.1
+        # Multiple blocks bonus (already included in rewrite_blocks calculation)
 
     structure_bonus = min(1.0, structure_bonus)
 
@@ -213,7 +248,7 @@ def compute_subgoal_potential(
     return float(round(score, 2))
 
 
-def compute_risk(signals: dict[str, Any]) -> float:
+def compute_risk(signals: dict[str, Any], config: "RiskScoringConfig") -> float:
     """Compute risk score from automation signals.
 
     Heuristic penalty for likely global changes or non-local side effects
@@ -221,6 +256,7 @@ def compute_risk(signals: dict[str, Any]) -> float:
 
     Args:
         signals: Automation signals from scan_file
+        config: Risk scoring configuration
 
     Returns:
         Score in [0.0, 1.0] indicating automation risk
@@ -234,80 +270,138 @@ def compute_risk(signals: dict[str, Any]) -> float:
 
     # Compute global change risk
     global_change_risk = 0.0
-    if rewrite_count > 5:
-        global_change_risk = 0.6
-    elif simp_count > 3:
-        global_change_risk = 0.4
+    if rewrite_count > config.global_change_rewrite_heavy_threshold:
+        global_change_risk = config.global_change_rewrite_heavy_risk
+    elif simp_count > config.global_change_simp_heavy_threshold:
+        global_change_risk = config.global_change_simp_heavy_risk
 
     # Check for "simp?" in notes (indicates need for simp set refinement)
     if any("simp?" in note.lower() for note in notes):
-        global_change_risk = max(global_change_risk, 0.8)
+        global_change_risk = max(global_change_risk, config.global_change_simp_question_mark_risk)
 
     # Compute simp risk
     simp_risk = 0.0
-    if simp_count > 3:
-        simp_risk = 0.6
-    elif simp_count > 1:
-        simp_risk = 0.3
+    if simp_count > config.simp_heavy_threshold:
+        simp_risk = config.simp_heavy_risk
+    elif simp_count > config.simp_moderate_threshold:
+        simp_risk = config.simp_moderate_risk
 
     # Compute local lemma risk
     local_lemma_risk = 0.0
-    if local_lemmas_count > 3:
-        local_lemma_risk = 0.5
-    elif local_lemmas_count > 1:
-        local_lemma_risk = 0.2
+    if local_lemmas_count > config.local_lemma_heavy_threshold:
+        local_lemma_risk = config.local_lemma_heavy_risk
+    elif local_lemmas_count > config.local_lemma_moderate_threshold:
+        local_lemma_risk = config.local_lemma_moderate_risk
 
     # Compute low confidence risk
     low_confidence_risk = 0.0
-    if confidence < 0.4:
-        low_confidence_risk = 0.7
-    elif confidence < 0.6:
-        low_confidence_risk = 0.4
+    if confidence < config.low_confidence_very_low_threshold:
+        low_confidence_risk = config.low_confidence_very_low_risk
+    elif confidence < config.low_confidence_low_threshold:
+        low_confidence_risk = config.low_confidence_low_risk
 
     # Compute final risk score
     risk = (
-        0.3 * global_change_risk
-        + 0.3 * simp_risk
-        + 0.2 * local_lemma_risk
-        + 0.2 * low_confidence_risk
+        config.component_weight_global_change * global_change_risk
+        + config.component_weight_simp * simp_risk
+        + config.component_weight_local_lemma * local_lemma_risk
+        + config.component_weight_confidence * low_confidence_risk
     )
 
     # Clamp and round
     risk = max(0.0, min(1.0, risk))
-    return round(risk, 2)
+    return float(round(risk, 2))
 
 
-# Objective weight configurations (immutable)
-OBJECTIVE_WEIGHTS = {
+# Objective metadata with descriptions and use cases (immutable)
+OBJECTIVE_METADATA: dict[str, dict[str, Any]] = {
     "maximize_success": {
-        "success_likelihood": 0.50,
-        "impact": 0.10,
-        "annotation_value": 0.10,
-        "subgoal_potential": 0.10,
-        "risk": -0.20,
+        "name": "maximize_success",
+        "description": "Prioritize theorems most likely to be automated successfully",
+        "use_case": "When you want quick wins and high success rate",
+        "weights": {
+            "success_likelihood": 0.50,
+            "impact": 0.10,
+            "annotation_value": 0.10,
+            "subgoal_potential": 0.10,
+            "risk": -0.20,
+        },
     },
     "maximize_impact": {
-        "success_likelihood": 0.20,
-        "impact": 0.40,
-        "annotation_value": 0.30,
-        "subgoal_potential": 0.05,
-        "risk": -0.05,
+        "name": "maximize_impact",
+        "description": "Prioritize theorems that save the most time when automated",
+        "use_case": "When you want maximum ROI on automation effort",
+        "weights": {
+            "success_likelihood": 0.20,
+            "impact": 0.40,
+            "annotation_value": 0.30,
+            "subgoal_potential": 0.05,
+            "risk": -0.05,
+        },
     },
     "maximize_subgoal_automation": {
-        "success_likelihood": 0.15,
-        "impact": 0.15,
-        "annotation_value": 0.20,
-        "subgoal_potential": 0.40,
-        "risk": -0.10,
+        "name": "maximize_subgoal_automation",
+        "description": "Prioritize theorems with good partial automation opportunities",
+        "use_case": "When you want to automate proof steps rather than whole goals",
+        "weights": {
+            "success_likelihood": 0.15,
+            "impact": 0.15,
+            "annotation_value": 0.20,
+            "subgoal_potential": 0.40,
+            "risk": -0.10,
+        },
     },
     "balanced": {
-        "success_likelihood": 0.25,
-        "impact": 0.25,
-        "annotation_value": 0.20,
-        "subgoal_potential": 0.20,
-        "risk": -0.10,
+        "name": "balanced",
+        "description": "Balanced weighting across all factors",
+        "use_case": "When you want a general-purpose ranking",
+        "weights": {
+            "success_likelihood": 0.25,
+            "impact": 0.25,
+            "annotation_value": 0.20,
+            "subgoal_potential": 0.20,
+            "risk": -0.10,
+        },
     },
 }
+
+# Objective weight configurations (immutable) - extracted from metadata for backward compatibility
+OBJECTIVE_WEIGHTS: dict[str, dict[str, float]] = {
+    name: meta["weights"] for name, meta in OBJECTIVE_METADATA.items()
+}
+
+
+def get_available_objectives() -> list[dict[str, Any]]:
+    """Return objective metadata for client discovery.
+
+    Provides comprehensive information about each ranking objective,
+    including its name, description, use case, and weight configuration.
+    This enables clients to discover valid objectives without trial-and-error.
+
+    Returns:
+        List of objective metadata dictionaries with:
+        - name: Objective identifier (string)
+        - description: What this objective optimizes for (string)
+        - use_case: When to use this objective (string)
+        - weights: Component weight configuration (dict)
+
+    Example:
+        >>> objectives = get_available_objectives()
+        >>> for obj in objectives:
+        ...     print(f"{obj['name']}: {obj['description']}")
+        maximize_success: Prioritize theorems most likely to be automated successfully
+        maximize_impact: Prioritize theorems that save the most time when automated
+        ...
+    """
+    return [
+        {
+            "name": meta["name"],
+            "description": meta["description"],
+            "use_case": meta["use_case"],
+            "weights": meta["weights"],
+        }
+        for meta in OBJECTIVE_METADATA.values()
+    ]
 
 
 def compute_final_score(components: ComponentScores, objective: str) -> float:
@@ -333,16 +427,17 @@ def compute_final_score(components: ComponentScores, objective: str) -> float:
 
     # Apply weights to components
     score = (
-        weights["success_likelihood"] * components.success_likelihood
-        + weights["impact"] * components.impact
-        + weights["annotation_value"] * components.annotation_value
-        + weights["subgoal_potential"] * components.subgoal_potential
-        + weights["risk"] * components.risk
+        float(weights["success_likelihood"]) * components.success_likelihood
+        + float(weights["impact"]) * components.impact
+        + float(weights["annotation_value"]) * components.annotation_value
+        + float(weights["subgoal_potential"]) * components.subgoal_potential
+        + float(weights["risk"]) * components.risk
+        - 0.15 * components.already_automated_penalty
     )
 
     # Clamp and round
     score = max(0.0, min(1.0, score))
-    return round(score, 2)
+    return float(round(score, 2))
 
 
 @dataclass(frozen=True)
@@ -384,8 +479,13 @@ def rank_theorems(
     Raises:
         ValueError: If objective is not recognized or min_confidence is invalid
     """
+    from .config import load_default_config
+
     if not (0.0 <= min_confidence <= 1.0):
         raise ValueError(f"min_confidence must be in [0.0, 1.0], got {min_confidence}")
+
+    # Load configuration
+    config = load_default_config()
 
     # Filter by confidence
     filtered_theorems = [t for t in theorems if t.signals.get("confidence", 0.0) >= min_confidence]
@@ -395,11 +495,16 @@ def rank_theorems(
     for theorem in filtered_theorems:
         # Compute component scores
         components = ComponentScores(
-            success_likelihood=compute_success_likelihood(theorem.signals),
-            impact=compute_impact(theorem.signals),
+            success_likelihood=compute_success_likelihood(
+                theorem.signals, config.success_likelihood_scoring
+            ),
+            impact=compute_impact(theorem.signals, config.impact_scoring),
             annotation_value=theorem.signals.get("annotation_value", 0.0),
-            subgoal_potential=compute_subgoal_potential(theorem.signals, theorem.structure),
-            risk=compute_risk(theorem.signals),
+            subgoal_potential=compute_subgoal_potential(
+                theorem.signals, theorem.structure, config.subgoal_potential_scoring
+            ),
+            risk=compute_risk(theorem.signals, config.risk_scoring),
+            already_automated_penalty=theorem.signals.get("automation_penalty", 0.0),
         )
 
         # Compute final score
@@ -421,6 +526,51 @@ def rank_theorems(
     )
 
     return ranked
+
+
+def assign_tiers(
+    ranked_theorems: list[RankedTheorem], config: "TierConfig"
+) -> list[tuple[RankedTheorem, str]]:
+    """Assign S/A/B/C/D tiers based on percentile rank.
+
+    Tiers are relative to the file, not absolute scores:
+    - S-tier: Top percentile (exceptional candidates)
+    - A-tier: Next percentile range (strong candidates)
+    - B-tier: Next percentile range (good candidates)
+    - C-tier: Next percentile range (acceptable candidates)
+    - D-tier: Remaining (weak candidates)
+
+    Args:
+        ranked_theorems: List of theorems already sorted by score (desc)
+        config: Tier configuration with percentile thresholds
+
+    Returns:
+        List of (theorem, tier) tuples
+    """
+    n = len(ranked_theorems)
+    if n == 0:
+        return []
+
+    result = []
+    for i, theorem in enumerate(ranked_theorems):
+        # Calculate percentile (0-100)
+        percentile = (i / n) * 100
+
+        # Assign tier based on percentile thresholds from config
+        if percentile < config.s_tier_percentile:
+            tier = "S"
+        elif percentile < config.a_tier_percentile:
+            tier = "A"
+        elif percentile < config.b_tier_percentile:
+            tier = "B"
+        elif percentile < config.c_tier_percentile:
+            tier = "C"
+        else:
+            tier = "D"
+
+        result.append((theorem, tier))
+
+    return result
 
 
 def generate_reasons(

@@ -21,6 +21,8 @@ class TestRankTargetsArgs:
             include_reasons=True,
             use_deep_structure=False,
             min_confidence=0.0,
+            skip_already_automated=False,
+            config_path=None,
         )
 
         assert args.file == "test.lean"
@@ -30,6 +32,40 @@ class TestRankTargetsArgs:
         assert args.include_reasons is True
         assert args.use_deep_structure is False
         assert args.min_confidence == 0.0
+        assert args.skip_already_automated is False
+        assert args.config_path is None
+
+    def test_valid_args_with_skip_already_automated(self):
+        """Test creating valid RankTargetsArgs with skip_already_automated=True."""
+        args = RankTargetsArgs(
+            file="test.lean",
+            objective="balanced",
+            limit=30,
+            include_components=True,
+            include_reasons=True,
+            use_deep_structure=False,
+            min_confidence=0.0,
+            skip_already_automated=True,
+            config_path=None,
+        )
+
+        assert args.skip_already_automated is True
+
+    def test_valid_args_with_config_path(self):
+        """Test creating valid RankTargetsArgs with config_path."""
+        args = RankTargetsArgs(
+            file="test.lean",
+            objective="balanced",
+            limit=30,
+            include_components=True,
+            include_reasons=True,
+            use_deep_structure=False,
+            min_confidence=0.0,
+            skip_already_automated=False,
+            config_path="custom_config.yaml",
+        )
+
+        assert args.config_path == "custom_config.yaml"
 
     def test_invalid_empty_file(self):
         """Test validation of empty file."""
@@ -42,6 +78,8 @@ class TestRankTargetsArgs:
                 include_reasons=True,
                 use_deep_structure=False,
                 min_confidence=0.0,
+                skip_already_automated=False,
+                config_path=None,
             )
 
     def test_invalid_whitespace_file(self):
@@ -55,6 +93,8 @@ class TestRankTargetsArgs:
                 include_reasons=True,
                 use_deep_structure=False,
                 min_confidence=0.0,
+                skip_already_automated=False,
+                config_path=None,
             )
 
     def test_invalid_objective(self):
@@ -68,6 +108,8 @@ class TestRankTargetsArgs:
                 include_reasons=True,
                 use_deep_structure=False,
                 min_confidence=0.0,
+                skip_already_automated=False,
+                config_path=None,
             )
 
     def test_invalid_limit_too_low(self):
@@ -81,6 +123,8 @@ class TestRankTargetsArgs:
                 include_reasons=True,
                 use_deep_structure=False,
                 min_confidence=0.0,
+                skip_already_automated=False,
+                config_path=None,
             )
 
     def test_invalid_limit_too_high(self):
@@ -94,6 +138,8 @@ class TestRankTargetsArgs:
                 include_reasons=True,
                 use_deep_structure=False,
                 min_confidence=0.0,
+                skip_already_automated=False,
+                config_path=None,
             )
 
     def test_invalid_min_confidence_low(self):
@@ -107,6 +153,8 @@ class TestRankTargetsArgs:
                 include_reasons=True,
                 use_deep_structure=False,
                 min_confidence=-0.1,
+                skip_already_automated=False,
+                config_path=None,
             )
 
     def test_invalid_min_confidence_high(self):
@@ -120,6 +168,23 @@ class TestRankTargetsArgs:
                 include_reasons=True,
                 use_deep_structure=False,
                 min_confidence=1.1,
+                skip_already_automated=False,
+                config_path=None,
+            )
+
+    def test_invalid_skip_already_automated_type(self):
+        """Test validation of skip_already_automated type."""
+        with pytest.raises(ValueError, match="skip_already_automated must be a boolean"):
+            RankTargetsArgs(
+                file="test.lean",
+                objective="balanced",
+                limit=30,
+                include_components=True,
+                include_reasons=True,
+                use_deep_structure=False,
+                min_confidence=0.0,
+                skip_already_automated="not_a_boolean",  # Invalid type
+                config_path=None,
             )
 
     def test_all_objectives_valid(self):
@@ -140,6 +205,8 @@ class TestRankTargetsArgs:
                 include_reasons=True,
                 use_deep_structure=False,
                 min_confidence=0.0,
+                skip_already_automated=False,
+                config_path=None,
             )
             assert args.objective == objective
 
@@ -160,6 +227,8 @@ class TestCoerceArgs:
         assert result.include_reasons is True  # Default
         assert result.use_deep_structure is False  # Default
         assert result.min_confidence == 0.0  # Default
+        assert result.skip_already_automated is False  # Default
+        assert result.config_path is None  # Default
 
     def test_valid_full_args(self):
         """Test coercing full arguments."""
@@ -171,6 +240,8 @@ class TestCoerceArgs:
             "include_reasons": False,
             "use_deep_structure": True,
             "min_confidence": 0.5,
+            "skip_already_automated": True,
+            "config_path": "custom.yaml",
         }
 
         result = _coerce_args(args)
@@ -182,6 +253,51 @@ class TestCoerceArgs:
         assert result.include_reasons is False
         assert result.use_deep_structure is True
         assert result.min_confidence == 0.5
+        assert result.skip_already_automated is True
+        assert result.config_path == "custom.yaml"
+
+    def test_skip_already_automated_parameter(self):
+        """Test skip_already_automated parameter parsing."""
+        # Test with True
+        args = {"file": "test.lean", "skip_already_automated": True}
+        result = _coerce_args(args)
+        assert result.skip_already_automated is True
+
+        # Test with False
+        args = {"file": "test.lean", "skip_already_automated": False}
+        result = _coerce_args(args)
+        assert result.skip_already_automated is False
+
+        # Test default (False)
+        args = {"file": "test.lean"}
+        result = _coerce_args(args)
+        assert result.skip_already_automated is False
+
+    def test_config_path_parameter(self):
+        """Test config_path parameter parsing."""
+        # Test with path
+        args = {"file": "test.lean", "config_path": "my_config.yaml"}
+        result = _coerce_args(args)
+        assert result.config_path == "my_config.yaml"
+
+        # Test with None (default)
+        args = {"file": "test.lean"}
+        result = _coerce_args(args)
+        assert result.config_path is None
+
+    def test_invalid_skip_already_automated_type(self):
+        """Test error when skip_already_automated is not a boolean."""
+        args = {"file": "test.lean", "skip_already_automated": "true"}
+
+        with pytest.raises(ValueError, match="'skip_already_automated' must be a boolean"):
+            _coerce_args(args)
+
+    def test_invalid_config_path_type(self):
+        """Test error when config_path is not a string."""
+        args = {"file": "test.lean", "config_path": 123}
+
+        with pytest.raises(ValueError, match="'config_path' must be a string or None"):
+            _coerce_args(args)
 
     def test_missing_file(self):
         """Test error when file is missing."""
@@ -219,11 +335,17 @@ class TestCoerceArgs:
             _coerce_args(args)
 
     def test_invalid_objective_value(self):
-        """Test error when objective value is invalid."""
+        """Test error when objective value is invalid with helpful message."""
         args = {"file": "test.lean", "objective": "invalid"}
 
-        with pytest.raises(ValueError, match="objective must be one of"):
+        with pytest.raises(ValueError) as exc_info:
             _coerce_args(args)
+
+        error_msg = str(exc_info.value)
+        assert "invalid objective 'invalid'" in error_msg
+        assert "Available objectives:" in error_msg
+        # Check that at least one objective is listed
+        assert "maximize_success" in error_msg or "balanced" in error_msg
 
     def test_invalid_limit_type(self):
         """Test error when limit is not an integer."""
@@ -306,6 +428,8 @@ class TestConfidenceFiltering:
                     "local_lemmas_count": 0,
                     "has_induction": False,
                     "has_cases": False,
+                    "already_automated": False,
+                    "automation_penalty": 0.0,
                     "notes": [],
                 },
             ),
@@ -323,6 +447,8 @@ class TestConfidenceFiltering:
                     "local_lemmas_count": 1,
                     "has_induction": False,
                     "has_cases": False,
+                    "already_automated": False,
+                    "automation_penalty": 0.0,
                     "notes": [],
                 },
             ),
@@ -340,6 +466,8 @@ class TestConfidenceFiltering:
                     "local_lemmas_count": 2,
                     "has_induction": False,
                     "has_cases": False,
+                    "already_automated": False,
+                    "automation_penalty": 0.0,
                     "notes": [],
                 },
             ),
@@ -382,6 +510,9 @@ class TestResponseStructure:
         assert "diagnostics" in result
         assert "metadata" in result
 
+        # Check API version is 1.0
+        assert result["api_version"] == "1.0"
+
         # Check status is fail
         assert result["status"] == "fail"
 
@@ -391,19 +522,36 @@ class TestResponseStructure:
         # Check ranking is empty
         assert result["ranking"] == []
 
+        # Check summary has new fields
+        assert "total" in result["summary"]
+        assert "returned" in result["summary"]
+        assert "skipped_low_confidence" in result["summary"]
+        assert "skipped_already_automated" in result["summary"]
+        assert "tier_distribution" in result["summary"]
+
+        # Check tier_distribution structure
+        tier_dist = result["summary"]["tier_distribution"]
+        assert "S" in tier_dist
+        assert "A" in tier_dist
+        assert "B" in tier_dist
+        assert "C" in tier_dist
+        assert "D" in tier_dist
+
         # Check diagnostics contains error
         assert len(result["diagnostics"]) > 0
         assert result["diagnostics"][0]["severity"] == "error"
 
     def test_error_response_with_invalid_objective(self):
-        """Test error response with invalid objective."""
+        """Test error response with invalid objective includes available objectives."""
         from lean_proof_auto_mcp.tools.rank_targets import rank_targets
 
         result = rank_targets({"file": "test.lean", "objective": "invalid"})
 
         assert result["status"] == "fail"
         assert len(result["diagnostics"]) > 0
-        assert "objective" in result["diagnostics"][0]["message"].lower()
+        error_msg = result["diagnostics"][0]["message"]
+        assert "objective" in error_msg.lower()
+        assert "available objectives" in error_msg.lower()
 
     def test_error_response_with_invalid_limit(self):
         """Test error response with invalid limit."""
@@ -424,6 +572,67 @@ class TestResponseStructure:
         assert result["status"] == "fail"
         assert len(result["diagnostics"]) > 0
         assert "min_confidence" in result["diagnostics"][0]["message"].lower()
+
+    def test_success_response_includes_available_objectives(self):
+        """Test that success responses include available_objectives field."""
+        import tempfile
+        from pathlib import Path
+
+        from lean_proof_auto_mcp.tools.rank_targets import rank_targets
+
+        # Create a temporary Lean file
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".lean", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("theorem test : True := trivial\n")
+            temp_file = f.name
+
+        try:
+            result = rank_targets({"file": temp_file})
+
+            # Check available_objectives field exists
+            assert "available_objectives" in result
+            assert isinstance(result["available_objectives"], list)
+            assert len(result["available_objectives"]) > 0
+
+            # Check structure of each objective
+            for obj in result["available_objectives"]:
+                assert "name" in obj
+                assert "description" in obj
+                assert "use_case" in obj
+                assert "weights" in obj
+                assert isinstance(obj["weights"], dict)
+
+        finally:
+            # Clean up
+            Path(temp_file).unlink(missing_ok=True)
+
+    def test_success_response_includes_tier_field(self):
+        """Test that success responses include tier field for each theorem."""
+        import tempfile
+        from pathlib import Path
+
+        from lean_proof_auto_mcp.tools.rank_targets import rank_targets
+
+        # Create a temporary Lean file with a theorem
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".lean", delete=False, encoding="utf-8"
+        ) as f:
+            f.write("theorem test : True := trivial\n")
+            temp_file = f.name
+
+        try:
+            result = rank_targets({"file": temp_file})
+
+            if result["status"] == "success" and len(result["ranking"]) > 0:
+                # Check tier field exists for each theorem
+                for theorem in result["ranking"]:
+                    assert "tier" in theorem
+                    assert theorem["tier"] in ["S", "A", "B", "C", "D"]
+
+        finally:
+            # Clean up
+            Path(temp_file).unlink(missing_ok=True)
 
 
 class TestGenerateRunId:
@@ -478,6 +687,8 @@ class TestIntegrationScenarios:
         assert result.include_reasons is True
         assert result.use_deep_structure is False
         assert result.min_confidence == 0.0
+        assert result.skip_already_automated is False
+        assert result.config_path is None
 
     def test_valid_args_custom_objective(self):
         """Test with custom objective."""
@@ -524,6 +735,22 @@ class TestIntegrationScenarios:
 
         assert result.min_confidence == 0.7
 
+    def test_valid_args_with_skip_already_automated(self):
+        """Test with skip_already_automated enabled."""
+        args = {"file": "test.lean", "skip_already_automated": True}
+
+        result = _coerce_args(args)
+
+        assert result.skip_already_automated is True
+
+    def test_valid_args_with_config_path(self):
+        """Test with custom config_path."""
+        args = {"file": "test.lean", "config_path": "my_config.yaml"}
+
+        result = _coerce_args(args)
+
+        assert result.config_path == "my_config.yaml"
+
     def test_valid_args_all_custom(self):
         """Test with all custom values."""
         args = {
@@ -534,6 +761,8 @@ class TestIntegrationScenarios:
             "include_reasons": True,
             "use_deep_structure": True,
             "min_confidence": 0.6,
+            "skip_already_automated": True,
+            "config_path": "custom.yaml",
         }
 
         result = _coerce_args(args)
@@ -545,6 +774,8 @@ class TestIntegrationScenarios:
         assert result.include_reasons is True
         assert result.use_deep_structure is True
         assert result.min_confidence == 0.6
+        assert result.skip_already_automated is True
+        assert result.config_path == "custom.yaml"
 
 
 class TestBoundaryConditions:

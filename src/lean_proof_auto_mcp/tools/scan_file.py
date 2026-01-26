@@ -4,25 +4,32 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ..core.config import load_config, load_default_config
 from ..core.features import extract_features
 from ..core.format import ensure_deterministic, normalize_notes, stable_sort_theorems
 from ..core.indexer import build_index
 from ..core.scoring import compute_profile
 from ..core.source import SourceText
 
-API_VERSION = "0.1"
+API_VERSION = "1.0"
 
 
 @dataclass(frozen=True)
 class ScanFileArgs:
     file: str
+    config_path: str | None
 
 
 def _coerce_args(args: dict[str, Any]) -> ScanFileArgs:
     file = args.get("file")
     if not isinstance(file, str) or not file.strip():
         raise ValueError("scan_file: 'file' must be a non-empty string")
-    return ScanFileArgs(file=file)
+
+    config_path = args.get("config_path")
+    if config_path is not None and not isinstance(config_path, str):
+        raise ValueError("scan_file: 'config_path' must be a string or null")
+
+    return ScanFileArgs(file=file, config_path=config_path)
 
 
 def scan_file(args: dict[str, Any]) -> dict[str, Any]:
@@ -65,6 +72,12 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
     run_id = _generate_run_id(parsed.file, "scan-file")
 
     try:
+        # Load configuration
+        if parsed.config_path:
+            config = load_config(Path(parsed.config_path))
+        else:
+            config = load_default_config()
+
         # Try to read file (I/O boundary)
         file_path = Path(parsed.file)
         text = ""
@@ -115,7 +128,7 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
                 features = extract_features(source, decl)
 
                 # Compute automation profile (no structure analysis for scan_file)
-                profile = compute_profile(features, structure=None)
+                profile = compute_profile(features, structure=None, config=config)
 
                 # Build theorem object
                 theorem_obj: dict[str, Any] = {

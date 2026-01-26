@@ -7,10 +7,14 @@ and confidence scoring.
 
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .indexer import TheoremDecl
 from .lean_syntax import strip_comments
 from .source import SourceText
+
+if TYPE_CHECKING:
+    from .config import ConfidenceConfig
 
 
 @dataclass(frozen=True)
@@ -51,7 +55,9 @@ class TheoremFeatures:
             raise ValueError(f"local_lemmas_count must be >= 0, got {self.local_lemmas_count}")
 
 
-def extract_features(source: SourceText, decl: TheoremDecl) -> TheoremFeatures:
+def extract_features(
+    source: SourceText, decl: TheoremDecl, config: "ConfidenceConfig | None" = None
+) -> TheoremFeatures:
     """Compute features from theorem proof span with enhanced analysis.
 
     Analyzes the proof text to extract various metrics and patterns
@@ -61,10 +67,17 @@ def extract_features(source: SourceText, decl: TheoremDecl) -> TheoremFeatures:
     Args:
         source: The source text containing the theorem
         decl: The theorem declaration with proof span information
+        config: Optional confidence configuration. If None, loads default config.
 
     Returns:
         TheoremFeatures object with extracted metrics
     """
+    # Load default config if not provided
+    if config is None:
+        from .config import load_default_config
+
+        full_config = load_default_config()
+        config = full_config.confidence
     if not decl.proof_span:
         # No proof found - return empty features
         return TheoremFeatures(
@@ -102,7 +115,9 @@ def extract_features(source: SourceText, decl: TheoremDecl) -> TheoremFeatures:
     local_lemmas_count = count_local_lemmas(clean_proof)
 
     # Calculate confidence with enhanced multi-signal approach
-    confidence = _calculate_confidence_enhanced(clean_proof, decl.proof_span, tactic_kinds, decl)
+    confidence = _calculate_confidence_enhanced(
+        clean_proof, decl.proof_span, tactic_kinds, decl, config
+    )
 
     return TheoremFeatures(
         proof_lines=proof_lines,
@@ -239,7 +254,11 @@ def _detect_proof_structure_patterns(proof_text: str) -> set[str]:
 
 
 def _calculate_confidence_enhanced(
-    proof_text: str, proof_span, tactic_kinds: set[str], decl: TheoremDecl
+    proof_text: str,
+    proof_span,
+    tactic_kinds: set[str],
+    decl: TheoremDecl,
+    config: "ConfidenceConfig",
 ) -> float:
     """Enhanced confidence calculation with multiple signals.
 
@@ -251,11 +270,12 @@ def _calculate_confidence_enhanced(
         proof_span: The proof span object
         tactic_kinds: Set of detected tactics
         decl: The theorem declaration
+        config: Confidence configuration
 
     Returns:
         Confidence score between 0.0 and 1.0
     """
-    base_confidence = _calculate_confidence(proof_text, proof_span, tactic_kinds)
+    base_confidence = _calculate_confidence(proof_text, proof_span, tactic_kinds, config)
 
     # Additional declaration-specific adjustments could go here
     # For now, just return the base confidence
@@ -541,7 +561,9 @@ def count_local_lemmas(proof_text: str) -> int:
     return count
 
 
-def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: set[str]) -> float:
+def _calculate_confidence(
+    proof_text: str, proof_span, tactic_kinds: set[str], config: "ConfidenceConfig"
+) -> float:
     """Calculate confidence in proof detection with enhanced multi-signal approach.
 
     Uses multiple heuristics to estimate how confident we are that we correctly
@@ -552,6 +574,7 @@ def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: set[str]) -
         proof_text: The proof text
         proof_span: The proof span object
         tactic_kinds: Set of detected tactics
+        config: Confidence configuration
 
     Returns:
         Confidence score between 0.0 and 1.0
@@ -559,14 +582,14 @@ def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: set[str]) -
     if not proof_text or not proof_span:
         return 0.0
 
-    confidence = 0.3  # Lower base confidence, build up from evidence
+    confidence = config.base_score  # Use configured base score
 
     # Signal 1: Proof structure quality
     lines = [line.strip() for line in proof_text.splitlines() if line.strip()]
     non_empty_lines = len(lines)
 
     if non_empty_lines > 0:
-        confidence += 0.2  # Any non-empty content is good
+        confidence += config.proof_structure_bonus  # Use configured bonus
 
         # Check for proper proof keywords
         if any(keyword in proof_text.lower() for keyword in ["by", ":=", "proof"]):
@@ -574,7 +597,7 @@ def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: set[str]) -
 
     # Signal 2: Tactic diversity and appropriateness
     if tactic_kinds:
-        confidence += 0.2  # Found some tactics/patterns
+        confidence += config.tactic_detection_bonus  # Use configured bonus
 
         # Boost for structural tactics that indicate real proofs
         structural_tactics = {
@@ -590,7 +613,7 @@ def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: set[str]) -
             "split",
         }
         if tactic_kinds & structural_tactics:
-            confidence += 0.15
+            confidence += config.structural_tactics_bonus  # Use configured bonus
 
         # Boost for term-mode proof patterns
         term_mode_patterns = {
@@ -603,7 +626,7 @@ def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: set[str]) -
             "inference_placeholder",
         }
         if tactic_kinds & term_mode_patterns:
-            confidence += 0.15  # Term-mode proofs are valid
+            confidence += config.term_mode_patterns_bonus  # Use configured bonus
 
         # Boost for automation tactics
         automation_tactics = {
@@ -619,13 +642,13 @@ def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: set[str]) -
             "grind",
         }
         if tactic_kinds & automation_tactics:
-            confidence += 0.1
+            confidence += config.automation_tactics_bonus  # Use configured bonus
 
     # Signal 3: Proof length appropriateness
-    if 1 <= non_empty_lines <= 50:
+    if config.proof_length_min <= non_empty_lines <= config.proof_length_max:
         confidence += 0.1
-    elif non_empty_lines > 50:
-        confidence += 0.05  # Very long proofs might have parsing issues
+    elif non_empty_lines > config.proof_length_max:
+        confidence += config.proof_length_max_bonus  # Use configured bonus for very long proofs
 
     # Signal 4: Presence of proof keywords and markers
     proof_indicators = [
@@ -649,19 +672,19 @@ def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: set[str]) -
 
     # Signal 5: Absence of suspicious patterns
     if "sorry" in tactic_kinds:
-        confidence -= 0.3  # More significant penalty for incomplete proofs
+        confidence += config.sorry_penalty  # Use configured penalty (negative value)
 
     # Check for error patterns that might indicate parsing issues
     error_patterns = ["error", "failed", "unknown", "invalid"]
     if any(pattern in proof_text.lower() for pattern in error_patterns):
-        confidence -= 0.1
+        confidence += config.error_patterns_penalty  # Use configured penalty (negative value)
 
     # Signal 6: Indentation and structure consistency
     if non_empty_lines > 1:
         # Check if proof has consistent indentation (indicates structure)
         indentations = [len(line) - len(line.lstrip()) for line in lines]
         if len(set(indentations)) <= 3:  # Reasonable indentation variety
-            confidence += 0.05
+            confidence += config.indentation_consistency_bonus  # Use configured bonus
 
     # Ensure confidence is in valid range
-    return max(0.0, min(1.0, confidence))
+    return float(max(0.0, min(1.0, confidence)))

@@ -10,17 +10,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from ..core.automation_detection import PatternBasedDetector
+from ..core.config import HeuristicsConfig, load_config, load_default_config
 from ..core.format import ensure_deterministic
 from ..core.ranking import (
     OBJECTIVE_WEIGHTS,
     TheoremData,
+    assign_tiers,
     generate_reasons,
+    get_available_objectives,
     rank_theorems,
 )
+from ..core.source import SourceText
 from .scan_file import scan_file
 from .scan_theorem import scan_theorem
 
-API_VERSION = "0.1"
+API_VERSION = "1.0"
 
 
 @dataclass(frozen=True)
@@ -35,6 +40,8 @@ class RankTargetsArgs:
         include_reasons: Include human-readable reasons
         use_deep_structure: Use scan_theorem for enhanced scoring
         min_confidence: Minimum confidence threshold for filtering
+        skip_already_automated: Filter out theorems that already use automation
+        config_path: Optional path to custom configuration file
     """
 
     file: str
@@ -44,6 +51,8 @@ class RankTargetsArgs:
     include_reasons: bool
     use_deep_structure: bool
     min_confidence: float
+    skip_already_automated: bool
+    config_path: str | None
 
     def __post_init__(self) -> None:
         """Validate argument invariants."""
@@ -61,6 +70,9 @@ class RankTargetsArgs:
 
         if not (0.0 <= self.min_confidence <= 1.0):
             raise ValueError(f"min_confidence must be in [0.0, 1.0], got {self.min_confidence}")
+
+        if not isinstance(self.skip_already_automated, bool):
+            raise ValueError("skip_already_automated must be a boolean")
 
 
 def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
@@ -85,6 +97,17 @@ def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
     if not isinstance(objective, str):
         raise ValueError("rank_targets: 'objective' must be a string")
 
+    # Validate objective and provide helpful error message
+    if objective not in OBJECTIVE_WEIGHTS:
+        available = get_available_objectives()
+        objective_list = "\n".join(
+            [f"  - {obj['name']}: {obj['description']}" for obj in available]
+        )
+        raise ValueError(
+            f"rank_targets: invalid objective '{objective}'\n"
+            f"Available objectives:\n{objective_list}"
+        )
+
     limit = args.get("limit", 30)
     if not isinstance(limit, int):
         raise ValueError("rank_targets: 'limit' must be an integer")
@@ -105,6 +128,14 @@ def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
     if not isinstance(min_confidence, (int, float)):
         raise ValueError("rank_targets: 'min_confidence' must be a number")
 
+    skip_already_automated = args.get("skip_already_automated", False)
+    if not isinstance(skip_already_automated, bool):
+        raise ValueError("rank_targets: 'skip_already_automated' must be a boolean")
+
+    config_path = args.get("config_path")
+    if config_path is not None and not isinstance(config_path, str):
+        raise ValueError("rank_targets: 'config_path' must be a string or None")
+
     # Create and validate args (validation happens in __post_init__)
     return RankTargetsArgs(
         file=file,
@@ -114,28 +145,38 @@ def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
         include_reasons=include_reasons,
         use_deep_structure=use_deep_structure,
         min_confidence=float(min_confidence),
+        skip_already_automated=skip_already_automated,
+        config_path=config_path,
     )
 
 
 def _load_theorem_data(
-    file: str, use_deep_structure: bool
-) -> tuple[list[TheoremData], list[dict[str, Any]], str | None]:
+    file: str, use_deep_structure: bool, skip_already_automated: bool, config: HeuristicsConfig
+) -> tuple[list[TheoremData], list[dict[str, Any]], str | None, int]:
     """Load theorem data from scan_file and optionally scan_theorem.
 
     Args:
         file: Path to Lean file
         use_deep_structure: Whether to call scan_theorem for deep structure
+        skip_already_automated: Whether to filter out already-automated theorems
+        config: Configuration for automation detection
 
     Returns:
-        Tuple of (theorem_data_list, diagnostics, scan_file_run_id)
+        Tuple of (theorem_data_list, diagnostics, scan_file_run_id, skipped_automated_count)
         - theorem_data_list: List of TheoremData objects
         - diagnostics: List of diagnostic messages
         - scan_file_run_id: Run ID from scan_file for correlation
+        - skipped_automated_count: Number of theorems filtered due to automation
 
     Raises:
         Exception: If scan_file fails or returns error status
     """
+    from pathlib import Path
+
+    from ..core.indexer import build_index
+
     diagnostics = []
+    skipped_automated_count = 0
 
     # Call scan_file to get base data
     scan_file_result = scan_file({"file": file})
@@ -153,6 +194,34 @@ def _load_theorem_data(
     # Propagate scan_file diagnostics
     scan_file_diagnostics = scan_file_result.get("diagnostics", [])
     diagnostics.extend(scan_file_diagnostics)
+
+    # Load source file and build index for automation detection
+    try:
+        file_path = Path(file)
+        if not file_path.exists():
+            raise FileNotFoundError(f"File not found: {file}")
+
+        with open(file_path, encoding="utf-8") as f:
+            text = f.read()
+
+        source = SourceText(path=file, text=text)
+        index = build_index(source)
+
+        # Create detector with provided config
+        detector = PatternBasedDetector(config.automation_detection)
+
+    except Exception as e:
+        diagnostics.append(
+            {
+                "severity": "warning",
+                "message": f"Could not load source for automation detection: {str(e)}. "
+                "Automation detection will be skipped.",
+            }
+        )
+        # Continue without automation detection
+        source = None
+        index = None
+        detector = None
 
     # Build TheoremData objects
     theorem_data_list = []
@@ -190,6 +259,9 @@ def _load_theorem_data(
             "local_lemmas_count": 0,
             "has_induction": False,
             "has_cases": False,
+            "already_automated": False,  # Default
+            "automation_penalty": 0.0,  # Default
+            "automation_type": "none",  # Default
         }
 
         # Extract additional signals from notes
@@ -216,6 +288,50 @@ def _load_theorem_data(
                 signals["has_induction"] = True
             if "cases" in note_lower or "case" in note_lower:
                 signals["has_cases"] = True
+
+        # Detect automation if source and detector are available
+        if source and index and detector:
+            try:
+                # Find the corresponding declaration in the index
+                decl = None
+                for d in index.decls:
+                    if d.theorem_id == theorem_id:
+                        decl = d
+                        break
+
+                if decl:
+                    # Extract proof text and declaration text
+                    proof_text = ""
+                    if decl.proof_span:
+                        proof_text = source.get_span_text(decl.proof_span)
+
+                    decl_text = source.get_span_text(decl.decl_span)
+
+                    # Get tactic kinds from notes (if available)
+                    tactic_kinds: set[str] = set()
+                    # We don't have direct access to tactic_kinds here, so we'll pass empty set
+                    # The detector will still check proof text patterns
+
+                    # Detect automation
+                    status = detector.detect(proof_text, decl_text, tactic_kinds)
+
+                    # Update signals
+                    signals["already_automated"] = status.is_automated
+                    signals["automation_penalty"] = status.penalty
+                    signals["automation_type"] = status.automation_type
+
+                    # Filter if requested
+                    if skip_already_automated and status.is_automated:
+                        skipped_automated_count += 1
+                        continue  # Skip this theorem
+
+            except Exception as e:
+                diagnostics.append(
+                    {
+                        "severity": "warning",
+                        "message": f"Error detecting automation for {theorem_id}: {str(e)}",
+                    }
+                )
 
         # Handle missing optional fields with diagnostics
         if not whole_goal_potential:
@@ -282,7 +398,7 @@ def _load_theorem_data(
                 }
             )
 
-    return theorem_data_list, diagnostics, scan_file_run_id
+    return theorem_data_list, diagnostics, scan_file_run_id, skipped_automated_count
 
 
 def _generate_run_id(file_path: str, prefix: str) -> str:
@@ -307,9 +423,11 @@ def _format_response(
     args: RankTargetsArgs,
     total_theorems: int,
     skipped_low_confidence: int,
+    skipped_already_automated: int,
     diagnostics: list[dict[str, Any]],
     scan_file_run_id: str | None,
     computation_time_ms: float,
+    config_source: str,
 ) -> dict[str, Any]:
     """Format the response JSON for rank_targets.
 
@@ -318,9 +436,11 @@ def _format_response(
         args: Parsed arguments
         total_theorems: Total number of theorems before filtering
         skipped_low_confidence: Number of theorems filtered by confidence
+        skipped_already_automated: Number of theorems filtered by automation
         diagnostics: List of diagnostic messages
         scan_file_run_id: Run ID from scan_file
         computation_time_ms: Computation time in milliseconds
+        config_source: Source of configuration (path, environment, or default)
 
     Returns:
         Response dictionary conforming to schema
@@ -328,9 +448,15 @@ def _format_response(
     # Generate run_id
     run_id = _generate_run_id(args.file, "rank")
 
+    # Load configuration for tier assignment
+    config = load_default_config()
+
+    # Assign tiers to ranked theorems
+    theorems_with_tiers = assign_tiers(ranked_theorems, config.tiers)
+
     # Build ranking array
     ranking = []
-    for ranked in ranked_theorems[: args.limit]:
+    for ranked, tier in theorems_with_tiers[: args.limit]:
         theorem_data = ranked.theorem_data
         components = ranked.components
 
@@ -342,6 +468,7 @@ def _format_response(
                 "end_line": theorem_data.range["end_line"],
             },
             "score": ranked.score,
+            "tier": tier,  # NEW FIELD
         }
 
         # Optionally include components
@@ -370,17 +497,29 @@ def _format_response(
 
         ranking.append(theorem_obj)
 
+    # Calculate tier distribution for all ranked theorems (not just returned ones)
+    tier_counts = {
+        "S": sum(1 for _, t in theorems_with_tiers if t == "S"),
+        "A": sum(1 for _, t in theorems_with_tiers if t == "A"),
+        "B": sum(1 for _, t in theorems_with_tiers if t == "B"),
+        "C": sum(1 for _, t in theorems_with_tiers if t == "C"),
+        "D": sum(1 for _, t in theorems_with_tiers if t == "D"),
+    }
+
     # Build summary
     summary = {
         "total": total_theorems,
         "returned": len(ranking),
         "skipped_low_confidence": skipped_low_confidence,
+        "skipped_already_automated": skipped_already_automated,
+        "tier_distribution": tier_counts,  # NEW FIELD
     }
 
     # Build metadata
     metadata: dict[str, Any] = {
         "deep_structure_used": args.use_deep_structure,
         "computation_time_ms": round(computation_time_ms, 2),
+        "config_source": config_source,
     }
     if scan_file_run_id:
         metadata["scan_file_run_id"] = scan_file_run_id
@@ -397,6 +536,7 @@ def _format_response(
         "summary": summary,
         "diagnostics": diagnostics,
         "metadata": metadata,
+        "available_objectives": get_available_objectives(),  # NEW FIELD
     }
 
     # Ensure deterministic output
@@ -441,18 +581,44 @@ def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
             "file": file_value,
             "objective": objective_value,
             "ranking": [],
-            "summary": {"total": 0, "returned": 0, "skipped_low_confidence": 0},
+            "summary": {
+                "total": 0,
+                "returned": 0,
+                "skipped_low_confidence": 0,
+                "skipped_already_automated": 0,
+                "tier_distribution": {"S": 0, "A": 0, "B": 0, "C": 0, "D": 0},
+            },
             "diagnostics": [{"severity": "error", "message": str(e)}],
             "metadata": {"deep_structure_used": False, "computation_time_ms": 0.0},
+            "available_objectives": get_available_objectives(),
         }
 
     # Generate run_id
     run_id = _generate_run_id(parsed.file, "rank")
 
     try:
+        # Load configuration
+        import os
+        from pathlib import Path
+
+        if parsed.config_path:
+            # Load from provided path
+            config = load_config(Path(parsed.config_path))
+            config_source = parsed.config_path
+        else:
+            env_path = os.getenv("LEAN_PROOF_AUTO_MCP_CONFIG")
+            if env_path:
+                # Load from environment variable
+                config = load_config(Path(env_path))
+                config_source = f"environment:{env_path}"
+            else:
+                # Load package default
+                config = load_default_config()
+                config_source = "default"
+
         # Load theorem data
-        theorem_data_list, diagnostics, scan_file_run_id = _load_theorem_data(
-            parsed.file, parsed.use_deep_structure
+        theorem_data_list, diagnostics, scan_file_run_id, skipped_automated = _load_theorem_data(
+            parsed.file, parsed.use_deep_structure, parsed.skip_already_automated, config
         )
 
         total_theorems = len(theorem_data_list)
@@ -473,9 +639,11 @@ def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
             args=parsed,
             total_theorems=total_theorems,
             skipped_low_confidence=skipped_low_confidence,
+            skipped_already_automated=skipped_automated,
             diagnostics=diagnostics,
             scan_file_run_id=scan_file_run_id,
             computation_time_ms=computation_time_ms,
+            config_source=config_source,
         )
 
     except Exception as e:
@@ -492,10 +660,17 @@ def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
             "file": parsed.file,
             "objective": parsed.objective,
             "ranking": [],
-            "summary": {"total": 0, "returned": 0, "skipped_low_confidence": 0},
+            "summary": {
+                "total": 0,
+                "returned": 0,
+                "skipped_low_confidence": 0,
+                "skipped_already_automated": 0,
+                "tier_distribution": {"S": 0, "A": 0, "B": 0, "C": 0, "D": 0},
+            },
             "diagnostics": [{"severity": "error", "message": f"Analysis error: {str(e)}"}],
             "metadata": {
                 "deep_structure_used": parsed.use_deep_structure,
                 "computation_time_ms": round(computation_time_ms, 2),
             },
+            "available_objectives": get_available_objectives(),
         }

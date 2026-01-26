@@ -1,12 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://lean-proof-auto-mcp/schemas/scan_theorem.json",
-  "title": "scan_theorem tool response",
+  "title": "scan_theorem tool response (API 1.0)",
   "type": "object",
   "additionalProperties": false,
   "required": ["api_version", "status", "run_id", "tool", "file", "target"],
   "properties": {
-    "api_version": { "$ref": "common.json#/$defs/api_version" },
+    "api_version": { 
+      "$ref": "common.json#/$defs/api_version",
+      "const": "1.0",
+      "description": "API version 1.0 - BREAKING CHANGES from 0.x (numeric confidence in notes)"
+    },
     "status": { "$ref": "common.json#/$defs/status" },
     "run_id": { "$ref": "common.json#/$defs/run_id" },
     "tool": {
@@ -15,16 +19,22 @@
     },
     "file": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Path to the Lean file containing the theorem"
     },
     "target": {
       "type": "object",
+      "description": "Target specification for the theorem to scan",
       "oneOf": [
         {
           "additionalProperties": false,
           "required": ["theorem_id"],
           "properties": {
-            "theorem_id": { "type": "string", "minLength": 1 }
+            "theorem_id": { 
+              "type": "string", 
+              "minLength": 1,
+              "description": "Unique identifier of the theorem"
+            }
           }
         },
         {
@@ -36,8 +46,16 @@
               "additionalProperties": false,
               "required": ["start_line", "end_line"],
               "properties": {
-                "start_line": { "type": "integer", "minimum": 1 },
-                "end_line": { "type": "integer", "minimum": 1 }
+                "start_line": { 
+                  "type": "integer", 
+                  "minimum": 1,
+                  "description": "Starting line number (1-indexed)"
+                },
+                "end_line": { 
+                  "type": "integer", 
+                  "minimum": 1,
+                  "description": "Ending line number (1-indexed)"
+                }
               }
             }
           }
@@ -46,23 +64,45 @@
     },
     "theorem": {
       "type": ["object", "null"],
+      "description": "Theorem analysis result (null if not found)",
       "additionalProperties": false,
       "required": ["name", "kind", "location", "structure", "automation"],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
+        "name": { 
+          "type": "string", 
+          "minLength": 1,
+          "description": "Name of the theorem"
+        },
         "kind": {
           "type": "string",
-          "enum": ["theorem", "lemma", "example", "instance"]
+          "enum": ["theorem", "lemma", "example", "instance"],
+          "description": "Type of declaration"
         },
         "location": {
           "type": "object",
           "additionalProperties": false,
           "required": ["decl_start", "decl_end"],
           "properties": {
-            "decl_start": { "type": "integer", "minimum": 1 },
-            "decl_end": { "type": "integer", "minimum": 1 },
-            "proof_start": { "type": "integer", "minimum": 1 },
-            "proof_end": { "type": "integer", "minimum": 1 }
+            "decl_start": { 
+              "type": "integer", 
+              "minimum": 1,
+              "description": "Starting line of declaration (1-indexed)"
+            },
+            "decl_end": { 
+              "type": "integer", 
+              "minimum": 1,
+              "description": "Ending line of declaration (1-indexed)"
+            },
+            "proof_start": { 
+              "type": "integer", 
+              "minimum": 1,
+              "description": "Starting line of proof (1-indexed, if present)"
+            },
+            "proof_end": { 
+              "type": "integer", 
+              "minimum": 1,
+              "description": "Ending line of proof (1-indexed, if present)"
+            }
           }
         },
         "structure": {
@@ -72,10 +112,12 @@
           "properties": {
             "skeleton": {
               "type": "array",
-              "items": { "type": "string" }
+              "items": { "type": "string" },
+              "description": "Skeleton tactics that structure the proof"
             },
             "blocks": {
               "type": "array",
+              "description": "Proof blocks identified by structure analysis",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
@@ -83,23 +125,44 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "enum": ["skeleton", "rewrite_simp", "closing", "unknown"]
+                    "enum": ["skeleton", "rewrite_simp", "closing", "unknown"],
+                    "description": "Type of proof block"
                   },
-                  "start_line": { "type": "integer", "minimum": 1 },
-                  "end_line": { "type": "integer", "minimum": 1 }
+                  "start_line": { 
+                    "type": "integer", 
+                    "minimum": 1,
+                    "description": "Starting line of block (1-indexed)"
+                  },
+                  "end_line": { 
+                    "type": "integer", 
+                    "minimum": 1,
+                    "description": "Ending line of block (1-indexed)"
+                  }
                 }
               }
             },
             "cases": {
               "type": "array",
+              "description": "Case splits identified in the proof",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
                 "required": ["label", "start_line", "end_line"],
                 "properties": {
-                  "label": { "type": "string" },
-                  "start_line": { "type": "integer", "minimum": 1 },
-                  "end_line": { "type": "integer", "minimum": 1 }
+                  "label": { 
+                    "type": "string",
+                    "description": "Label of the case"
+                  },
+                  "start_line": { 
+                    "type": "integer", 
+                    "minimum": 1,
+                    "description": "Starting line of case (1-indexed)"
+                  },
+                  "end_line": { 
+                    "type": "integer", 
+                    "minimum": 1,
+                    "description": "Ending line of case (1-indexed)"
+                  }
                 }
               }
             }
@@ -115,8 +178,18 @@
               "additionalProperties": false,
               "required": ["aesop", "grind"],
               "properties": {
-                "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-                "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+                "aesop": { 
+                  "type": "number", 
+                  "minimum": 0.0, 
+                  "maximum": 1.0,
+                  "description": "Potential for aesop to solve the whole goal"
+                },
+                "grind": { 
+                  "type": "number", 
+                  "minimum": 0.0, 
+                  "maximum": 1.0,
+                  "description": "Potential for grind to solve the whole goal"
+                }
               }
             },
             "subgoal_potential": {
@@ -124,22 +197,39 @@
               "additionalProperties": false,
               "required": ["aesop", "grind"],
               "properties": {
-                "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-                "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+                "aesop": { 
+                  "type": "number", 
+                  "minimum": 0.0, 
+                  "maximum": 1.0,
+                  "description": "Potential for aesop to solve proof subgoals"
+                },
+                "grind": { 
+                  "type": "number", 
+                  "minimum": 0.0, 
+                  "maximum": 1.0,
+                  "description": "Potential for grind to solve proof subgoals"
+                }
               }
             },
-            "annotation_value": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+            "annotation_value": { 
+              "type": "number", 
+              "minimum": 0.0, 
+              "maximum": 1.0,
+              "description": "Value of adding automation annotations"
+            }
           }
         },
         "notes": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": { "type": "string" },
+          "description": "Explanatory notes about the theorem (BREAKING CHANGE: now includes numeric confidence as first note, e.g., 'confidence: 0.85')"
         }
       }
     },
     "diagnostics": {
       "type": "array",
-      "items": { "$ref": "common.json#/$defs/diagnostic" }
+      "items": { "$ref": "common.json#/$defs/diagnostic" },
+      "description": "Diagnostic messages from the scan"
     }
   }
 }

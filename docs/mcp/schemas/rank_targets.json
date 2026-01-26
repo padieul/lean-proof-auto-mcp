@@ -1,12 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://lean-proof-auto-mcp/schemas/rank_targets.json",
-  "title": "rank_targets tool response",
+  "title": "rank_targets tool response (API 1.0)",
   "type": "object",
   "additionalProperties": false,
-  "required": ["api_version", "status", "run_id", "tool", "file", "objective", "ranking", "summary", "diagnostics", "metadata"],
+  "required": ["api_version", "status", "run_id", "tool", "file", "objective", "ranking", "summary", "diagnostics", "metadata", "available_objectives"],
   "properties": {
-    "api_version": { "$ref": "common.json#/$defs/api_version" },
+    "api_version": { 
+      "$ref": "common.json#/$defs/api_version",
+      "const": "1.0",
+      "description": "API version 1.0 - BREAKING CHANGES from 0.x"
+    },
     "status": { "$ref": "common.json#/$defs/status" },
     "run_id": { "$ref": "common.json#/$defs/run_id" },
     "tool": {
@@ -15,46 +19,103 @@
     },
     "file": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Path to the Lean file being analyzed"
     },
     "objective": {
       "type": "string",
-      "enum": ["maximize_success", "maximize_impact", "maximize_subgoal_automation", "balanced"]
+      "enum": ["maximize_success", "maximize_impact", "maximize_subgoal_automation", "balanced"],
+      "description": "Ranking objective used for this analysis"
     },
     "ranking": {
       "type": "array",
+      "description": "Ranked list of theorem automation targets",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["theorem_id", "range", "score", "signals"],
+        "required": ["theorem_id", "range", "score", "tier", "signals"],
         "properties": {
-          "theorem_id": { "type": "string", "minLength": 1 },
+          "theorem_id": { 
+            "type": "string", 
+            "minLength": 1,
+            "description": "Unique identifier for the theorem"
+          },
           "range": {
             "type": "object",
             "additionalProperties": false,
             "required": ["start_line", "end_line"],
             "properties": {
-              "start_line": { "type": "integer", "minimum": 0 },
-              "end_line": { "type": "integer", "minimum": 0 }
+              "start_line": { 
+                "type": "integer", 
+                "minimum": 0,
+                "description": "Starting line number (0-indexed)"
+              },
+              "end_line": { 
+                "type": "integer", 
+                "minimum": 0,
+                "description": "Ending line number (0-indexed)"
+              }
             }
           },
-          "score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+          "score": { 
+            "type": "number", 
+            "minimum": 0.0, 
+            "maximum": 1.0,
+            "description": "Final ranking score (0.0-1.0)"
+          },
+          "tier": {
+            "type": "string",
+            "enum": ["S", "A", "B", "C", "D"],
+            "description": "Quality tier: S (top 10%), A (10-25%), B (25-50%), C (50-75%), D (75-100%)"
+          },
           "components": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["success_likelihood", "impact", "annotation_value", "subgoal_potential", "risk"],
+            "required": ["success_likelihood", "impact", "annotation_value", "subgoal_potential", "risk", "already_automated_penalty"],
             "properties": {
-              "success_likelihood": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-              "impact": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-              "annotation_value": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-              "subgoal_potential": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-              "risk": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+              "success_likelihood": { 
+                "type": "number", 
+                "minimum": 0.0, 
+                "maximum": 1.0,
+                "description": "Likelihood of successful automation"
+              },
+              "impact": { 
+                "type": "number", 
+                "minimum": 0.0, 
+                "maximum": 1.0,
+                "description": "Time saved by automating this theorem"
+              },
+              "annotation_value": { 
+                "type": "number", 
+                "minimum": 0.0, 
+                "maximum": 1.0,
+                "description": "Value of adding automation annotations"
+              },
+              "subgoal_potential": { 
+                "type": "number", 
+                "minimum": 0.0, 
+                "maximum": 1.0,
+                "description": "Potential for partial automation of proof steps"
+              },
+              "risk": { 
+                "type": "number", 
+                "minimum": 0.0, 
+                "maximum": 1.0,
+                "description": "Risk of unintended side effects"
+              },
+              "already_automated_penalty": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+                "description": "Penalty for theorems already using automation (0.0=none, 0.3=tactic, 0.5=attribute, 0.8=trivial)"
+              }
             }
           },
           "reasons": {
             "type": "array",
             "items": { "type": "string" },
-            "maxItems": 10
+            "maxItems": 10,
+            "description": "Human-readable explanations for the score (includes numeric confidence)"
           },
           "signals": {
             "type": "object",
@@ -66,8 +127,18 @@
                 "additionalProperties": false,
                 "required": ["aesop", "grind"],
                 "properties": {
-                  "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-                  "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+                  "aesop": { 
+                    "type": "number", 
+                    "minimum": 0.0, 
+                    "maximum": 1.0,
+                    "description": "Potential for aesop to solve the whole goal"
+                  },
+                  "grind": { 
+                    "type": "number", 
+                    "minimum": 0.0, 
+                    "maximum": 1.0,
+                    "description": "Potential for grind to solve the whole goal"
+                  }
                 }
               },
               "subgoal_potential": {
@@ -75,13 +146,37 @@
                 "additionalProperties": false,
                 "required": ["aesop", "grind"],
                 "properties": {
-                  "aesop": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-                  "grind": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+                  "aesop": { 
+                    "type": "number", 
+                    "minimum": 0.0, 
+                    "maximum": 1.0,
+                    "description": "Potential for aesop to solve proof subgoals"
+                  },
+                  "grind": { 
+                    "type": "number", 
+                    "minimum": 0.0, 
+                    "maximum": 1.0,
+                    "description": "Potential for grind to solve proof subgoals"
+                  }
                 }
               },
-              "annotation_value": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
-              "proof_lines": { "type": "integer", "minimum": 0 },
-              "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+              "annotation_value": { 
+                "type": "number", 
+                "minimum": 0.0, 
+                "maximum": 1.0,
+                "description": "Value of adding automation annotations"
+              },
+              "proof_lines": { 
+                "type": "integer", 
+                "minimum": 0,
+                "description": "Number of lines in the proof"
+              },
+              "confidence": { 
+                "type": "number", 
+                "minimum": 0.0, 
+                "maximum": 1.0,
+                "description": "Confidence in the analysis (0.0-1.0)"
+              }
             }
           }
         }
@@ -90,25 +185,143 @@
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["total", "returned", "skipped_low_confidence"],
+      "required": ["total", "returned", "skipped_low_confidence", "skipped_already_automated", "tier_distribution"],
       "properties": {
-        "total": { "type": "integer", "minimum": 0 },
-        "returned": { "type": "integer", "minimum": 0 },
-        "skipped_low_confidence": { "type": "integer", "minimum": 0 }
+        "total": { 
+          "type": "integer", 
+          "minimum": 0,
+          "description": "Total number of theorems analyzed"
+        },
+        "returned": { 
+          "type": "integer", 
+          "minimum": 0,
+          "description": "Number of theorems returned in ranking"
+        },
+        "skipped_low_confidence": { 
+          "type": "integer", 
+          "minimum": 0,
+          "description": "Number of theorems filtered by min_confidence threshold"
+        },
+        "skipped_already_automated": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of theorems filtered by skip_already_automated parameter"
+        },
+        "tier_distribution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["S", "A", "B", "C", "D"],
+          "properties": {
+            "S": { 
+              "type": "integer", 
+              "minimum": 0,
+              "description": "Count of S-tier theorems (top 10%)"
+            },
+            "A": { 
+              "type": "integer", 
+              "minimum": 0,
+              "description": "Count of A-tier theorems (10-25%)"
+            },
+            "B": { 
+              "type": "integer", 
+              "minimum": 0,
+              "description": "Count of B-tier theorems (25-50%)"
+            },
+            "C": { 
+              "type": "integer", 
+              "minimum": 0,
+              "description": "Count of C-tier theorems (50-75%)"
+            },
+            "D": { 
+              "type": "integer", 
+              "minimum": 0,
+              "description": "Count of D-tier theorems (75-100%)"
+            }
+          }
+        }
       }
     },
     "diagnostics": {
       "type": "array",
-      "items": { "$ref": "common.json#/$defs/diagnostic" }
+      "items": { "$ref": "common.json#/$defs/diagnostic" },
+      "description": "Diagnostic messages from the analysis"
     },
     "metadata": {
       "type": "object",
       "additionalProperties": false,
       "required": ["deep_structure_used", "computation_time_ms"],
       "properties": {
-        "scan_file_run_id": { "type": "string" },
-        "deep_structure_used": { "type": "boolean" },
-        "computation_time_ms": { "type": "number", "minimum": 0 }
+        "scan_file_run_id": { 
+          "type": "string",
+          "description": "Run ID of the underlying scan_file call"
+        },
+        "deep_structure_used": { 
+          "type": "boolean",
+          "description": "Whether deep structure analysis was used"
+        },
+        "computation_time_ms": { 
+          "type": "number", 
+          "minimum": 0,
+          "description": "Time taken for computation in milliseconds"
+        },
+        "config_source": {
+          "type": "string",
+          "enum": ["default", "environment", "explicit"],
+          "description": "Source of heuristics configuration: default (package), environment (env var), explicit (config_path parameter)"
+        }
+      }
+    },
+    "available_objectives": {
+      "type": "array",
+      "description": "List of available ranking objectives with metadata",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "description", "use_case", "weights"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["maximize_success", "maximize_impact", "maximize_subgoal_automation", "balanced"],
+            "description": "Objective identifier"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What this objective optimizes for"
+          },
+          "use_case": {
+            "type": "string",
+            "minLength": 1,
+            "description": "When to use this objective"
+          },
+          "weights": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["success_likelihood", "impact", "annotation_value", "subgoal_potential", "risk"],
+            "properties": {
+              "success_likelihood": { 
+                "type": "number",
+                "description": "Weight for success likelihood component"
+              },
+              "impact": { 
+                "type": "number",
+                "description": "Weight for impact component"
+              },
+              "annotation_value": { 
+                "type": "number",
+                "description": "Weight for annotation value component"
+              },
+              "subgoal_potential": { 
+                "type": "number",
+                "description": "Weight for subgoal potential component"
+              },
+              "risk": { 
+                "type": "number",
+                "description": "Weight for risk component (typically negative)"
+              }
+            }
+          }
+        }
       }
     }
   }

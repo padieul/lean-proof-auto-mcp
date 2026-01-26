@@ -8,7 +8,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
 
 ## Tasks
 
-- [ ] 1. Set up core domain structures for probe
+- [x] 1. Set up core domain structures for probe
   - Create `src/lean_proof_auto_mcp/core/probe_domain.py` with immutable command and result types
   - Define ProbeCommand dataclass with file_path, theorem_id, mode, budget_s, trace_config
   - Define ProbeResult dataclass with api_version, status, run_id, probe_result, diagnostics, timing, metadata
@@ -17,7 +17,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
   - Add validation in `__post_init__` methods for all commands
   - _Requirements: 1.1, 1.8, 2.1-2.6, 3.1-3.8_
 
-- [ ] 1.1 Write property tests for probe domain structures
+- [x] 1.1 Write property tests for probe domain structures
   - **Property 7: Mode Validation** - Test mode validation accepts valid modes and rejects invalid ones
   - **Property 28: Invalid Input Handling** - Test validation errors for invalid inputs
   - **Validates: Requirements 1.8, 3.1, 10.3, 10.5**

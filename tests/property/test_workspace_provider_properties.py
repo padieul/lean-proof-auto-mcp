@@ -424,21 +424,21 @@ class TestWorkspaceModeDetection:
     """
 
     def test_detect_workspace_mode_with_git_repo(self):
-        """Test that git repositories are detected correctly."""
+        """Test that detect_workspace_mode always returns temp for safety."""
         temp_git_repo = create_temp_git_repo()
 
         try:
             # Act
             mode = detect_workspace_mode(temp_git_repo)
 
-            # Assert
-            assert mode == "worktree"
+            # Assert - always returns temp for safety, even with git repo
+            assert mode == "temp"
 
         finally:
             cleanup_temp_dir(temp_git_repo)
 
     def test_detect_workspace_mode_without_git_repo(self):
-        """Test that non-git directories are detected correctly."""
+        """Test that non-git directories return temp mode."""
         temp_project_dir = create_temp_project_dir()
 
         try:
@@ -451,8 +451,8 @@ class TestWorkspaceModeDetection:
         finally:
             cleanup_temp_dir(temp_project_dir)
 
-    def test_create_workspace_provider_auto_detects_git(self):
-        """Test that factory auto-detects git repository."""
+    def test_create_workspace_provider_auto_detects_temp(self):
+        """Test that factory auto-detects temp mode (default behavior)."""
         temp_git_repo = create_temp_git_repo()
 
         try:
@@ -462,13 +462,13 @@ class TestWorkspaceModeDetection:
                 project_root=temp_git_repo,
             )
 
-            # Assert
-            assert isinstance(provider, GitWorktreeProvider)
+            # Assert - auto-detection now defaults to temp mode
+            assert isinstance(provider, TempCopyProvider)
 
         finally:
             cleanup_temp_dir(temp_git_repo)
 
-    def test_create_workspace_provider_auto_detects_temp(self):
+    def test_create_workspace_provider_auto_detects_temp_non_git(self):
         """Test that factory auto-detects non-git directory."""
         temp_project_dir = create_temp_project_dir()
 

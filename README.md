@@ -5,7 +5,7 @@ A Model Context Protocol (MCP) server for **Lean 4 proof automation analysis and
 This project provides deterministic tooling to analyze Lean proofs, probe automation potential (e.g. `aesop`, `grind`), and search for automation annotations in a reproducible, LLM-agnostic way.
 
 **Status:**
-- MCP Server Version: 0.1.0
+- MCP Server Version: 0.2.0
 - API Version: 1.0 - Production Ready
 
 **Audience:** Lean 4 community
@@ -187,6 +187,32 @@ Each ranked theorem includes a tier classification:
 - **D-tier** (75-100%): Weak candidates, consider skipping
 
 Tiers are relative to the file, not absolute scores.
+
+### Workspace Modes
+
+The verify tool supports two workspace isolation modes:
+
+- **temp** (default): Copies files to a temporary directory. Safest option, works everywhere.
+- **worktree**: Uses git worktree for faster isolation. Requires git repository.
+
+**Default behavior**: The system always uses temp mode unless you explicitly request worktree mode.
+
+To use worktree mode explicitly:
+
+```json
+{
+  "tool": "verify",
+  "arguments": {
+    "file": "MyTheorem.lean",
+    "budget_s": 30.0,
+    "workspace_mode": "worktree"
+  }
+}
+```
+
+**For tests**: Always use temp mode to avoid polluting your development repository with git worktrees.
+
+See [Workspace Modes Documentation](docs/workspace_modes.md) for complete details on workspace isolation, trade-offs, and best practices.
 
 ### Configuration
 

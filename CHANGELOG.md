@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-01-26
+
+### Added
+- **Verify tool**: Foundational Lean execution primitive for deterministic, sandboxed proof validation
+  - File-level and theorem-level verification with budget-bounded execution (default: 30s timeout)
+  - Isolated workspace execution via git worktree (preferred) or temp copy (fallback)
+  - Structured diagnostics with severity levels (error/warning/info) and precise source locations
+  - Deterministic output formatting with sorted diagnostics and stable JSON key ordering
+  - Artifact storage system: stores request.json, result.json, and full logs under unique run_id
+  - Process cleanup guarantees: no orphaned Lean processes or leaked workspace resources
+  - Concurrent execution safety: multiple verifications run in isolated workspaces without interference
+  - Hexagonal architecture: core domain logic separated from adapters (LeanInteract, git, filesystem)
+  - Integration with existing tools: accepts file paths and theorem_id format from scan_file/rank_targets
+  - Comprehensive metadata: workspace mode, repo commit, Lean/Lake versions, execution timing
+- `lean-interact` as mandatory dependency for Lean 4 REPL interaction
+- LeanInteractRunner adapter for executing Lean verification with timeout enforcement
+- GitWorktreeProvider and TempCopyProvider adapters for workspace isolation
+- FilesystemArtifactStore adapter for persistent verification artifacts
+- Property-based test suite with 19 correctness properties (minimum 100 iterations per property)
+- Integration tests with mathlib fixtures for real-world Lean file validation
+
+### Changed
+- Moved `lean-interact` from optional to required dependencies
+- Coverage artifacts now ignored in version control
+- API version remains 1.0 for existing tools (scan_file, scan_theorem, rank_targets)
+- Verify tool uses API version 0.2.0 for independent evolution
+
 ## [0.1.0] - 2026-01-22
 
 ### 🚨 BREAKING CHANGES - API Version 1.0

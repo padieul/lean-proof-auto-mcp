@@ -218,6 +218,7 @@ def _build_error_response(
     Requirements: 1.1
     """
     import hashlib
+    import uuid
     from datetime import datetime, timezone
 
     # Generate run_id for error response
@@ -228,7 +229,9 @@ def _build_error_response(
     if not file_str or not file_str.strip():
         file_str = "<invalid>"
     file_hash = hashlib.md5(file_str.encode()).hexdigest()[:8]
-    run_id = f"verify-{timestamp}-{file_hash}"
+    # Add random suffix for uniqueness (same format as success responses)
+    random_suffix = uuid.uuid4().hex[:6]
+    run_id = f"verify-{timestamp}-{file_hash}-{random_suffix}"
 
     return {
         "api_version": API_VERSION,

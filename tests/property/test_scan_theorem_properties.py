@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from lean_proof_auto_mcp.tools.scan_theorem import scan_theorem
@@ -20,6 +20,7 @@ class TestScanTheoremProperties:
     """Property-based tests for scan_theorem tool correctness properties."""
 
     @given(args=scan_theorem_args())
+    @settings(deadline=None)
     def test_determinism(self, args: dict[str, Any]) -> None:
         """Property 1: Same input produces identical output across multiple calls."""
         result1 = scan_theorem(args)

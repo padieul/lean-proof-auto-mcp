@@ -16,6 +16,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
 
 # Lean / Lake
 .lake/

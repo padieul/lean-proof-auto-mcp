@@ -101,7 +101,7 @@ def test_scan_file_success_response_validates():
 
 def test_scan_file_success_response_conforms_to_schema(scan_file_validator):
     """Test that scan_file success response validates against JSON schema.
-    
+
     NOTE: This test will fail until task 11.1 updates the JSON schema files for API 1.0.
     The schema files still expect API 0.x format.
     """
@@ -124,7 +124,7 @@ def test_scan_file_fail_response_with_empty_file():
 
 def test_scan_file_fail_response_conforms_to_schema(scan_file_validator):
     """Test that scan_file fail response validates against JSON schema.
-    
+
     NOTE: This test will fail until task 11.1 updates the JSON schema files for API 1.0.
     """
     resp = scan_file({"file": ""})
@@ -315,9 +315,7 @@ def test_scan_file_api_version_format():
     resp = scan_file({"file": "test.lean"})
 
     # Must be exactly "1.0" for API version 1.0
-    assert resp["api_version"] == "1.0", (
-        f"api_version must be '1.0', got '{resp['api_version']}'"
-    )
+    assert resp["api_version"] == "1.0", f"api_version must be '1.0', got '{resp['api_version']}'"
 
 
 def test_scan_file_run_id_non_empty():
@@ -349,7 +347,7 @@ def test_scan_file_confidence_in_notes():
         for theorem in resp["theorems"]:
             if "notes" in theorem and len(theorem["notes"]) > 0:
                 # Check if any note contains "confidence:"
-                has_confidence = any("confidence:" in note for note in theorem["notes"])
+                _ = any("confidence:" in note for note in theorem["notes"])
                 # Confidence note should be present for theorems with automation data
                 if "automation" in theorem:
                     # At least some theorems should have confidence notes

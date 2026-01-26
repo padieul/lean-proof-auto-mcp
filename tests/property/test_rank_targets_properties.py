@@ -116,7 +116,9 @@ class TestRankTargetsProperties:
 
         **Validates: Requirements US-1 (AC 1.3), NFR-1, Design P2, P3**
         """
-        result = rank_targets({"file": file, "objective": objective, "skip_already_automated": False})
+        result = rank_targets(
+            {"file": file, "objective": objective, "skip_already_automated": False}
+        )
 
         # Only check if we have theorems
         if "ranking" in result and len(result["ranking"]) > 1:
@@ -161,8 +163,12 @@ class TestRankTargetsProperties:
         **Validates: Requirements US-2 (AC 2.3), Design P6**
         """
         # Get rankings for two different objectives
-        success_result = rank_targets({"file": file, "objective": "maximize_success", "skip_already_automated": False})
-        impact_result = rank_targets({"file": file, "objective": "maximize_impact", "skip_already_automated": False})
+        success_result = rank_targets(
+            {"file": file, "objective": "maximize_success", "skip_already_automated": False}
+        )
+        impact_result = rank_targets(
+            {"file": file, "objective": "maximize_impact", "skip_already_automated": False}
+        )
 
         # Only test if we have at least 2 theorems in both results
         if (
@@ -198,7 +204,9 @@ class TestRankTargetsProperties:
 
         **Validates: Requirements US-3 (AC 3.1, 3.2), Design P4**
         """
-        result = rank_targets({"file": file, "min_confidence": min_conf, "skip_already_automated": False})
+        result = rank_targets(
+            {"file": file, "min_confidence": min_conf, "skip_already_automated": False}
+        )
 
         # Check all returned theorems have confidence >= min_conf
         if "ranking" in result:
@@ -270,9 +278,7 @@ class TestRankTargetsProperties:
         assert "skipped_already_automated" in result["summary"], (
             "Missing summary.skipped_already_automated"
         )
-        assert "tier_distribution" in result["summary"], (
-            "Missing summary.tier_distribution"
-        )
+        assert "tier_distribution" in result["summary"], "Missing summary.tier_distribution"
 
         # Metadata required fields
         assert "deep_structure_used" in result["metadata"], "Missing metadata.deep_structure_used"
@@ -295,7 +301,9 @@ class TestRankTargetsProperties:
         assert isinstance(result["summary"], dict), "summary must be object"
         assert isinstance(result["diagnostics"], list), "diagnostics must be array"
         assert isinstance(result["metadata"], dict), "metadata must be object"
-        assert isinstance(result["available_objectives"], list), "available_objectives must be array"
+        assert isinstance(result["available_objectives"], list), (
+            "available_objectives must be array"
+        )
 
         # Summary type checks
         assert isinstance(result["summary"]["total"], int), "summary.total must be integer"
@@ -375,13 +383,20 @@ class TestRankTargetsProperties:
             "summary.skipped_already_automated must be non-negative"
         )
 
-        # total = returned + skipped_low_confidence + skipped_already_automated (approximately, may have limit applied)
+        # total = returned + skipped_low_confidence + skipped_already_automated
+        # (approximately, may have limit applied)
         # This is only exact if limit >= total
         if "limit" in args and args["limit"] >= summary["total"]:
-            assert summary["returned"] + summary["skipped_low_confidence"] + summary["skipped_already_automated"] <= summary["total"], (
+            assert (
+                summary["returned"]
+                + summary["skipped_low_confidence"]
+                + summary["skipped_already_automated"]
+                <= summary["total"]
+            ), (
                 f"summary counts inconsistent: returned ({summary['returned']}) + "
                 f"skipped_low_confidence ({summary['skipped_low_confidence']}) + "
-                f"skipped_already_automated ({summary['skipped_already_automated']}) > total ({summary['total']})"
+                f"skipped_already_automated ({summary['skipped_already_automated']}) "
+                f"> total ({summary['total']})"
             )
 
     @settings(deadline=500, max_examples=10)
@@ -465,8 +480,12 @@ class TestRankTargetsProperties:
         """Property: Different file inputs should produce different file fields."""
         assume(file1 != file2)  # Only test when inputs are actually different
 
-        result1 = rank_targets({"file": file1, "objective": objective, "skip_already_automated": False})
-        result2 = rank_targets({"file": file2, "objective": objective, "skip_already_automated": False})
+        result1 = rank_targets(
+            {"file": file1, "objective": objective, "skip_already_automated": False}
+        )
+        result2 = rank_targets(
+            {"file": file2, "objective": objective, "skip_already_automated": False}
+        )
 
         # At minimum, the file field should differ
         assert result1["file"] != result2["file"], (
@@ -543,9 +562,7 @@ class TestRankTargetsProperties:
 
         if "ranking" in result:
             for theorem in result["ranking"]:
-                assert "tier" in theorem, (
-                    f"Theorem {theorem['theorem_id']} missing tier field"
-                )
+                assert "tier" in theorem, f"Theorem {theorem['theorem_id']} missing tier field"
 
                 # Tier must be one of S/A/B/C/D
                 valid_tiers = {"S", "A", "B", "C", "D"}
@@ -576,9 +593,7 @@ class TestRankTargetsProperties:
             # Note: tier_distribution includes ALL theorems (not just returned ones)
             # So we can only check that returned theorems are counted correctly
             for tier in ["S", "A", "B", "C", "D"]:
-                assert tier in tier_distribution, (
-                    f"Tier '{tier}' missing from tier_distribution"
-                )
+                assert tier in tier_distribution, f"Tier '{tier}' missing from tier_distribution"
                 assert tier_distribution[tier] >= tier_counts_actual[tier], (
                     f"Tier distribution for '{tier}' ({tier_distribution[tier]}) "
                     f"is less than actual count in ranking ({tier_counts_actual[tier]})"
@@ -675,7 +690,8 @@ class TestRankTargetsProperties:
                     components = theorem["components"]
 
                     assert "already_automated_penalty" in components, (
-                        f"Theorem {theorem['theorem_id']} missing already_automated_penalty component"
+                        f"Theorem {theorem['theorem_id']} missing "
+                        "already_automated_penalty component"
                     )
 
                     penalty = components["already_automated_penalty"]
@@ -739,10 +755,7 @@ class TestRankTargetsProperties:
 
                 if confidence > 0.0 and "reasons" in theorem:
                     # Check if numeric confidence is in reasons
-                    has_numeric_confidence = any(
-                        "confidence:" in reason.lower()
-                        for reason in theorem["reasons"]
-                    )
+                    _ = any("confidence:" in reason.lower() for reason in theorem["reasons"])
 
                     # Note: This may not always be true if reasons are truncated
                     # or if confidence note is not in top reasons
@@ -754,26 +767,14 @@ class TestRankTargetsProperties:
                         )
 
     @settings(deadline=500, max_examples=10)
-    @given(
-        file=valid_lean_files(),
-        skip1=st.booleans(),
-        skip2=st.booleans()
-    )
-    def test_skip_already_automated_determinism(
-        self, file: str, skip1: bool, skip2: bool
-    ) -> None:
+    @given(file=valid_lean_files(), skip1=st.booleans(), skip2=st.booleans())
+    def test_skip_already_automated_determinism(self, file: str, skip1: bool, skip2: bool) -> None:
         """Property: Same skip_already_automated value produces same results.
 
         **Validates: Requirements US-2, NFR-3, Design D5**
         """
-        result1 = rank_targets({
-            "file": file,
-            "skip_already_automated": skip1
-        })
-        result2 = rank_targets({
-            "file": file,
-            "skip_already_automated": skip1
-        })
+        result1 = rank_targets({"file": file, "skip_already_automated": skip1})
+        result2 = rank_targets({"file": file, "skip_already_automated": skip1})
 
         # Remove non-deterministic fields
         def normalize(r):
@@ -793,10 +794,7 @@ class TestRankTargetsProperties:
 
         # Different skip values may produce different results
         if skip1 != skip2:
-            result3 = rank_targets({
-                "file": file,
-                "skip_already_automated": skip2
-            })
+            result3 = rank_targets({"file": file, "skip_already_automated": skip2})
 
             # At minimum, skipped_already_automated counts should differ
             # (unless there are no automated theorems)

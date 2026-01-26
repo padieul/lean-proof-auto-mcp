@@ -4,7 +4,10 @@ A Model Context Protocol (MCP) server for **Lean 4 proof automation analysis and
 
 This project provides deterministic tooling to analyze Lean proofs, probe automation potential (e.g. `aesop`, `grind`), and search for automation annotations in a reproducible, LLM-agnostic way.
 
-**Status:** API 1.0 - Production Ready  
+**Status:**  
+- MCP Server Version: 0.1.0  
+- API Version: 1.0 - Production Ready  
+
 **Audience:** Lean 4 community
 
 ## Features

@@ -663,9 +663,9 @@ class TestEnhancedTacticDetection:
 
     def test_enhanced_confidence_for_term_proofs(self):
         """Test that term-mode proofs get reasonable confidence scores."""
+        from lean_proof_auto_mcp.core.config import load_default_config
         from lean_proof_auto_mcp.core.features import _calculate_confidence
         from lean_proof_auto_mcp.core.source import Span
-        from lean_proof_auto_mcp.core.config import load_default_config
 
         config = load_default_config()
 

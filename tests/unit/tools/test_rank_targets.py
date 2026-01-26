@@ -183,7 +183,7 @@ class TestRankTargetsArgs:
                 include_reasons=True,
                 use_deep_structure=False,
                 min_confidence=0.0,
-                skip_already_automated="false",  # type: ignore
+                skip_already_automated=False,
                 config_path=None,
             )
 
@@ -340,7 +340,7 @@ class TestCoerceArgs:
 
         with pytest.raises(ValueError) as exc_info:
             _coerce_args(args)
-        
+
         error_msg = str(exc_info.value)
         assert "invalid objective 'invalid'" in error_msg
         assert "Available objectives:" in error_msg
@@ -575,12 +575,15 @@ class TestResponseStructure:
 
     def test_success_response_includes_available_objectives(self):
         """Test that success responses include available_objectives field."""
-        from lean_proof_auto_mcp.tools.rank_targets import rank_targets
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
+
+        from lean_proof_auto_mcp.tools.rank_targets import rank_targets
 
         # Create a temporary Lean file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.lean', delete=False, encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".lean", delete=False, encoding="utf-8"
+        ) as f:
             f.write("theorem test : True := trivial\n")
             temp_file = f.name
 
@@ -606,12 +609,15 @@ class TestResponseStructure:
 
     def test_success_response_includes_tier_field(self):
         """Test that success responses include tier field for each theorem."""
-        from lean_proof_auto_mcp.tools.rank_targets import rank_targets
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
+
+        from lean_proof_auto_mcp.tools.rank_targets import rank_targets
 
         # Create a temporary Lean file with a theorem
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.lean', delete=False, encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".lean", delete=False, encoding="utf-8"
+        ) as f:
             f.write("theorem test : True := trivial\n")
             temp_file = f.name
 

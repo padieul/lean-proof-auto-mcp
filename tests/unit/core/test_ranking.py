@@ -199,8 +199,12 @@ class TestComputeSuccessLikelihood:
             "local_lemmas_count": 1,
         }
 
-        score_no = compute_success_likelihood(signals_no_induction, config.success_likelihood_scoring)
-        score_with = compute_success_likelihood(signals_with_induction, config.success_likelihood_scoring)
+        score_no = compute_success_likelihood(
+            signals_no_induction, config.success_likelihood_scoring
+        )
+        score_with = compute_success_likelihood(
+            signals_with_induction, config.success_likelihood_scoring
+        )
 
         assert score_with < score_no  # Induction should reduce score
 
@@ -415,7 +419,9 @@ class TestComputeSubgoalPotential:
             "confidence": 0.8,
         }
 
-        score = compute_subgoal_potential(signals, structure=None, config=config.subgoal_potential_scoring)
+        score = compute_subgoal_potential(
+            signals, structure=None, config=config.subgoal_potential_scoring
+        )
         assert score > 0.4  # Should be based on signals only
         assert score <= 1.0
 
@@ -431,8 +437,12 @@ class TestComputeSubgoalPotential:
             "blocks": [],
         }
 
-        score_without = compute_subgoal_potential(signals, structure=None, config=config.subgoal_potential_scoring)
-        score_with = compute_subgoal_potential(signals, structure=structure, config=config.subgoal_potential_scoring)
+        score_without = compute_subgoal_potential(
+            signals, structure=None, config=config.subgoal_potential_scoring
+        )
+        score_with = compute_subgoal_potential(
+            signals, structure=structure, config=config.subgoal_potential_scoring
+        )
 
         assert score_with > score_without  # Cases should boost score
 
@@ -448,8 +458,12 @@ class TestComputeSubgoalPotential:
             "blocks": [{"kind": "rewrite_simp"}, {"kind": "closing"}],
         }
 
-        score_without = compute_subgoal_potential(signals, structure=None, config=config.subgoal_potential_scoring)
-        score_with = compute_subgoal_potential(signals, structure=structure, config=config.subgoal_potential_scoring)
+        score_without = compute_subgoal_potential(
+            signals, structure=None, config=config.subgoal_potential_scoring
+        )
+        score_with = compute_subgoal_potential(
+            signals, structure=structure, config=config.subgoal_potential_scoring
+        )
 
         assert score_with > score_without  # Rewrite_simp blocks should boost score
 
@@ -465,7 +479,9 @@ class TestComputeSubgoalPotential:
             "blocks": [{"kind": "skeleton"}, {"kind": "rewrite_simp"}, {"kind": "closing"}],
         }
 
-        score = compute_subgoal_potential(signals, structure=structure, config=config.subgoal_potential_scoring)
+        score = compute_subgoal_potential(
+            signals, structure=structure, config=config.subgoal_potential_scoring
+        )
         assert score > 0.4  # Multiple blocks should boost score
 
     def test_low_confidence_penalty(self, config):
@@ -481,7 +497,9 @@ class TestComputeSubgoalPotential:
         }
 
         score_low = compute_subgoal_potential(signals_low, config=config.subgoal_potential_scoring)
-        score_high = compute_subgoal_potential(signals_high, config=config.subgoal_potential_scoring)
+        score_high = compute_subgoal_potential(
+            signals_high, config=config.subgoal_potential_scoring
+        )
 
         assert score_high > score_low
 
@@ -497,7 +515,9 @@ class TestComputeSubgoalPotential:
             "blocks": [{"kind": "rewrite_simp"}, {"kind": "closing"}],
         }
 
-        score = compute_subgoal_potential(signals, structure=structure, config=config.subgoal_potential_scoring)
+        score = compute_subgoal_potential(
+            signals, structure=structure, config=config.subgoal_potential_scoring
+        )
         assert 0.0 <= score <= 1.0
 
 
@@ -1437,7 +1457,10 @@ class TestGetAvailableObjectives:
         objectives = get_available_objectives()
         maximize_impact = next(obj for obj in objectives if obj["name"] == "maximize_impact")
 
-        assert "time" in maximize_impact["description"].lower() or "roi" in maximize_impact["description"].lower()
+        assert (
+            "time" in maximize_impact["description"].lower()
+            or "roi" in maximize_impact["description"].lower()
+        )
         assert maximize_impact["weights"]["impact"] == 0.40
 
 

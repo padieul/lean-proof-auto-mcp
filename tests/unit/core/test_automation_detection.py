@@ -270,7 +270,9 @@ class TestPatternBasedDetectorTrivial:
     def test_trivial_has_highest_penalty(self, detector):
         """Test that trivial proofs have highest penalty."""
         trivial_status = detector.detect(":= rfl", "theorem test := rfl", set())
-        attribute_status = detector.detect("by exact h", "@[aesop] theorem test := by exact h", {"exact"})
+        attribute_status = detector.detect(
+            "by exact h", "@[aesop] theorem test := by exact h", {"exact"}
+        )
         tactic_status = detector.detect("by aesop", "theorem test := by aesop", {"aesop"})
 
         # Trivial should have highest penalty
@@ -344,7 +346,7 @@ class TestPatternBasedDetectorNoFalsePositives:
 
     def test_proof_mentioning_aesop_in_comment_not_detected(self, detector):
         """Test that comments mentioning automation are not detected.
-        
+
         Note: This test demonstrates a known limitation - the detector
         will find 'aesop' in comments. This is acceptable as it's
         conservative (false positive is better than false negative).

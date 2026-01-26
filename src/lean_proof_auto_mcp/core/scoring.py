@@ -6,9 +6,19 @@ automation scores that estimate how well different automation tools
 """
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .features import TheoremFeatures
 from .segmenter import ProofStructure
+
+if TYPE_CHECKING:
+    from .config import (
+        AesopScoringConfig,
+        AnnotationValueScoringConfig,
+        GrindScoringConfig,
+        HeuristicsConfig,
+        SubgoalPotentialScoringConfig,
+    )
 
 
 @dataclass(frozen=True)
@@ -51,7 +61,9 @@ class AutomationProfile:
 
 
 def compute_profile(
-    features: TheoremFeatures, structure: ProofStructure | None = None, config: "HeuristicsConfig | None" = None
+    features: TheoremFeatures,
+    structure: ProofStructure | None = None,
+    config: "HeuristicsConfig | None" = None,
 ) -> AutomationProfile:
     """Compute automation scores from features.
 
@@ -69,15 +81,20 @@ def compute_profile(
     # Load default config if not provided
     if config is None:
         from .config import load_default_config
+
         config = load_default_config()
-    
+
     # Compute individual scores
     aesop_whole = score_aesop_potential(features, config.aesop_scoring)
     grind_whole = score_grind_potential(features, config.grind_scoring)
 
     # Compute subgoal scores (enhanced if we have structure info)
-    aesop_subgoal = _score_aesop_subgoal_potential(features, structure, config.subgoal_potential_scoring)
-    grind_subgoal = _score_grind_subgoal_potential(features, structure, config.subgoal_potential_scoring)
+    aesop_subgoal = _score_aesop_subgoal_potential(
+        features, structure, config.subgoal_potential_scoring
+    )
+    grind_subgoal = _score_grind_subgoal_potential(
+        features, structure, config.subgoal_potential_scoring
+    )
 
     # Compute annotation value
     annotation_value = score_annotation_value(features, config.annotation_value_scoring)
@@ -128,9 +145,11 @@ def score_aesop_potential(features: TheoremFeatures, config: "AesopScoringConfig
         if features.confidence >= tier.threshold:
             score += tier.bonus
             break  # Use the first matching tier (highest threshold)
-    
+
     # If no tier matched but confidence > 0, give minimal bonus
-    if features.confidence > 0.0 and not any(features.confidence >= tier.threshold for tier in config.confidence_bonuses):
+    if features.confidence > 0.0 and not any(
+        features.confidence >= tier.threshold for tier in config.confidence_bonuses
+    ):
         score += 0.05  # Minimal bonus for any confidence
 
     # Aesop likes structural tactics
@@ -151,7 +170,7 @@ def score_aesop_potential(features: TheoremFeatures, config: "AesopScoringConfig
     if structural_count > 0:
         score += min(
             config.structural_tactics_max_bonus,
-            structural_count * config.structural_tactics_bonus_per_tactic
+            structural_count * config.structural_tactics_bonus_per_tactic,
         )
 
     # Enhanced term-mode proof support
@@ -167,8 +186,7 @@ def score_aesop_potential(features: TheoremFeatures, config: "AesopScoringConfig
     term_mode_count = len(features.tactic_kinds & term_mode_patterns)
     if term_mode_count > 0:
         score += min(
-            config.term_mode_max_bonus,
-            term_mode_count * config.term_mode_bonus_per_pattern
+            config.term_mode_max_bonus, term_mode_count * config.term_mode_bonus_per_pattern
         )
 
     # Aesop prefers shorter proofs
@@ -191,7 +209,7 @@ def score_aesop_potential(features: TheoremFeatures, config: "AesopScoringConfig
     if "tactic_mode" in features.tactic_kinds:
         score += config.tactic_mode_bonus
 
-    return max(0.0, min(1.0, score))
+    return float(max(0.0, min(1.0, score)))
 
 
 def score_grind_potential(features: TheoremFeatures, config: "GrindScoringConfig") -> float:
@@ -219,24 +237,22 @@ def score_grind_potential(features: TheoremFeatures, config: "GrindScoringConfig
         if features.confidence >= tier.threshold:
             score += tier.bonus
             break  # Use the first matching tier (highest threshold)
-    
+
     # If no tier matched but confidence > 0, give minimal bonus
-    if features.confidence > 0.0 and not any(features.confidence >= tier.threshold for tier in config.confidence_bonuses):
+    if features.confidence > 0.0 and not any(
+        features.confidence >= tier.threshold for tier in config.confidence_bonuses
+    ):
         score += 0.05  # Minimal bonus for any confidence
 
     # Grind likes rewrite-heavy proofs
     if features.rewrite_count > 0:
         score += min(
-            config.rewrite_max_bonus,
-            features.rewrite_count * config.rewrite_bonus_per_count
+            config.rewrite_max_bonus, features.rewrite_count * config.rewrite_bonus_per_count
         )
 
     # Grind likes simp usage
     if features.simp_count > 0:
-        score += min(
-            config.simp_max_bonus,
-            features.simp_count * config.simp_bonus_per_count
-        )
+        score += min(config.simp_max_bonus, features.simp_count * config.simp_bonus_per_count)
 
     # Enhanced term-mode proof support for algebraic reasoning
     algebraic_term_patterns = {"map_application", "ring_hom_application", "term_application"}
@@ -244,11 +260,15 @@ def score_grind_potential(features: TheoremFeatures, config: "GrindScoringConfig
     if algebraic_term_count > 0:
         score += min(
             config.algebraic_terms_max_bonus,
-            algebraic_term_count * config.algebraic_terms_bonus_per_pattern
+            algebraic_term_count * config.algebraic_terms_bonus_per_pattern,
         )
 
     # Grind works well with medium-length proofs
-    if config.proof_length_min_for_bonus <= features.proof_lines <= config.proof_length_max_for_bonus:
+    if (
+        config.proof_length_min_for_bonus
+        <= features.proof_lines
+        <= config.proof_length_max_for_bonus
+    ):
         score += config.proof_length_bonus
     elif features.proof_lines <= config.proof_length_min_for_bonus:
         score += config.short_proof_bonus  # Still good, but less opportunity
@@ -265,17 +285,19 @@ def score_grind_potential(features: TheoremFeatures, config: "GrindScoringConfig
     if algebraic_count > 0:
         score += min(
             config.algebraic_tactics_max_bonus,
-            algebraic_count * config.algebraic_tactics_bonus_per_tactic
+            algebraic_count * config.algebraic_tactics_bonus_per_tactic,
         )
 
     # Enhanced pattern recognition
     if "term_proof" in features.tactic_kinds and features.rewrite_count == 0:
         score += config.pure_term_proof_bonus
 
-    return max(0.0, min(1.0, score))
+    return float(max(0.0, min(1.0, score)))
 
 
-def score_annotation_value(features: TheoremFeatures, config: "AnnotationValueScoringConfig") -> float:
+def score_annotation_value(
+    features: TheoremFeatures, config: "AnnotationValueScoringConfig"
+) -> float:
     """ROI estimate: long proof + patterns + local lemmas.
 
     Estimates the return on investment for adding automation annotations
@@ -300,7 +322,7 @@ def score_annotation_value(features: TheoremFeatures, config: "AnnotationValueSc
         if features.confidence >= tier.threshold:
             score += tier.bonus
             break  # Use the first matching tier (highest threshold)
-    
+
     # Low confidence reduces annotation value significantly
     if features.confidence == 0.0:
         score += config.low_confidence_penalty  # Penalty is negative
@@ -315,7 +337,7 @@ def score_annotation_value(features: TheoremFeatures, config: "AnnotationValueSc
     if features.local_lemmas_count > 0:
         score += min(
             config.local_lemmas_max_bonus,
-            features.local_lemmas_count * config.local_lemmas_bonus_per_count
+            features.local_lemmas_count * config.local_lemmas_bonus_per_count,
         )
 
     # Repeated patterns (high tactic diversity) suggest automation opportunities
@@ -344,33 +366,36 @@ def score_annotation_value(features: TheoremFeatures, config: "AnnotationValueSc
     if features.has_induction or features.has_cases:
         score += config.structural_proof_bonus
 
-    return max(0.0, min(1.0, score))
+    return float(max(0.0, min(1.0, score)))
 
 
 def _score_aesop_subgoal_potential(
-    features: TheoremFeatures, structure: ProofStructure | None, config: "SubgoalPotentialScoringConfig"
+    features: TheoremFeatures,
+    structure: ProofStructure | None,
+    config: "SubgoalPotentialScoringConfig",
 ) -> float:
     """Score aesop potential for individual subgoals.
 
     Aesop can be useful for automating individual subgoals even when
     it can't solve the whole goal, especially in case analysis.
     Enhanced to better use confidence information.
-    
+
     Args:
         features: Theorem features to analyze
         structure: Optional proof structure analysis
         config: Subgoal potential scoring configuration
-    
+
     Returns:
         Score between 0.0 and 1.0 indicating aesop subgoal potential
     """
     # Import here to avoid circular dependency
     from .config import load_default_config
+
     full_config = load_default_config()
-    
+
     # Start with a confidence-adjusted base score
     base_score = score_aesop_potential(features, full_config.aesop_scoring)
-    
+
     # Apply confidence multiplier
     for multiplier in config.confidence_multipliers:
         if features.confidence >= multiplier.threshold:
@@ -385,7 +410,7 @@ def _score_aesop_subgoal_potential(
     if structure and structure.cases:
         base_score += min(
             config.structure_cases_max_bonus,
-            len(structure.cases) * config.structure_cases_bonus_per_case
+            len(structure.cases) * config.structure_cases_bonus_per_case,
         )
 
     # Enhanced term-mode support for subgoals
@@ -396,29 +421,32 @@ def _score_aesop_subgoal_potential(
 
 
 def _score_grind_subgoal_potential(
-    features: TheoremFeatures, structure: ProofStructure | None, config: "SubgoalPotentialScoringConfig"
+    features: TheoremFeatures,
+    structure: ProofStructure | None,
+    config: "SubgoalPotentialScoringConfig",
 ) -> float:
     """Score grind potential for individual subgoals.
 
     Grind can be useful for automating rewrite-heavy subgoals even
     when the overall proof structure doesn't suit it.
     Enhanced to better use confidence information.
-    
+
     Args:
         features: Theorem features to analyze
         structure: Optional proof structure analysis
         config: Subgoal potential scoring configuration
-    
+
     Returns:
         Score between 0.0 and 1.0 indicating grind subgoal potential
     """
     # Import here to avoid circular dependency
     from .config import load_default_config
+
     full_config = load_default_config()
-    
+
     # Start with a confidence-adjusted base score
     base_score = score_grind_potential(features, full_config.grind_scoring)
-    
+
     # Apply confidence multiplier (using slightly higher multipliers for grind)
     for multiplier in config.confidence_multipliers:
         if features.confidence >= multiplier.threshold:
@@ -433,7 +461,7 @@ def _score_grind_subgoal_potential(
         if rewrite_blocks:
             base_score += min(
                 config.rewrite_blocks_max_bonus,
-                len(rewrite_blocks) * config.rewrite_blocks_bonus_per_block
+                len(rewrite_blocks) * config.rewrite_blocks_bonus_per_block,
             )
 
     # Enhanced algebraic term-mode support for subgoals

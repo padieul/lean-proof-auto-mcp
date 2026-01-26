@@ -70,7 +70,7 @@ class RankTargetsArgs:
 
         if not (0.0 <= self.min_confidence <= 1.0):
             raise ValueError(f"min_confidence must be in [0.0, 1.0], got {self.min_confidence}")
-        
+
         if not isinstance(self.skip_already_automated, bool):
             raise ValueError("skip_already_automated must be a boolean")
 
@@ -96,14 +96,13 @@ def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
     objective = args.get("objective", "balanced")
     if not isinstance(objective, str):
         raise ValueError("rank_targets: 'objective' must be a string")
-    
+
     # Validate objective and provide helpful error message
     if objective not in OBJECTIVE_WEIGHTS:
         available = get_available_objectives()
-        objective_list = "\n".join([
-            f"  - {obj['name']}: {obj['description']}"
-            for obj in available
-        ])
+        objective_list = "\n".join(
+            [f"  - {obj['name']}: {obj['description']}" for obj in available]
+        )
         raise ValueError(
             f"rank_targets: invalid objective '{objective}'\n"
             f"Available objectives:\n{objective_list}"
@@ -128,11 +127,11 @@ def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
     min_confidence = args.get("min_confidence", 0.0)
     if not isinstance(min_confidence, (int, float)):
         raise ValueError("rank_targets: 'min_confidence' must be a number")
-    
+
     skip_already_automated = args.get("skip_already_automated", False)
     if not isinstance(skip_already_automated, bool):
         raise ValueError("rank_targets: 'skip_already_automated' must be a boolean")
-    
+
     config_path = args.get("config_path")
     if config_path is not None and not isinstance(config_path, str):
         raise ValueError("rank_targets: 'config_path' must be a string or None")
@@ -173,9 +172,9 @@ def _load_theorem_data(
         Exception: If scan_file fails or returns error status
     """
     from pathlib import Path
-    
+
     from ..core.indexer import build_index
-    
+
     diagnostics = []
     skipped_automated_count = 0
 
@@ -195,22 +194,22 @@ def _load_theorem_data(
     # Propagate scan_file diagnostics
     scan_file_diagnostics = scan_file_result.get("diagnostics", [])
     diagnostics.extend(scan_file_diagnostics)
-    
+
     # Load source file and build index for automation detection
     try:
         file_path = Path(file)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file}")
-        
+
         with open(file_path, encoding="utf-8") as f:
             text = f.read()
-        
+
         source = SourceText(path=file, text=text)
         index = build_index(source)
-        
+
         # Create detector with provided config
         detector = PatternBasedDetector(config.automation_detection)
-        
+
     except Exception as e:
         diagnostics.append(
             {
@@ -289,7 +288,7 @@ def _load_theorem_data(
                 signals["has_induction"] = True
             if "cases" in note_lower or "case" in note_lower:
                 signals["has_cases"] = True
-        
+
         # Detect automation if source and detector are available
         if source and index and detector:
             try:
@@ -299,33 +298,33 @@ def _load_theorem_data(
                     if d.theorem_id == theorem_id:
                         decl = d
                         break
-                
+
                 if decl:
                     # Extract proof text and declaration text
                     proof_text = ""
                     if decl.proof_span:
                         proof_text = source.get_span_text(decl.proof_span)
-                    
+
                     decl_text = source.get_span_text(decl.decl_span)
-                    
+
                     # Get tactic kinds from notes (if available)
-                    tactic_kinds = set()
+                    tactic_kinds: set[str] = set()
                     # We don't have direct access to tactic_kinds here, so we'll pass empty set
                     # The detector will still check proof text patterns
-                    
+
                     # Detect automation
                     status = detector.detect(proof_text, decl_text, tactic_kinds)
-                    
+
                     # Update signals
                     signals["already_automated"] = status.is_automated
                     signals["automation_penalty"] = status.penalty
                     signals["automation_type"] = status.automation_type
-                    
+
                     # Filter if requested
                     if skip_already_automated and status.is_automated:
                         skipped_automated_count += 1
                         continue  # Skip this theorem
-                        
+
             except Exception as e:
                 diagnostics.append(
                     {
@@ -448,16 +447,16 @@ def _format_response(
     """
     # Generate run_id
     run_id = _generate_run_id(args.file, "rank")
-    
+
     # Load configuration for tier assignment
     config = load_default_config()
-    
+
     # Assign tiers to ranked theorems
     theorems_with_tiers = assign_tiers(ranked_theorems, config.tiers)
 
     # Build ranking array
     ranking = []
-    for (ranked, tier) in theorems_with_tiers[: args.limit]:
+    for ranked, tier in theorems_with_tiers[: args.limit]:
         theorem_data = ranked.theorem_data
         components = ranked.components
 
@@ -497,7 +496,7 @@ def _format_response(
         }
 
         ranking.append(theorem_obj)
-    
+
     # Calculate tier distribution for all ranked theorems (not just returned ones)
     tier_counts = {
         "S": sum(1 for _, t in theorems_with_tiers if t == "S"),
@@ -601,21 +600,22 @@ def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
         # Load configuration
         import os
         from pathlib import Path
-        
+
         if parsed.config_path:
             # Load from provided path
             config = load_config(Path(parsed.config_path))
             config_source = parsed.config_path
-        elif os.getenv("LEAN_PROOF_AUTO_MCP_CONFIG"):
-            # Load from environment variable
-            env_path = os.getenv("LEAN_PROOF_AUTO_MCP_CONFIG")
-            config = load_config(Path(env_path))
-            config_source = f"environment:{env_path}"
         else:
-            # Load package default
-            config = load_default_config()
-            config_source = "default"
-        
+            env_path = os.getenv("LEAN_PROOF_AUTO_MCP_CONFIG")
+            if env_path:
+                # Load from environment variable
+                config = load_config(Path(env_path))
+                config_source = f"environment:{env_path}"
+            else:
+                # Load package default
+                config = load_default_config()
+                config_source = "default"
+
         # Load theorem data
         theorem_data_list, diagnostics, scan_file_run_id, skipped_automated = _load_theorem_data(
             parsed.file, parsed.use_deep_structure, parsed.skip_already_automated, config

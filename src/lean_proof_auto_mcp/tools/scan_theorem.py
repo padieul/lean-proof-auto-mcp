@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from ..core.config import load_config, load_default_config
@@ -73,7 +74,9 @@ def _coerce_args(args: dict[str, Any]) -> ScanTheoremArgs:
         raise ValueError("scan_theorem: 'config_path' must be a string or null")
 
     return ScanTheoremArgs(
-        file=file, target=TheoremTarget(theorem_id=parsed_theorem_id, range=parsed_range), config_path=config_path
+        file=file,
+        target=TheoremTarget(theorem_id=parsed_theorem_id, range=parsed_range),
+        config_path=config_path,
     )
 
 
@@ -119,10 +122,8 @@ def scan_theorem(args: dict[str, Any]) -> dict[str, Any]:
             config = load_config(Path(parsed.config_path))
         else:
             config = load_default_config()
-        
-        # Try to read file (I/O boundary)
-        from pathlib import Path
 
+        # Try to read file (I/O boundary)
         file_path = Path(parsed.file)
         text = ""
         diagnostics = []

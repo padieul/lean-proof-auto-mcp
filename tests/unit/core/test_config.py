@@ -3,31 +3,30 @@
 Tests configuration loading, validation, and environment variable support.
 """
 
-import os
-import pytest
 from pathlib import Path
+
+import pytest
+
 from lean_proof_auto_mcp.core.config import (
-    load_default_config,
-    load_config,
-    YamlHeuristicsConfig,
-    ConfidenceConfig,
-    AesopScoringConfig,
-    TierConfig,
     AutomationDetectionConfig,
+    ConfidenceConfig,
+    TierConfig,
+    load_config,
+    load_default_config,
 )
 
 
 class TestLoadDefaultConfig:
     """Test loading default configuration."""
-    
+
     def test_load_default_config_succeeds(self):
         """Test that default configuration loads successfully."""
         config = load_default_config()
-        
+
         # Verify config is loaded
         assert config is not None
         assert config.version == "1.0"
-        
+
         # Verify all sections are present
         assert config.confidence is not None
         assert config.aesop_scoring is not None
@@ -40,33 +39,33 @@ class TestLoadDefaultConfig:
         assert config.objectives is not None
         assert config.automation_detection is not None
         assert config.tiers is not None
-    
+
     def test_default_config_has_expected_values(self):
         """Test that default configuration has expected values."""
         config = load_default_config()
-        
+
         # Check confidence config
         assert config.confidence.base_score == 0.3
         assert config.confidence.proof_structure_bonus == 0.2
-        
+
         # Check aesop scoring config
         assert config.aesop_scoring.base_score == 0.2
-        
+
         # Check objectives
         assert len(config.objectives) == 4
         assert "maximize_success" in config.objectives
         assert "maximize_impact" in config.objectives
         assert "maximize_subgoal_automation" in config.objectives
         assert "balanced" in config.objectives
-    
+
     def test_default_config_objectives_have_metadata(self):
         """Test that objectives have description and use_case."""
         config = load_default_config()
-        
+
         for obj_name, obj_config in config.objectives.items():
             assert obj_config.description, f"{obj_name} missing description"
             assert obj_config.use_case, f"{obj_name} missing use_case"
-            
+
             # Check weights are present
             assert hasattr(obj_config, "weight_success_likelihood")
             assert hasattr(obj_config, "weight_impact")
@@ -77,7 +76,7 @@ class TestLoadDefaultConfig:
 
 class TestLoadCustomConfig:
     """Test loading custom configuration from file."""
-    
+
     def test_load_custom_config_succeeds(self, tmp_path):
         """Test loading custom configuration from file."""
         config_file = tmp_path / "custom.yaml"
@@ -309,14 +308,14 @@ tiers:
   b_tier_percentile: 50
   c_tier_percentile: 75
 """)
-        
+
         config = load_config(config_file)
-        
+
         # Verify custom values are loaded
         assert config.confidence.base_score == 0.5
         assert config.confidence.proof_structure_bonus == 0.3
         assert config.aesop_scoring.base_score == 0.3
-    
+
     def test_load_nonexistent_config_raises_error(self):
         """Test that loading nonexistent config raises FileNotFoundError."""
         with pytest.raises(FileNotFoundError, match="Configuration file not found"):
@@ -325,27 +324,27 @@ tiers:
 
 class TestConfigVersionValidation:
     """Test configuration version validation."""
-    
+
     def test_invalid_config_version_raises_error(self, tmp_path):
         """Test that invalid version raises error with clear message."""
         config_file = tmp_path / "invalid_version.yaml"
         config_file.write_text('version: "2.0"')
-        
+
         with pytest.raises(ValueError, match="Unsupported configuration version: 2.0"):
             load_config(config_file)
-    
+
     def test_missing_version_raises_error(self, tmp_path):
         """Test that missing version raises error."""
         config_file = tmp_path / "no_version.yaml"
-        config_file.write_text('confidence: { base_score: 0.3 }')
-        
+        config_file.write_text("confidence: { base_score: 0.3 }")
+
         with pytest.raises(ValueError, match="Unsupported configuration version: None"):
             load_config(config_file)
 
 
 class TestConfigValueValidation:
     """Test configuration value validation."""
-    
+
     def test_invalid_base_score_raises_error(self):
         """Test that base_score > 1.0 raises error."""
         with pytest.raises(ValueError, match="base_score must be in \\[0.0, 1.0\\]"):
@@ -363,7 +362,7 @@ class TestConfigValueValidation:
                 proof_length_max=50,
                 proof_length_max_bonus=0.05,
             )
-    
+
     def test_negative_base_score_raises_error(self):
         """Test that negative base_score raises error."""
         with pytest.raises(ValueError, match="base_score must be in \\[0.0, 1.0\\]"):
@@ -381,7 +380,7 @@ class TestConfigValueValidation:
                 proof_length_max=50,
                 proof_length_max_bonus=0.05,
             )
-    
+
     def test_invalid_penalty_raises_error(self):
         """Test that penalty > 0 raises error."""
         with pytest.raises(ValueError, match="sorry_penalty must be in \\[-1.0, 0.0\\]"):
@@ -399,7 +398,7 @@ class TestConfigValueValidation:
                 proof_length_max=50,
                 proof_length_max_bonus=0.05,
             )
-    
+
     def test_invalid_proof_length_range_raises_error(self):
         """Test that proof_length_max < proof_length_min raises error."""
         with pytest.raises(ValueError, match="proof_length_max .* must be >= proof_length_min"):
@@ -417,7 +416,7 @@ class TestConfigValueValidation:
                 proof_length_max=10,  # Invalid (less than min)
                 proof_length_max_bonus=0.05,
             )
-    
+
     def test_invalid_tier_thresholds_raise_error(self):
         """Test that non-monotonic tier thresholds raise error."""
         with pytest.raises(ValueError, match="Tier thresholds must be strictly increasing"):
@@ -427,7 +426,7 @@ class TestConfigValueValidation:
                 b_tier_percentile=20,  # Invalid (not increasing)
                 c_tier_percentile=75,
             )
-    
+
     def test_tier_threshold_out_of_range_raises_error(self):
         """Test that tier threshold outside (0, 100) raises error."""
         with pytest.raises(ValueError, match="Tier threshold .* must be in \\(0, 100\\)"):
@@ -437,7 +436,7 @@ class TestConfigValueValidation:
                 b_tier_percentile=50,
                 c_tier_percentile=100,  # Invalid (must be < 100)
             )
-    
+
     def test_automation_detection_penalty_out_of_range_raises_error(self):
         """Test that automation detection penalty > 1.0 raises error."""
         with pytest.raises(ValueError, match="tactic_penalty must be in \\[0.0, 1.0\\]"):
@@ -453,7 +452,7 @@ class TestConfigValueValidation:
 
 class TestEnvironmentVariableSupport:
     """Test environment variable support for configuration."""
-    
+
     def test_env_var_overrides_default(self, tmp_path, monkeypatch):
         """Test that LEAN_PROOF_AUTO_MCP_CONFIG environment variable is used."""
         # Create custom config
@@ -683,35 +682,35 @@ tiers:
   b_tier_percentile: 50
   c_tier_percentile: 75
 """)
-        
+
         # Set environment variable
         monkeypatch.setenv("LEAN_PROOF_AUTO_MCP_CONFIG", str(config_file))
-        
+
         # Load config (should use env var)
         config = load_default_config()
-        
+
         # Verify custom value from env var config
         assert config.confidence.base_score == 0.7
-    
+
     def test_no_env_var_uses_package_default(self, monkeypatch):
         """Test that without env var, package default is used."""
         # Ensure env var is not set
         monkeypatch.delenv("LEAN_PROOF_AUTO_MCP_CONFIG", raising=False)
-        
+
         # Load config (should use package default)
         config = load_default_config()
-        
+
         # Verify default value
         assert config.confidence.base_score == 0.3
 
 
 class TestConfigImmutability:
     """Test that configuration is immutable."""
-    
+
     def test_config_is_frozen(self):
         """Test that config dataclasses are frozen."""
         config = load_default_config()
-        
+
         # Attempt to modify should raise error
-        with pytest.raises(Exception):  # FrozenInstanceError or AttributeError
-            config.confidence.base_score = 0.9  # type: ignore
+        with pytest.raises((AttributeError, Exception)):  # FrozenInstanceError or AttributeError
+            config.confidence.base_score = 0.9

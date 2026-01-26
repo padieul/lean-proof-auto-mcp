@@ -24,11 +24,11 @@ def _coerce_args(args: dict[str, Any]) -> ScanFileArgs:
     file = args.get("file")
     if not isinstance(file, str) or not file.strip():
         raise ValueError("scan_file: 'file' must be a non-empty string")
-    
+
     config_path = args.get("config_path")
     if config_path is not None and not isinstance(config_path, str):
         raise ValueError("scan_file: 'config_path' must be a string or null")
-    
+
     return ScanFileArgs(file=file, config_path=config_path)
 
 
@@ -77,7 +77,7 @@ def scan_file(args: dict[str, Any]) -> dict[str, Any]:
             config = load_config(Path(parsed.config_path))
         else:
             config = load_default_config()
-        
+
         # Try to read file (I/O boundary)
         file_path = Path(parsed.file)
         text = ""

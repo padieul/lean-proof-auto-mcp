@@ -14,7 +14,6 @@ from lean_proof_auto_mcp.core.scoring import (
 from lean_proof_auto_mcp.core.segmenter import CaseBlock, ProofBlock, ProofStructure
 from lean_proof_auto_mcp.core.source import Span
 
-
 # Load default config once for all tests
 DEFAULT_CONFIG = load_default_config()
 
@@ -396,8 +395,12 @@ class TestScoreAnnotationValue:
             confidence=0.8,
         )
 
-        score_no_local = score_annotation_value(features_no_local, DEFAULT_CONFIG.annotation_value_scoring)
-        score_with_local = score_annotation_value(features_with_local, DEFAULT_CONFIG.annotation_value_scoring)
+        score_no_local = score_annotation_value(
+            features_no_local, DEFAULT_CONFIG.annotation_value_scoring
+        )
+        score_with_local = score_annotation_value(
+            features_with_local, DEFAULT_CONFIG.annotation_value_scoring
+        )
 
         assert score_with_local > score_no_local
 
@@ -425,8 +428,12 @@ class TestScoreAnnotationValue:
             confidence=0.8,
         )
 
-        score_simple = score_annotation_value(features_simple, DEFAULT_CONFIG.annotation_value_scoring)
-        score_diverse = score_annotation_value(features_diverse, DEFAULT_CONFIG.annotation_value_scoring)
+        score_simple = score_annotation_value(
+            features_simple, DEFAULT_CONFIG.annotation_value_scoring
+        )
+        score_diverse = score_annotation_value(
+            features_diverse, DEFAULT_CONFIG.annotation_value_scoring
+        )
 
         assert score_diverse > score_simple
 
@@ -454,8 +461,12 @@ class TestScoreAnnotationValue:
             confidence=0.9,
         )
 
-        score_low = score_annotation_value(features_low_conf, DEFAULT_CONFIG.annotation_value_scoring)
-        score_high = score_annotation_value(features_high_conf, DEFAULT_CONFIG.annotation_value_scoring)
+        score_low = score_annotation_value(
+            features_low_conf, DEFAULT_CONFIG.annotation_value_scoring
+        )
+        score_high = score_annotation_value(
+            features_high_conf, DEFAULT_CONFIG.annotation_value_scoring
+        )
 
         assert score_high > score_low
 
@@ -810,7 +821,9 @@ class TestBoundaryConditions:
 
         assert score_aesop_potential(empty_features, DEFAULT_CONFIG.aesop_scoring) == 0.0
         assert score_grind_potential(empty_features, DEFAULT_CONFIG.grind_scoring) == 0.0
-        assert score_annotation_value(empty_features, DEFAULT_CONFIG.annotation_value_scoring) == 0.0
+        assert (
+            score_annotation_value(empty_features, DEFAULT_CONFIG.annotation_value_scoring) == 0.0
+        )
 
     def test_score_bounds_enforcement(self):
         """Test that all scores stay within [0.0, 1.0] bounds."""
@@ -867,10 +880,9 @@ class TestBoundaryConditions:
         assert len(decimal_part) <= 2
 
 
-
 class TestConfidenceInNotes:
     """Test that numeric confidence is included in notes."""
-    
+
     def test_generate_notes_includes_numeric_confidence(self):
         """Test that notes include numeric confidence value."""
         features = TheoremFeatures(
@@ -883,16 +895,18 @@ class TestConfidenceInNotes:
             local_lemmas_count=0,
             confidence=0.85,
         )
-        
+
         profile = compute_profile(features, config=DEFAULT_CONFIG)
-        
+
         # Check numeric confidence is in notes
-        assert any("confidence: 0.85" in note for note in profile.notes), \
+        assert any("confidence: 0.85" in note for note in profile.notes), (
             f"Expected 'confidence: 0.85' in notes, got: {profile.notes}"
+        )
         # Check qualitative note is also present
-        assert any("high confidence" in note.lower() for note in profile.notes), \
+        assert any("high confidence" in note.lower() for note in profile.notes), (
             f"Expected 'high confidence' in notes, got: {profile.notes}"
-    
+        )
+
     def test_generate_notes_no_confidence_when_zero(self):
         """Test that zero confidence doesn't add numeric note."""
         features = TheoremFeatures(
@@ -905,13 +919,14 @@ class TestConfidenceInNotes:
             local_lemmas_count=0,
             confidence=0.0,
         )
-        
+
         profile = compute_profile(features, config=DEFAULT_CONFIG)
-        
+
         # No numeric confidence note when zero
-        assert not any("confidence:" in note for note in profile.notes), \
+        assert not any("confidence:" in note for note in profile.notes), (
             f"Expected no 'confidence:' in notes for zero confidence, got: {profile.notes}"
-    
+        )
+
     def test_confidence_note_is_first(self):
         """Test that confidence note appears first when present."""
         features = TheoremFeatures(
@@ -924,17 +939,20 @@ class TestConfidenceInNotes:
             local_lemmas_count=0,
             confidence=0.75,
         )
-        
+
         profile = compute_profile(features, config=DEFAULT_CONFIG)
-        
+
         # Find confidence note
         confidence_notes = [note for note in profile.notes if "confidence:" in note]
-        assert len(confidence_notes) == 1, f"Expected exactly one confidence note, got: {confidence_notes}"
-        
+        assert len(confidence_notes) == 1, (
+            f"Expected exactly one confidence note, got: {confidence_notes}"
+        )
+
         # Check it's the first note
-        assert profile.notes[0] == confidence_notes[0], \
+        assert profile.notes[0] == confidence_notes[0], (
             f"Expected confidence note to be first, got: {profile.notes}"
-    
+        )
+
     def test_confidence_values_are_formatted_correctly(self):
         """Test that confidence values are formatted to 2 decimal places."""
         test_cases = [
@@ -943,7 +961,7 @@ class TestConfidenceInNotes:
             (0.5, "0.50"),
             (1.0, "1.00"),
         ]
-        
+
         for confidence_value, expected_str in test_cases:
             features = TheoremFeatures(
                 proof_lines=5,
@@ -955,21 +973,23 @@ class TestConfidenceInNotes:
                 local_lemmas_count=0,
                 confidence=confidence_value,
             )
-            
+
             profile = compute_profile(features, config=DEFAULT_CONFIG)
-            
+
             # Check formatted confidence is in notes
-            assert any(f"confidence: {expected_str}" in note for note in profile.notes), \
-                f"Expected 'confidence: {expected_str}' for input {confidence_value}, got: {profile.notes}"
+            assert any(f"confidence: {expected_str}" in note for note in profile.notes), (
+                f"Expected 'confidence: {expected_str}' for input {confidence_value}, "
+                f"got: {profile.notes}"
+            )
 
 
 class TestConfigUsage:
     """Test that config values are actually used (not hardcoded)."""
-    
+
     def test_config_base_score_affects_aesop_scoring(self, tmp_path):
         """Test that changing config base_score affects aesop scoring."""
         from lean_proof_auto_mcp.core.config import load_config
-        
+
         # Create custom config with different base score
         config_file = tmp_path / "custom.yaml"
         config_file.write_text("""
@@ -1196,9 +1216,9 @@ tiers:
   b_tier_percentile: 50
   c_tier_percentile: 75
 """)
-        
+
         custom_config = load_config(config_file)
-        
+
         features = TheoremFeatures(
             proof_lines=5,
             tactic_kinds={"intro"},
@@ -1209,13 +1229,15 @@ tiers:
             local_lemmas_count=0,
             confidence=0.5,
         )
-        
+
         # Score with default config
         score_default = score_aesop_potential(features, DEFAULT_CONFIG.aesop_scoring)
-        
+
         # Score with custom config (base_score = 0.9)
         score_custom = score_aesop_potential(features, custom_config.aesop_scoring)
-        
+
         # Custom config should give much higher score due to high base_score
-        assert score_custom > score_default + 0.3, \
-            f"Expected custom config (base=0.9) to give higher score than default (base=0.2), got {score_custom} vs {score_default}"
+        assert score_custom > score_default + 0.3, (
+            f"Expected custom config (base=0.9) to give higher score than default "
+            f"(base=0.2), got {score_custom} vs {score_default}"
+        )

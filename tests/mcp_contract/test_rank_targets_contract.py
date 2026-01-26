@@ -103,7 +103,9 @@ def test_rank_targets_success_response_validates():
     assert "total" in resp["summary"], "Missing summary.total"
     assert "returned" in resp["summary"], "Missing summary.returned"
     assert "skipped_low_confidence" in resp["summary"], "Missing summary.skipped_low_confidence"
-    assert "skipped_already_automated" in resp["summary"], "Missing summary.skipped_already_automated"
+    assert "skipped_already_automated" in resp["summary"], (
+        "Missing summary.skipped_already_automated"
+    )
     assert "tier_distribution" in resp["summary"], "Missing summary.tier_distribution"
 
     # Verify metadata structure
@@ -113,7 +115,7 @@ def test_rank_targets_success_response_validates():
 
 def test_rank_targets_success_response_conforms_to_schema(rank_targets_validator):
     """Test that rank_targets success response validates against JSON schema.
-    
+
     NOTE: This test will fail until task 11.1 updates the JSON schema files for API 1.0.
     The schema files still expect API 0.x format and don't include new fields like:
     - available_objectives
@@ -142,7 +144,7 @@ def test_rank_targets_fail_response_with_empty_file():
 
 def test_rank_targets_fail_response_conforms_to_schema(rank_targets_validator):
     """Test that rank_targets fail response validates against JSON schema.
-    
+
     NOTE: This test will fail until task 11.1 updates the JSON schema files for API 1.0.
     """
     resp = rank_targets({"file": "", "skip_already_automated": False})
@@ -151,7 +153,11 @@ def test_rank_targets_fail_response_conforms_to_schema(rank_targets_validator):
 
 def test_rank_targets_determinism():
     """Test that rank_targets returns identical output for repeated calls with same input."""
-    input_args = {"file": "test.lean", "objective": "maximize_success", "skip_already_automated": False}
+    input_args = {
+        "file": "test.lean",
+        "objective": "maximize_success",
+        "skip_already_automated": False,
+    }
 
     # Call multiple times
     resp1 = rank_targets(input_args)
@@ -180,8 +186,12 @@ def test_rank_targets_determinism():
 
 def test_rank_targets_determinism_with_different_objectives():
     """Test that rank_targets returns different outputs for different objectives."""
-    resp1 = rank_targets({"file": "test.lean", "objective": "maximize_success", "skip_already_automated": False})
-    resp2 = rank_targets({"file": "test.lean", "objective": "maximize_impact", "skip_already_automated": False})
+    resp1 = rank_targets(
+        {"file": "test.lean", "objective": "maximize_success", "skip_already_automated": False}
+    )
+    resp2 = rank_targets(
+        {"file": "test.lean", "objective": "maximize_impact", "skip_already_automated": False}
+    )
 
     # Responses should differ in the objective field at minimum
     assert resp1["objective"] != resp2["objective"], (
@@ -214,8 +224,12 @@ def test_rank_targets_required_fields_present():
     assert "total" in resp["summary"], "Missing summary.total"
     assert "returned" in resp["summary"], "Missing summary.returned"
     assert "skipped_low_confidence" in resp["summary"], "Missing summary.skipped_low_confidence"
-    assert "skipped_already_automated" in resp["summary"], "Missing summary.skipped_already_automated"  # NEW in API 1.0
-    assert "tier_distribution" in resp["summary"], "Missing summary.tier_distribution"  # NEW in API 1.0
+    assert "skipped_already_automated" in resp["summary"], (
+        "Missing summary.skipped_already_automated"
+    )  # NEW in API 1.0
+    assert "tier_distribution" in resp["summary"], (
+        "Missing summary.tier_distribution"
+    )  # NEW in API 1.0
 
     # Metadata required fields
     assert "deep_structure_used" in resp["metadata"], "Missing metadata.deep_structure_used"
@@ -237,7 +251,9 @@ def test_rank_targets_field_types():
     assert isinstance(resp["summary"], dict), "summary must be object"
     assert isinstance(resp["diagnostics"], list), "diagnostics must be array"
     assert isinstance(resp["metadata"], dict), "metadata must be object"
-    assert isinstance(resp["available_objectives"], list), "available_objectives must be array"  # NEW in API 1.0
+    assert isinstance(resp["available_objectives"], list), (
+        "available_objectives must be array"
+    )  # NEW in API 1.0
 
     # Summary types
     assert isinstance(resp["summary"]["total"], int), "summary.total must be integer"
@@ -272,11 +288,15 @@ def test_rank_targets_objective_enum_validation():
 
     # Test each valid objective
     for objective in valid_objectives:
-        resp = rank_targets({"file": "test.lean", "objective": objective, "skip_already_automated": False})
+        resp = rank_targets(
+            {"file": "test.lean", "objective": objective, "skip_already_automated": False}
+        )
         assert resp["objective"] == objective, f"Objective should be {objective}"
 
     # Test invalid objective
-    resp = rank_targets({"file": "test.lean", "objective": "invalid_objective", "skip_already_automated": False})
+    resp = rank_targets(
+        {"file": "test.lean", "objective": "invalid_objective", "skip_already_automated": False}
+    )
     assert resp["status"] == "fail", "Invalid objective should return fail status"
 
 
@@ -337,7 +357,9 @@ def test_rank_targets_ranking_array_structure():
                 assert "annotation_value" in components, "Missing components.annotation_value"
                 assert "subgoal_potential" in components, "Missing components.subgoal_potential"
                 assert "risk" in components, "Missing components.risk"
-                assert "already_automated_penalty" in components, "Missing components.already_automated_penalty"  # NEW in API 1.0
+                assert "already_automated_penalty" in components, (
+                    "Missing components.already_automated_penalty"
+                )  # NEW in API 1.0
 
                 # Validate component bounds
                 for component_name, component_value in components.items():
@@ -413,7 +435,9 @@ def test_rank_targets_error_handling_invalid_file_type():
 
 def test_rank_targets_error_handling_invalid_limit():
     """Test that rank_targets handles invalid limit gracefully."""
-    resp = rank_targets({"file": "test.lean", "limit": 1000, "skip_already_automated": False})  # exceeds max
+    resp = rank_targets(
+        {"file": "test.lean", "limit": 1000, "skip_already_automated": False}
+    )  # exceeds max
 
     # Should return fail status
     _assert_contract_guarantees(resp, expected_status="fail")
@@ -425,7 +449,9 @@ def test_rank_targets_error_handling_invalid_limit():
 
 def test_rank_targets_error_handling_invalid_min_confidence():
     """Test that rank_targets handles invalid min_confidence gracefully."""
-    resp = rank_targets({"file": "test.lean", "min_confidence": 1.5, "skip_already_automated": False})  # exceeds max
+    resp = rank_targets(
+        {"file": "test.lean", "min_confidence": 1.5, "skip_already_automated": False}
+    )  # exceeds max
 
     # Should return fail status
     _assert_contract_guarantees(resp, expected_status="fail")
@@ -468,9 +494,7 @@ def test_rank_targets_api_version_format():
     resp = rank_targets({"file": "test.lean", "skip_already_automated": False})
 
     # Must be exactly "1.0" for API version 1.0
-    assert resp["api_version"] == "1.0", (
-        f"api_version must be '1.0', got '{resp['api_version']}'"
-    )
+    assert resp["api_version"] == "1.0", f"api_version must be '1.0', got '{resp['api_version']}'"
 
 
 def test_rank_targets_run_id_non_empty():
@@ -502,7 +526,9 @@ def test_rank_targets_computation_time_non_negative():
 
 def test_rank_targets_with_include_components_false():
     """Test that components are excluded when include_components=false."""
-    resp = rank_targets({"file": "test.lean", "include_components": False, "skip_already_automated": False})
+    resp = rank_targets(
+        {"file": "test.lean", "include_components": False, "skip_already_automated": False}
+    )
 
     if len(resp["ranking"]) > 0:
         for theorem in resp["ranking"]:
@@ -513,7 +539,9 @@ def test_rank_targets_with_include_components_false():
 
 def test_rank_targets_with_include_reasons_false():
     """Test that reasons are excluded when include_reasons=false."""
-    resp = rank_targets({"file": "test.lean", "include_reasons": False, "skip_already_automated": False})
+    resp = rank_targets(
+        {"file": "test.lean", "include_reasons": False, "skip_already_automated": False}
+    )
 
     if len(resp["ranking"]) > 0:
         for theorem in resp["ranking"]:
@@ -533,7 +561,9 @@ def test_rank_targets_with_limit():
 
 def test_rank_targets_with_min_confidence():
     """Test that min_confidence parameter filters theorems."""
-    resp = rank_targets({"file": "test.lean", "min_confidence": 0.5, "skip_already_automated": False})
+    resp = rank_targets(
+        {"file": "test.lean", "min_confidence": 0.5, "skip_already_automated": False}
+    )
 
     # All returned theorems should have confidence >= 0.5
     for theorem in resp["ranking"]:
@@ -547,17 +577,17 @@ def test_rank_targets_tier_distribution_structure():
     resp = rank_targets({"file": "test.lean", "skip_already_automated": False})
 
     tier_dist = resp["summary"]["tier_distribution"]
-    
+
     # All tier keys must be present
     required_tiers = ["S", "A", "B", "C", "D"]
     for tier in required_tiers:
         assert tier in tier_dist, f"Missing tier '{tier}' in tier_distribution"
         assert isinstance(tier_dist[tier], int), f"tier_distribution['{tier}'] must be integer"
         assert tier_dist[tier] >= 0, f"tier_distribution['{tier}'] must be non-negative"
-    
+
     # Sum of tier counts should equal total theorems (before filtering)
-    total_tiers = sum(tier_dist.values())
-    # Note: total_tiers may be less than summary.total if some theorems were filtered
+    # Note: total may be less than summary.total if some theorems were filtered
+    _ = sum(tier_dist.values())  # Verify we can compute total
 
 
 def test_rank_targets_available_objectives_structure():
@@ -599,12 +629,14 @@ def test_rank_targets_skip_already_automated_required():
     """Test that skip_already_automated parameter has a default value (API 1.0)."""
     # Missing skip_already_automated should use default (False)
     resp = rank_targets({"file": "test.lean"})
-    
+
     # Should return success status with default behavior
     _assert_contract_guarantees(resp, expected_status="success")
-    
+
     # Should have skipped_already_automated field (with value 0 since default is False)
-    assert "skipped_already_automated" in resp["summary"], "Missing summary.skipped_already_automated"
+    assert "skipped_already_automated" in resp["summary"], (
+        "Missing summary.skipped_already_automated"
+    )
 
 
 def test_rank_targets_skip_already_automated_true():
@@ -612,7 +644,9 @@ def test_rank_targets_skip_already_automated_true():
     resp = rank_targets({"file": "test.lean", "skip_already_automated": True})
 
     # Should have skipped_already_automated count
-    assert "skipped_already_automated" in resp["summary"], "Missing summary.skipped_already_automated"
+    assert "skipped_already_automated" in resp["summary"], (
+        "Missing summary.skipped_already_automated"
+    )
     assert isinstance(resp["summary"]["skipped_already_automated"], int), (
         "summary.skipped_already_automated must be integer"
     )
@@ -626,7 +660,9 @@ def test_rank_targets_skip_already_automated_false():
     resp = rank_targets({"file": "test.lean", "skip_already_automated": False})
 
     # Should have skipped_already_automated count (likely 0)
-    assert "skipped_already_automated" in resp["summary"], "Missing summary.skipped_already_automated"
+    assert "skipped_already_automated" in resp["summary"], (
+        "Missing summary.skipped_already_automated"
+    )
     assert resp["summary"]["skipped_already_automated"] >= 0, (
         "summary.skipped_already_automated must be non-negative"
     )
@@ -646,11 +682,9 @@ def test_rank_targets_tier_field_in_ranking():
 
 def test_rank_targets_already_automated_penalty_in_components():
     """Test that components include already_automated_penalty (API 1.0)."""
-    resp = rank_targets({
-        "file": "test.lean",
-        "skip_already_automated": False,
-        "include_components": True
-    })
+    resp = rank_targets(
+        {"file": "test.lean", "skip_already_automated": False, "include_components": True}
+    )
 
     if len(resp["ranking"]) > 0:
         for theorem in resp["ranking"]:
@@ -666,11 +700,9 @@ def test_rank_targets_already_automated_penalty_in_components():
 
 def test_rank_targets_confidence_in_reasons():
     """Test that reasons include numeric confidence (API 1.0)."""
-    resp = rank_targets({
-        "file": "test.lean",
-        "skip_already_automated": False,
-        "include_reasons": True
-    })
+    resp = rank_targets(
+        {"file": "test.lean", "skip_already_automated": False, "include_reasons": True}
+    )
 
     if len(resp["ranking"]) > 0:
         for theorem in resp["ranking"]:

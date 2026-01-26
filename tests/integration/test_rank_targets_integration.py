@@ -28,11 +28,13 @@ class TestRankTargetsIntegration:
 
     def test_basic_ranking_with_new_features(self):
         """Test basic ranking with all new API 1.0 features."""
-        result = rank_targets({
-            "file": COEFF_LEAN,
-            "skip_already_automated": False,
-            "limit": 5  # Small limit for speed
-        })
+        result = rank_targets(
+            {
+                "file": COEFF_LEAN,
+                "skip_already_automated": False,
+                "limit": 5,  # Small limit for speed
+            }
+        )
 
         # Verify success
         assert result["status"] == "success"
@@ -55,35 +57,31 @@ class TestRankTargetsIntegration:
     def test_skip_already_automated_filtering(self):
         """Test skip_already_automated parameter."""
         # Without filtering
-        result_all = rank_targets({
-            "file": DEFS_LEAN,
-            "skip_already_automated": False,
-            "limit": 10
-        })
-        
+        result_all = rank_targets({"file": DEFS_LEAN, "skip_already_automated": False, "limit": 10})
+
         # With filtering
-        result_filtered = rank_targets({
-            "file": DEFS_LEAN,
-            "skip_already_automated": True,
-            "limit": 10
-        })
-        
+        result_filtered = rank_targets(
+            {"file": DEFS_LEAN, "skip_already_automated": True, "limit": 10}
+        )
+
         assert result_all["status"] == "success"
         assert result_filtered["status"] == "success"
-        
+
         # Filtered should have skipped count
         assert result_filtered["summary"]["skipped_already_automated"] >= 0
         assert result_all["summary"]["skipped_already_automated"] == 0
 
     def test_custom_config_file(self):
         """Test loading custom configuration file."""
-        result = rank_targets({
-            "file": COEFF_LEAN,
-            "skip_already_automated": False,
-            "config_path": TEST_CONFIG,
-            "limit": 5
-        })
-        
+        result = rank_targets(
+            {
+                "file": COEFF_LEAN,
+                "skip_already_automated": False,
+                "config_path": TEST_CONFIG,
+                "limit": 5,
+            }
+        )
+
         assert result["status"] == "success"
         assert "config_source" in result["metadata"]
         assert TEST_CONFIG in result["metadata"]["config_source"]
@@ -91,14 +89,10 @@ class TestRankTargetsIntegration:
     def test_environment_variable_config(self):
         """Test loading configuration from environment variable."""
         os.environ["LEAN_PROOF_AUTO_MCP_CONFIG"] = TEST_CONFIG
-        
+
         try:
-            result = rank_targets({
-                "file": COEFF_LEAN,
-                "skip_already_automated": False,
-                "limit": 5
-            })
-            
+            result = rank_targets({"file": COEFF_LEAN, "skip_already_automated": False, "limit": 5})
+
             assert result["status"] == "success"
             assert "config_source" in result["metadata"]
         finally:
@@ -107,12 +101,9 @@ class TestRankTargetsIntegration:
 
     def test_confidence_filtering(self):
         """Test confidence-based filtering."""
-        result_filtered = rank_targets({
-            "file": DEFS_LEAN,
-            "min_confidence": 0.7,
-            "skip_already_automated": False,
-            "limit": 10
-        })
+        result_filtered = rank_targets(
+            {"file": DEFS_LEAN, "min_confidence": 0.7, "skip_already_automated": False, "limit": 10}
+        )
 
         assert result_filtered["status"] == "success"
 
@@ -126,12 +117,14 @@ class TestRankTargetsIntegration:
         objectives = ["maximize_success", "maximize_impact", "balanced"]
 
         for objective in objectives:
-            result = rank_targets({
-                "file": DEFS_LEAN,
-                "objective": objective,
-                "skip_already_automated": False,
-                "limit": 5
-            })
+            result = rank_targets(
+                {
+                    "file": DEFS_LEAN,
+                    "objective": objective,
+                    "skip_already_automated": False,
+                    "limit": 5,
+                }
+            )
 
             assert result["status"] == "success"
             assert result["objective"] == objective
@@ -139,26 +132,34 @@ class TestRankTargetsIntegration:
 
     def test_response_structure_completeness(self):
         """Test that response contains all required API 1.0 fields."""
-        result = rank_targets({
-            "file": COEFF_LEAN,
-            "skip_already_automated": False,
-            "limit": 5
-        })
+        result = rank_targets({"file": COEFF_LEAN, "skip_already_automated": False, "limit": 5})
 
         assert result["status"] == "success"
 
         # Top-level fields
         required_fields = [
-            "api_version", "status", "run_id", "tool", "file", "objective",
-            "ranking", "summary", "diagnostics", "metadata", "available_objectives"
+            "api_version",
+            "status",
+            "run_id",
+            "tool",
+            "file",
+            "objective",
+            "ranking",
+            "summary",
+            "diagnostics",
+            "metadata",
+            "available_objectives",
         ]
         for field in required_fields:
             assert field in result, f"Missing field: {field}"
 
         # Summary fields
         summary_fields = [
-            "total", "returned", "skipped_low_confidence",
-            "skipped_already_automated", "tier_distribution"
+            "total",
+            "returned",
+            "skipped_low_confidence",
+            "skipped_already_automated",
+            "tier_distribution",
         ]
         for field in summary_fields:
             assert field in result["summary"], f"Missing summary field: {field}"
@@ -166,30 +167,26 @@ class TestRankTargetsIntegration:
     def test_error_handling(self):
         """Test error handling for invalid inputs."""
         # Invalid objective
-        result = rank_targets({
-            "file": COEFF_LEAN,
-            "objective": "invalid_objective",
-            "skip_already_automated": False
-        })
+        result = rank_targets(
+            {"file": COEFF_LEAN, "objective": "invalid_objective", "skip_already_automated": False}
+        )
         assert result["status"] == "fail"
 
         # Invalid limit
-        result = rank_targets({
-            "file": COEFF_LEAN,
-            "limit": 0,
-            "skip_already_automated": False
-        })
+        result = rank_targets({"file": COEFF_LEAN, "limit": 0, "skip_already_automated": False})
         assert result["status"] == "fail"
 
     @pytest.mark.slow
     def test_deep_structure_mode(self):
         """Test deep structure mode (slow - calls scan_theorem for each theorem)."""
-        result = rank_targets({
-            "file": COEFF_LEAN,
-            "use_deep_structure": True,
-            "skip_already_automated": False,
-            "limit": 3  # Very small limit since this is slow
-        })
+        result = rank_targets(
+            {
+                "file": COEFF_LEAN,
+                "use_deep_structure": True,
+                "skip_already_automated": False,
+                "limit": 3,  # Very small limit since this is slow
+            }
+        )
 
         assert result["status"] == "success"
         assert result["metadata"]["deep_structure_used"] is True
@@ -201,12 +198,14 @@ class TestRankTargetsPerformance:
     def test_performance_without_deep_structure(self):
         """Test that ranking without deep structure is reasonably fast."""
         start_time = time.time()
-        result = rank_targets({
-            "file": DEGREE_LEAN,
-            "use_deep_structure": False,
-            "skip_already_automated": False,
-            "limit": 10
-        })
+        result = rank_targets(
+            {
+                "file": DEGREE_LEAN,
+                "use_deep_structure": False,
+                "skip_already_automated": False,
+                "limit": 10,
+            }
+        )
         elapsed_ms = (time.time() - start_time) * 1000
 
         assert result["status"] == "success"

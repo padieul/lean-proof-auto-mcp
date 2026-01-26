@@ -6,7 +6,16 @@ principles with immutable data structures and explicit validation.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .config import (
+        ImpactScoringConfig,
+        RiskScoringConfig,
+        SubgoalPotentialScoringConfig,
+        SuccessLikelihoodScoringConfig,
+        TierConfig,
+    )
 
 
 @dataclass(frozen=True)
@@ -78,7 +87,9 @@ class TheoremData:
             raise ValueError("start_line must be <= end_line")
 
 
-def compute_success_likelihood(signals: dict[str, Any], config: "SuccessLikelihoodScoringConfig") -> float:
+def compute_success_likelihood(
+    signals: dict[str, Any], config: "SuccessLikelihoodScoringConfig"
+) -> float:
     """Compute success likelihood score from automation signals.
 
     Estimates probability that automation will successfully solve the theorem
@@ -148,8 +159,8 @@ def compute_impact(signals: dict[str, Any], config: "ImpactScoringConfig") -> fl
     proof_length_score = 0.0
     for length_config in config.proof_length_scores:
         min_lines = length_config.min_lines if length_config.min_lines is not None else 0
-        max_lines = length_config.max_lines if length_config.max_lines is not None else float('inf')
-        
+        max_lines = length_config.max_lines if length_config.max_lines is not None else float("inf")
+
         if min_lines <= proof_lines <= max_lines:
             proof_length_score = length_config.score
             break
@@ -157,8 +168,7 @@ def compute_impact(signals: dict[str, Any], config: "ImpactScoringConfig") -> fl
     # Compute reusability score
     # Based on local lemmas (indicates complexity worth reusing)
     reusability_score = min(
-        config.reusability_max_score,
-        local_lemmas_count * config.reusability_score_per_local_lemma
+        config.reusability_max_score, local_lemmas_count * config.reusability_score_per_local_lemma
     )
 
     # Compute final score
@@ -174,7 +184,9 @@ def compute_impact(signals: dict[str, Any], config: "ImpactScoringConfig") -> fl
 
 
 def compute_subgoal_potential(
-    signals: dict[str, Any], structure: dict[str, Any] | None = None, config: "SubgoalPotentialScoringConfig | None" = None
+    signals: dict[str, Any],
+    structure: dict[str, Any] | None = None,
+    config: "SubgoalPotentialScoringConfig | None" = None,
 ) -> float:
     """Compute subgoal potential score from automation signals.
 
@@ -192,9 +204,10 @@ def compute_subgoal_potential(
     # Load default config if not provided
     if config is None:
         from .config import load_default_config
+
         full_config = load_default_config()
         config = full_config.subgoal_potential_scoring
-    
+
     # Extract signals with defaults
     subgoal_potential = signals.get("subgoal_potential", {})
     confidence = signals.get("confidence", 0.0)
@@ -212,8 +225,7 @@ def compute_subgoal_potential(
 
         if cases:
             structure_bonus += min(
-                config.structure_cases_max_bonus,
-                len(cases) * config.structure_cases_bonus_per_case
+                config.structure_cases_max_bonus, len(cases) * config.structure_cases_bonus_per_case
             )
 
         # Check for rewrite_simp blocks
@@ -221,7 +233,7 @@ def compute_subgoal_potential(
         if rewrite_simp_blocks:
             structure_bonus += min(
                 config.rewrite_blocks_max_bonus,
-                len(rewrite_simp_blocks) * config.rewrite_blocks_bonus_per_block
+                len(rewrite_simp_blocks) * config.rewrite_blocks_bonus_per_block,
             )
 
         # Multiple blocks bonus (already included in rewrite_blocks calculation)
@@ -298,11 +310,11 @@ def compute_risk(signals: dict[str, Any], config: "RiskScoringConfig") -> float:
 
     # Clamp and round
     risk = max(0.0, min(1.0, risk))
-    return round(risk, 2)
+    return float(round(risk, 2))
 
 
 # Objective metadata with descriptions and use cases (immutable)
-OBJECTIVE_METADATA = {
+OBJECTIVE_METADATA: dict[str, dict[str, Any]] = {
     "maximize_success": {
         "name": "maximize_success",
         "description": "Prioritize theorems most likely to be automated successfully",
@@ -354,26 +366,25 @@ OBJECTIVE_METADATA = {
 }
 
 # Objective weight configurations (immutable) - extracted from metadata for backward compatibility
-OBJECTIVE_WEIGHTS = {
-    name: meta["weights"]
-    for name, meta in OBJECTIVE_METADATA.items()
+OBJECTIVE_WEIGHTS: dict[str, dict[str, float]] = {
+    name: meta["weights"] for name, meta in OBJECTIVE_METADATA.items()
 }
 
 
 def get_available_objectives() -> list[dict[str, Any]]:
     """Return objective metadata for client discovery.
-    
+
     Provides comprehensive information about each ranking objective,
     including its name, description, use case, and weight configuration.
     This enables clients to discover valid objectives without trial-and-error.
-    
+
     Returns:
         List of objective metadata dictionaries with:
         - name: Objective identifier (string)
         - description: What this objective optimizes for (string)
         - use_case: When to use this objective (string)
         - weights: Component weight configuration (dict)
-    
+
     Example:
         >>> objectives = get_available_objectives()
         >>> for obj in objectives:
@@ -416,17 +427,17 @@ def compute_final_score(components: ComponentScores, objective: str) -> float:
 
     # Apply weights to components
     score = (
-        weights["success_likelihood"] * components.success_likelihood
-        + weights["impact"] * components.impact
-        + weights["annotation_value"] * components.annotation_value
-        + weights["subgoal_potential"] * components.subgoal_potential
-        + weights["risk"] * components.risk
+        float(weights["success_likelihood"]) * components.success_likelihood
+        + float(weights["impact"]) * components.impact
+        + float(weights["annotation_value"]) * components.annotation_value
+        + float(weights["subgoal_potential"]) * components.subgoal_potential
+        + float(weights["risk"]) * components.risk
         - 0.15 * components.already_automated_penalty
     )
 
     # Clamp and round
     score = max(0.0, min(1.0, score))
-    return round(score, 2)
+    return float(round(score, 2))
 
 
 @dataclass(frozen=True)
@@ -469,7 +480,7 @@ def rank_theorems(
         ValueError: If objective is not recognized or min_confidence is invalid
     """
     from .config import load_default_config
-    
+
     if not (0.0 <= min_confidence <= 1.0):
         raise ValueError(f"min_confidence must be in [0.0, 1.0], got {min_confidence}")
 
@@ -484,10 +495,14 @@ def rank_theorems(
     for theorem in filtered_theorems:
         # Compute component scores
         components = ComponentScores(
-            success_likelihood=compute_success_likelihood(theorem.signals, config.success_likelihood_scoring),
+            success_likelihood=compute_success_likelihood(
+                theorem.signals, config.success_likelihood_scoring
+            ),
             impact=compute_impact(theorem.signals, config.impact_scoring),
             annotation_value=theorem.signals.get("annotation_value", 0.0),
-            subgoal_potential=compute_subgoal_potential(theorem.signals, theorem.structure, config.subgoal_potential_scoring),
+            subgoal_potential=compute_subgoal_potential(
+                theorem.signals, theorem.structure, config.subgoal_potential_scoring
+            ),
             risk=compute_risk(theorem.signals, config.risk_scoring),
             already_automated_penalty=theorem.signals.get("automation_penalty", 0.0),
         )
@@ -513,32 +528,34 @@ def rank_theorems(
     return ranked
 
 
-def assign_tiers(ranked_theorems: list[RankedTheorem], config: "TierConfig") -> list[tuple[RankedTheorem, str]]:
+def assign_tiers(
+    ranked_theorems: list[RankedTheorem], config: "TierConfig"
+) -> list[tuple[RankedTheorem, str]]:
     """Assign S/A/B/C/D tiers based on percentile rank.
-    
+
     Tiers are relative to the file, not absolute scores:
     - S-tier: Top percentile (exceptional candidates)
     - A-tier: Next percentile range (strong candidates)
     - B-tier: Next percentile range (good candidates)
     - C-tier: Next percentile range (acceptable candidates)
     - D-tier: Remaining (weak candidates)
-    
+
     Args:
         ranked_theorems: List of theorems already sorted by score (desc)
         config: Tier configuration with percentile thresholds
-    
+
     Returns:
         List of (theorem, tier) tuples
     """
     n = len(ranked_theorems)
     if n == 0:
         return []
-    
+
     result = []
     for i, theorem in enumerate(ranked_theorems):
         # Calculate percentile (0-100)
         percentile = (i / n) * 100
-        
+
         # Assign tier based on percentile thresholds from config
         if percentile < config.s_tier_percentile:
             tier = "S"
@@ -550,9 +567,9 @@ def assign_tiers(ranked_theorems: list[RankedTheorem], config: "TierConfig") -> 
             tier = "C"
         else:
             tier = "D"
-        
+
         result.append((theorem, tier))
-    
+
     return result
 
 

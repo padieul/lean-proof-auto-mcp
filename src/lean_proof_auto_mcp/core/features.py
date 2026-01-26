@@ -7,10 +7,14 @@ and confidence scoring.
 
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .indexer import TheoremDecl
 from .lean_syntax import strip_comments
 from .source import SourceText
+
+if TYPE_CHECKING:
+    from .config import ConfidenceConfig
 
 
 @dataclass(frozen=True)
@@ -51,7 +55,9 @@ class TheoremFeatures:
             raise ValueError(f"local_lemmas_count must be >= 0, got {self.local_lemmas_count}")
 
 
-def extract_features(source: SourceText, decl: TheoremDecl, config: "ConfidenceConfig | None" = None) -> TheoremFeatures:
+def extract_features(
+    source: SourceText, decl: TheoremDecl, config: "ConfidenceConfig | None" = None
+) -> TheoremFeatures:
     """Compute features from theorem proof span with enhanced analysis.
 
     Analyzes the proof text to extract various metrics and patterns
@@ -69,6 +75,7 @@ def extract_features(source: SourceText, decl: TheoremDecl, config: "ConfidenceC
     # Load default config if not provided
     if config is None:
         from .config import load_default_config
+
         full_config = load_default_config()
         config = full_config.confidence
     if not decl.proof_span:
@@ -108,7 +115,9 @@ def extract_features(source: SourceText, decl: TheoremDecl, config: "ConfidenceC
     local_lemmas_count = count_local_lemmas(clean_proof)
 
     # Calculate confidence with enhanced multi-signal approach
-    confidence = _calculate_confidence_enhanced(clean_proof, decl.proof_span, tactic_kinds, decl, config)
+    confidence = _calculate_confidence_enhanced(
+        clean_proof, decl.proof_span, tactic_kinds, decl, config
+    )
 
     return TheoremFeatures(
         proof_lines=proof_lines,
@@ -245,7 +254,11 @@ def _detect_proof_structure_patterns(proof_text: str) -> set[str]:
 
 
 def _calculate_confidence_enhanced(
-    proof_text: str, proof_span, tactic_kinds: set[str], decl: TheoremDecl, config: "ConfidenceConfig"
+    proof_text: str,
+    proof_span,
+    tactic_kinds: set[str],
+    decl: TheoremDecl,
+    config: "ConfidenceConfig",
 ) -> float:
     """Enhanced confidence calculation with multiple signals.
 
@@ -548,7 +561,9 @@ def count_local_lemmas(proof_text: str) -> int:
     return count
 
 
-def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: set[str], config: "ConfidenceConfig") -> float:
+def _calculate_confidence(
+    proof_text: str, proof_span, tactic_kinds: set[str], config: "ConfidenceConfig"
+) -> float:
     """Calculate confidence in proof detection with enhanced multi-signal approach.
 
     Uses multiple heuristics to estimate how confident we are that we correctly
@@ -672,4 +687,4 @@ def _calculate_confidence(proof_text: str, proof_span, tactic_kinds: set[str], c
             confidence += config.indentation_consistency_bonus  # Use configured bonus
 
     # Ensure confidence is in valid range
-    return max(0.0, min(1.0, confidence))
+    return float(max(0.0, min(1.0, confidence)))

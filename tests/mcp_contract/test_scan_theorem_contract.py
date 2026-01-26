@@ -90,7 +90,7 @@ def _assert_contract_guarantees(response: dict, expected_status: str | None = No
 
 def test_scan_theorem_success_response_conforms_to_schema(scan_theorem_validator):
     """Test that scan_theorem success response validates against JSON schema.
-    
+
     NOTE: This test will fail until task 11.1 updates the JSON schema files for API 1.0.
     The schema files still expect API 0.x format.
     """
@@ -100,7 +100,7 @@ def test_scan_theorem_success_response_conforms_to_schema(scan_theorem_validator
 
 def test_scan_theorem_fail_response_conforms_to_schema(scan_theorem_validator):
     """Test that scan_theorem fail response validates against JSON schema.
-    
+
     NOTE: This test will fail until task 11.1 updates the JSON schema files for API 1.0.
     """
     resp = scan_theorem({"file": ""})
@@ -550,9 +550,7 @@ def test_scan_theorem_api_version_format():
     resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
     # Must be exactly "1.0" for API version 1.0
-    assert resp["api_version"] == "1.0", (
-        f"api_version must be '1.0', got '{resp['api_version']}'"
-    )
+    assert resp["api_version"] == "1.0", f"api_version must be '1.0', got '{resp['api_version']}'"
 
 
 def test_scan_theorem_tool_name_correct():
@@ -617,12 +615,16 @@ def test_scan_theorem_confidence_in_notes():
     """Test that notes include numeric confidence (API 1.0)."""
     resp = scan_theorem({"file": "test.lean", "target": {"theorem_id": "Nat.mul_comm"}})
 
-    if resp["status"] == "success" and resp["theorem"] is not None:
-        if "notes" in resp["theorem"] and len(resp["theorem"]["notes"]) > 0:
-            # Check if any note contains "confidence:"
-            has_confidence = any("confidence:" in note for note in resp["theorem"]["notes"])
-            # Confidence note should be present for theorems with automation data
-            if "automation" in resp["theorem"]:
-                # At least some theorems should have confidence notes
-                # (not all may have confidence > 0, so we just check format)
-                pass  # This is a soft check - we verify format exists
+    if (
+        resp["status"] == "success"
+        and resp["theorem"] is not None
+        and "notes" in resp["theorem"]
+        and len(resp["theorem"]["notes"]) > 0
+    ):
+        # Check if any note contains "confidence:"
+        _ = any("confidence:" in note for note in resp["theorem"]["notes"])
+        # Confidence note should be present for theorems with automation data
+        if "automation" in resp["theorem"]:
+            # At least some theorems should have confidence notes
+            # (not all may have confidence > 0, so we just check format)
+            pass  # This is a soft check - we verify format exists

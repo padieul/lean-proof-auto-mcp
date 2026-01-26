@@ -10,6 +10,10 @@ as defined in docs/mcp/tool_contract.md, including:
 - Error handling
 
 Requirements: 8.3
+
+NOTE: These tests call the verify tool which requires Lean 4 installation.
+They are marked with @pytest.mark.requires_lean and can be skipped with:
+    pytest -m "not requires_lean"
 """
 
 from __future__ import annotations
@@ -23,6 +27,9 @@ from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
 from lean_proof_auto_mcp.tools.verify import API_VERSION, verify
+
+# Mark all tests in this file as requiring Lean
+pytestmark = pytest.mark.requires_lean
 
 
 @pytest.fixture

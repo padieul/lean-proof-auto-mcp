@@ -43,4 +43,6 @@ jobs:
         run: uv run mypy -p lean_proof_auto_mcp
 
       - name: Pytest
-        run: uv run pytest
+        # Skip tests that require Lean 4 installation (integration tests and some unit tests)
+        # Tests requiring Lean are marked with @pytest.mark.requires_lean
+        run: uv run pytest -m "not requires_lean"

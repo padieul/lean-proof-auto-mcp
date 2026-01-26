@@ -19,8 +19,11 @@ class TestTheoremNotFoundHandling:
     Test theorem not found error handling.
 
     Requirements: 2.3
+    
+    NOTE: These tests require Lean 4 as they call verify_file() without mocking.
     """
 
+    @pytest.mark.requires_lean
     def test_invalid_theorem_id_raises_value_error(self, tmp_path):
         """Test that invalid theorem_id raises ValueError."""
         # Arrange
@@ -39,6 +42,7 @@ class TestTheoremNotFoundHandling:
                 budget_s=30.0,
             )
 
+    @pytest.mark.requires_lean
     def test_theorem_not_found_with_helpful_message(self, tmp_path):
         """Test that theorem not found error includes helpful message."""
         # Arrange

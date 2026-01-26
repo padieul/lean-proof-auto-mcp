@@ -33,10 +33,13 @@ SORRY_PROOF = str(FIXTURES_DIR / "sorry_proof.lean")
 SLOW_VERIFICATION = str(FIXTURES_DIR / "slow_verification.lean")
 
 # Skip all tests if LeanInteract is not available
-pytestmark = pytest.mark.skipif(
-    not LEAN_INTERACT_AVAILABLE,
-    reason="LeanInteract library not installed. Install with: pip install lean-interact",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not LEAN_INTERACT_AVAILABLE,
+        reason="LeanInteract library not installed. Install with: pip install lean-interact",
+    ),
+    pytest.mark.requires_lean,  # Mark all tests in this file as requiring Lean
+]
 
 
 class TestVerifyIntegration:

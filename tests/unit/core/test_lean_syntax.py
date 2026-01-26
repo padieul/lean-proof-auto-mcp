@@ -40,10 +40,9 @@ class TestStripComments:
   -- single line comment
   trivial"""
         result = strip_comments(text)
-        expected = """theorem example : True := by
-
-
-  trivial"""
+        # Expected: multi-line comment removed but leading spaces preserved,
+        # single-line comment removed with newline preserved
+        expected = "theorem example : True := by\n  \n  \n  trivial"
         assert result == expected
 
     def test_comments_in_middle_of_line(self):

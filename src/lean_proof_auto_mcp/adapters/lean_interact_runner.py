@@ -15,11 +15,11 @@ from ..core.verify_domain import LeanRunResult
 
 # Try to import LeanInteract, but allow module to load even if not installed
 try:
-    from lean_interact import LeanServer  # type: ignore[import-not-found]
+    from lean_interact import LeanServer
 
     LEAN_INTERACT_AVAILABLE = True
 except ImportError:
-    LeanServer = None  # type: ignore[assignment,unused-ignore]
+    LeanServer = None
     LEAN_INTERACT_AVAILABLE = False
 
 

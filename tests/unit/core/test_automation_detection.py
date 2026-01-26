@@ -6,7 +6,7 @@ from lean_proof_auto_mcp.core.automation_detection import (
     AutomationStatus,
     PatternBasedDetector,
 )
-from lean_proof_auto_mcp.core.config import load_default_config
+from lean_proof_auto_mcp.core.config import AutomationDetectionConfig, load_default_config
 
 
 @pytest.fixture
@@ -422,3 +422,273 @@ class TestPatternBasedDetectorEdgeCases:
         status = detector.detect(proof_text, decl_text, set())
 
         assert status.is_automated is False
+
+
+# ============================================================================
+# Strict Mode Tests
+# ============================================================================
+
+
+@pytest.fixture
+def strict_config(config):
+    """Create a config with strict detection mode."""
+    return AutomationDetectionConfig(
+        detection_mode="strict",
+        tactic_penalty=config.automation_detection.tactic_penalty,
+        attribute_penalty=config.automation_detection.attribute_penalty,
+        trivial_penalty=config.automation_detection.trivial_penalty,
+        tactic_patterns=config.automation_detection.tactic_patterns,
+        attribute_patterns=config.automation_detection.attribute_patterns,
+        trivial_patterns=config.automation_detection.trivial_patterns,
+    )
+
+
+@pytest.fixture
+def strict_detector(strict_config):
+    """Create PatternBasedDetector with strict mode."""
+    return PatternBasedDetector(strict_config)
+
+
+class TestStrictModeAttributeBoundaries:
+    """Test cases for attribute boundary detection in strict mode."""
+
+    def test_aesop_custom_rule_not_detected(self, strict_detector):
+        """@[aesop_custom_rule] should NOT match @[aesop] pattern."""
+        status = strict_detector.detect(
+            "by exact h",
+            "@[aesop_custom_rule] theorem test : P := by exact h",
+            {"exact"},
+        )
+        assert status.is_automated is False
+        assert status.automation_type == "none"
+
+    def test_simp_lemmas_not_detected(self, strict_detector):
+        """@[simp_lemmas] should NOT match @[simp] pattern."""
+        status = strict_detector.detect(
+            "by exact h",
+            "@[simp_lemmas] theorem test : P := by exact h",
+            {"exact"},
+        )
+        assert status.is_automated is False
+        assert status.automation_type == "none"
+
+    def test_aesop_underscore_prefix_not_detected(self, strict_detector):
+        """@[aesop_safe_custom] should NOT match @[aesop] pattern."""
+        status = strict_detector.detect(
+            "by exact h",
+            "@[aesop_safe_custom] theorem test : P := by exact h",
+            {"exact"},
+        )
+        assert status.is_automated is False
+
+    def test_aesop_basic_detected(self, strict_detector):
+        """@[aesop] should be detected in strict mode."""
+        status = strict_detector.detect(
+            "by exact h",
+            "@[aesop] theorem test : P := by exact h",
+            {"exact"},
+        )
+        assert status.is_automated is True
+        assert status.automation_type == "attribute"
+
+    def test_aesop_with_single_arg_detected(self, strict_detector):
+        """@[aesop safe] should be detected in strict mode."""
+        status = strict_detector.detect(
+            "by exact h",
+            "@[aesop safe] theorem test : P := by exact h",
+            {"exact"},
+        )
+        assert status.is_automated is True
+        assert status.automation_type == "attribute"
+
+    def test_aesop_with_multiple_args_detected(self, strict_detector):
+        """@[aesop safe constructors] should be detected in strict mode."""
+        status = strict_detector.detect(
+            "by exact h",
+            "@[aesop safe constructors] theorem test : P := by exact h",
+            {"exact"},
+        )
+        assert status.is_automated is True
+        assert status.automation_type == "attribute"
+
+    def test_simp_basic_detected(self, strict_detector):
+        """@[simp] should be detected in strict mode."""
+        status = strict_detector.detect(
+            "by exact h",
+            "@[simp] theorem test : P := by exact h",
+            {"exact"},
+        )
+        assert status.is_automated is True
+        assert status.automation_type == "attribute"
+
+    def test_simp_with_priority_detected(self, strict_detector):
+        """@[simp high] should be detected in strict mode."""
+        status = strict_detector.detect(
+            "by exact h",
+            "@[simp high] theorem test : P := by exact h",
+            {"exact"},
+        )
+        assert status.is_automated is True
+        assert status.automation_type == "attribute"
+
+
+class TestStrictModeCommentStripping:
+    """Test cases for comment stripping in strict mode."""
+
+    def test_tactic_in_single_line_comment_not_detected(self, strict_detector):
+        """Tactics in -- comments should not be detected in strict mode."""
+        proof_text = """-- TODO: try aesop here
+intro x
+exact h"""
+        status = strict_detector.detect(proof_text, "theorem test", {"intro", "exact"})
+        assert status.is_automated is False
+        assert status.automation_type == "none"
+
+    def test_tactic_in_multiline_comment_not_detected(self, strict_detector):
+        """Tactics in /- -/ comments should not be detected in strict mode."""
+        proof_text = """/- This proof might work with:
+   by aesop
+   or maybe grind -/
+intro x
+exact h"""
+        status = strict_detector.detect(proof_text, "theorem test", {"intro", "exact"})
+        assert status.is_automated is False
+        assert status.automation_type == "none"
+
+    def test_tactic_in_nested_comment_not_detected(self, strict_detector):
+        """Tactics in nested comments should not be detected in strict mode."""
+        proof_text = """/- outer /- aesop works here -/ still commenting -/
+exact h"""
+        status = strict_detector.detect(proof_text, "theorem test", {"exact"})
+        assert status.is_automated is False
+        assert status.automation_type == "none"
+
+    def test_trivial_pattern_in_comment_not_detected(self, strict_detector):
+        """Trivial patterns in comments should not be detected in strict mode."""
+        proof_text = """-- this could be := rfl but we do it manually
+intro x
+exact h"""
+        status = strict_detector.detect(proof_text, "theorem test", {"intro", "exact"})
+        assert status.is_automated is False
+        assert status.automation_type == "none"
+
+    def test_by_rfl_in_comment_not_detected(self, strict_detector):
+        """'by rfl' in comments should not be detected in strict mode."""
+        proof_text = """-- simple case: by rfl
+intro x
+exact h"""
+        status = strict_detector.detect(proof_text, "theorem test", {"intro", "exact"})
+        assert status.is_automated is False
+        assert status.automation_type == "none"
+
+    def test_real_tactic_still_detected_strict_mode(self, strict_detector):
+        """Real tactics (not in comments) should still be detected in strict mode."""
+        proof_text = """-- some comment
+by aesop"""
+        status = strict_detector.detect(proof_text, "theorem test", {"aesop"})
+        assert status.is_automated is True
+        assert status.automation_type == "tactic"
+
+    def test_real_trivial_still_detected_strict_mode(self, strict_detector):
+        """Real trivial proofs should still be detected in strict mode."""
+        proof_text = """-- some comment
+:= rfl"""
+        status = strict_detector.detect(proof_text, "theorem test", set())
+        assert status.is_automated is True
+        assert status.automation_type == "trivial"
+
+    def test_tactic_after_comment_detected(self, strict_detector):
+        """Tactics after comments should be detected in strict mode."""
+        proof_text = """-- This is a comment
+aesop"""
+        status = strict_detector.detect(proof_text, "theorem test", {"aesop"})
+        assert status.is_automated is True
+        assert status.automation_type == "tactic"
+
+
+class TestConservativeModeBackwardCompatibility:
+    """Test cases ensuring backward compatibility with conservative mode."""
+
+    def test_conservative_detects_substring_attributes(self, detector):
+        """Conservative mode should use substring matching (existing behavior)."""
+        # This is the documented conservative behavior - false positive is acceptable
+        status = detector.detect(
+            "by exact h",
+            "@[aesop_custom] theorem test : P := by exact h",
+            {"exact"},
+        )
+        # Substring "@[aesop" is found in "@[aesop_custom]"
+        assert status.is_automated is True
+        assert status.automation_type == "attribute"
+
+    def test_conservative_detects_pattern_in_comment(self, detector):
+        """Conservative mode should detect patterns in comments."""
+        proof_text = "-- TODO: try aesop here\nintro x\nexact h"
+        status = detector.detect(proof_text, "theorem test", {"intro", "exact"})
+        # The documented conservative behavior - false positive is acceptable
+        assert status.is_automated is True
+        assert status.automation_type == "tactic"
+
+    def test_conservative_detects_trivial_in_comment(self, detector):
+        """Conservative mode should detect trivial patterns in comments."""
+        proof_text = "-- this could be := rfl\nintro x\nexact h"
+        status = detector.detect(proof_text, "theorem test", {"intro", "exact"})
+        # The documented conservative behavior - false positive is acceptable
+        assert status.is_automated is True
+        assert status.automation_type == "trivial"
+
+
+class TestDetectionModeConfigValidation:
+    """Test cases for detection mode configuration validation."""
+
+    def test_invalid_detection_mode_raises_error(self):
+        """Invalid detection mode should raise ValueError."""
+        with pytest.raises(ValueError, match="detection_mode must be one of"):
+            AutomationDetectionConfig(
+                detection_mode="invalid_mode",
+                tactic_penalty=0.3,
+                attribute_penalty=0.5,
+                trivial_penalty=0.8,
+                tactic_patterns=["by aesop"],
+                attribute_patterns=["@[aesop"],
+                trivial_patterns=[":= rfl"],
+            )
+
+    def test_valid_strict_mode(self):
+        """Strict mode should be valid."""
+        config = AutomationDetectionConfig(
+            detection_mode="strict",
+            tactic_penalty=0.3,
+            attribute_penalty=0.5,
+            trivial_penalty=0.8,
+            tactic_patterns=["by aesop"],
+            attribute_patterns=["@[aesop"],
+            trivial_patterns=[":= rfl"],
+        )
+        assert config.detection_mode == "strict"
+
+    def test_valid_conservative_mode(self):
+        """Conservative mode should be valid."""
+        config = AutomationDetectionConfig(
+            detection_mode="conservative",
+            tactic_penalty=0.3,
+            attribute_penalty=0.5,
+            trivial_penalty=0.8,
+            tactic_patterns=["by aesop"],
+            attribute_patterns=["@[aesop"],
+            trivial_patterns=[":= rfl"],
+        )
+        assert config.detection_mode == "conservative"
+
+    def test_empty_detection_mode_raises_error(self):
+        """Empty detection mode should raise ValueError."""
+        with pytest.raises(ValueError, match="detection_mode must be one of"):
+            AutomationDetectionConfig(
+                detection_mode="",
+                tactic_penalty=0.3,
+                attribute_penalty=0.5,
+                trivial_penalty=0.8,
+                tactic_patterns=["by aesop"],
+                attribute_patterns=["@[aesop"],
+                trivial_patterns=[":= rfl"],
+            )

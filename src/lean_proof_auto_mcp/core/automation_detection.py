@@ -1,7 +1,8 @@
 """Detection of already-automated theorems.
 
-Conservative detection: prefer false negatives over false positives.
-Better to recommend an automated theorem than skip a manual one.
+Supports two detection modes:
+- conservative: Prefer false negatives over false positives (substring matching, includes comments)
+- strict: Word boundary matching for attributes, strips comments before matching
 
 This module follows hexagonal architecture:
 - AutomationDetector is a port (protocol)
@@ -9,10 +10,12 @@ This module follows hexagonal architecture:
 - Detection logic is injected via configuration
 """
 
+import re
 from dataclasses import dataclass
 from typing import Protocol
 
 from lean_proof_auto_mcp.core.config import AutomationDetectionConfig
+from lean_proof_auto_mcp.core.lean_syntax import strip_comments
 
 
 @dataclass(frozen=True)
@@ -61,11 +64,14 @@ class AutomationDetector(Protocol):
 
 
 class PatternBasedDetector:
-    """Conservative pattern-based automation detection.
+    """Pattern-based automation detection with configurable strictness.
 
     Uses explicit pattern matching to detect automation tactics,
-    attributes, and trivial proofs. Prefers false negatives over
-    false positives.
+    attributes, and trivial proofs.
+
+    Detection modes:
+    - conservative: Substring matching, includes comments (more false positives)
+    - strict: Word boundary matching for attributes, strips comments (fewer false positives)
 
     This is an adapter that implements the AutomationDetector port.
     """
@@ -77,6 +83,45 @@ class PatternBasedDetector:
             config: Configuration for detection patterns and penalties
         """
         self.config = config
+
+    def _preprocess_text(self, text: str) -> str:
+        """Preprocess text based on detection mode.
+
+        In strict mode, strips comments. In conservative mode, returns unchanged.
+
+        Args:
+            text: The text to preprocess
+
+        Returns:
+            Preprocessed text (comments stripped in strict mode)
+        """
+        if self.config.detection_mode == "strict":
+            return strip_comments(text)
+        return text
+
+    def _check_attribute_pattern(self, pattern: str, text: str) -> bool:
+        """Check if attribute pattern matches based on detection mode.
+
+        In strict mode, uses word boundary matching to avoid matching
+        @[aesop_custom] when looking for @[aesop].
+        In conservative mode, uses substring matching.
+
+        Args:
+            pattern: The attribute pattern (e.g., "@[aesop")
+            text: The declaration text to search
+
+        Returns:
+            True if pattern matches
+        """
+        if self.config.detection_mode == "strict":
+            # Extract attribute name from pattern (e.g., "@[aesop" -> "aesop")
+            attr_name = pattern.replace("@[", "")
+            # Build regex that matches @[aesop], @[aesop safe], but not @[aesop_custom]
+            # The pattern matches: @[name] or @[name arg1 arg2 ...]
+            regex = rf"@\[{re.escape(attr_name)}(?:\s+\w+)*\]"
+            return bool(re.search(regex, text, re.IGNORECASE))
+        else:
+            return pattern in text
 
     def detect(self, proof_text: str, decl_text: str, tactic_kinds: set[str]) -> AutomationStatus:
         """Detect automation with conservative pattern matching.
@@ -117,13 +162,17 @@ class PatternBasedDetector:
     def _check_trivial(self, proof_text: str) -> AutomationStatus:
         """Check for trivial proofs (rfl, trivial).
 
+        In strict mode, comments are stripped before matching.
+
         Args:
             proof_text: The proof body text
 
         Returns:
             AutomationStatus indicating if trivial proof detected
         """
-        proof_lower = proof_text.lower().strip()
+        # Preprocess text (strip comments in strict mode)
+        processed_text = self._preprocess_text(proof_text)
+        proof_lower = processed_text.lower().strip()
 
         for pattern in self.config.trivial_patterns:
             if pattern in proof_lower:
@@ -139,6 +188,9 @@ class PatternBasedDetector:
     def _check_attributes(self, decl_text: str) -> AutomationStatus:
         """Check for automation attributes (@[aesop], @[simp]).
 
+        In strict mode, uses word boundary matching to avoid matching
+        @[aesop_custom] when looking for @[aesop].
+
         Args:
             decl_text: The full declaration text (including attributes)
 
@@ -149,7 +201,7 @@ class PatternBasedDetector:
         detected = []
 
         for pattern in self.config.attribute_patterns:
-            if pattern in decl_lower:
+            if self._check_attribute_pattern(pattern, decl_lower):
                 detected.append(pattern)
 
         if detected:
@@ -165,6 +217,8 @@ class PatternBasedDetector:
     def _check_tactics(self, proof_text: str, tactic_kinds: set[str]) -> AutomationStatus:
         """Check for automation tactics (aesop, grind, simp).
 
+        In strict mode, comments are stripped before matching.
+
         Args:
             proof_text: The proof body text
             tactic_kinds: Set of detected tactic names
@@ -172,7 +226,9 @@ class PatternBasedDetector:
         Returns:
             AutomationStatus indicating if automation tactics detected
         """
-        proof_lower = proof_text.lower()
+        # Preprocess text (strip comments in strict mode)
+        processed_text = self._preprocess_text(proof_text)
+        proof_lower = processed_text.lower()
         detected = []
 
         # Check tactic patterns in proof text

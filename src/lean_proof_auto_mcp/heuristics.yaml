@@ -237,6 +237,10 @@ objectives:
 # Already-automated detection parameters
 # Detects theorems that already use automation tactics or attributes
 already_automated:
+  # Detection mode: "strict" or "conservative" (default)
+  # - strict: Word boundary matching for attributes, strips comments before matching
+  # - conservative: Substring matching, includes comments (fewer false negatives, more false positives)
+  detection_mode: "conservative"
   penalties:
     tactic_usage: 0.3  # Penalty for using automation tactics
     attribute: 0.5  # Penalty for automation attributes

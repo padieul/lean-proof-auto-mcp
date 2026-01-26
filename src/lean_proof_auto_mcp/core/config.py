@@ -595,6 +595,9 @@ class AutomationDetectionConfig:
     """Configuration for automation detection.
 
     Attributes:
+        detection_mode: Detection strictness - "strict" or "conservative"
+            - strict: Word boundary matching for attributes, strips comments before matching
+            - conservative: Substring matching, includes comments (default, backward compatible)
         tactic_penalty: Penalty for theorems using automation tactics
         attribute_penalty: Penalty for theorems with automation attributes
         trivial_penalty: Penalty for trivial proofs
@@ -603,6 +606,7 @@ class AutomationDetectionConfig:
         trivial_patterns: Patterns for trivial proofs
     """
 
+    detection_mode: str
     tactic_penalty: float
     attribute_penalty: float
     trivial_penalty: float
@@ -612,6 +616,12 @@ class AutomationDetectionConfig:
 
     def __post_init__(self) -> None:
         """Validate configuration invariants."""
+        valid_modes = {"strict", "conservative"}
+        if self.detection_mode not in valid_modes:
+            raise ValueError(
+                f"detection_mode must be one of {valid_modes}, got '{self.detection_mode}'"
+            )
+
         penalties = {
             "tactic_penalty": self.tactic_penalty,
             "attribute_penalty": self.attribute_penalty,
@@ -948,6 +958,7 @@ class YamlHeuristicsConfig:
             # Parse automation detection config
             auto_data = data["already_automated"]
             automation_detection = AutomationDetectionConfig(
+                detection_mode=auto_data.get("detection_mode", "conservative"),
                 tactic_penalty=auto_data["penalties"]["tactic_usage"],
                 attribute_penalty=auto_data["penalties"]["attribute"],
                 trivial_penalty=auto_data["penalties"]["trivial_proof"],

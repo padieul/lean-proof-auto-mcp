@@ -8,7 +8,7 @@ Requirements: 1.1, 1.8, 2.1-2.6, 3.1-3.8, 4.1-4.7, 5.1-5.6
 """
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, Callable
 
 # ============================================================================
 # Command and Result Data Structures (Immutable)
@@ -875,6 +875,297 @@ class ProbeCommandHandler:
             pass  # Lake not available
 
         return metadata
+
+
+class ProbeFileCommandHandler:
+    """
+    Orchestrates batch automation probing.
+
+    This handler implements the batch probe workflow following hexagonal
+    architecture principles. It depends on ProbeCommandHandler for individual
+    probes and scan_file/rank_targets functions for theorem enumeration.
+
+    The workflow:
+    1. Enumerate theorems using scan_file
+    2. Apply ordering (file_order or rank_targets)
+    3. Apply limit
+    4. For each theorem, call ProbeCommandHandler
+    5. Aggregate results into summary
+    6. Return both per-theorem and file-level statistics
+
+    Partial success semantics: If some theorems fail, continue processing
+    remaining theorems and return status="partial".
+
+    Requirements: 4.1-4.7, 5.2-5.6, 10.4
+    """
+
+    def __init__(
+        self,
+        probe_handler: ProbeCommandHandler,
+        scan_file_fn: Callable,
+        rank_targets_fn: Callable | None = None,
+    ):
+        """
+        Initialize handler with dependency injection.
+
+        Args:
+            probe_handler: Handler for individual probe operations
+            scan_file_fn: Function to call scan_file tool
+            rank_targets_fn: Optional function to call rank_targets tool
+
+        Requirements: 4.1, 5.5
+        """
+        self.probe_handler = probe_handler
+        self.scan_file_fn = scan_file_fn
+        self.rank_targets_fn = rank_targets_fn
+
+    def handle(self, cmd: ProbeFileCommand) -> ProbeFileResult:
+        """
+        Execute batch probe workflow with partial success support.
+
+        This method orchestrates the entire batch probe process:
+        1. Enumerate theorems (fail fast if scan_file fails)
+        2. Probe each theorem (collect errors but continue)
+        3. Aggregate results into summary
+        4. Determine overall status
+
+        Args:
+            cmd: ProbeFileCommand with all parameters
+
+        Returns:
+            ProbeFileResult with per-theorem and file-level statistics
+
+        Requirements: 4.1-4.7, 5.2-5.6, 10.4
+        """
+        start_time = time.time()
+
+        # 1. Enumerate theorems (fail fast if scan_file fails)
+        try:
+            theorem_ids = self._enumerate_theorems(cmd)
+        except Exception as e:
+            logger.error(f"Theorem enumeration failed: {e}")
+            return self._build_error_result(cmd, str(e), start_time)
+
+        # Handle empty file case
+        if not theorem_ids:
+            logger.warning(f"No theorems found in {cmd.file_path}")
+            return ProbeFileResult(
+                api_version="0.1.0",
+                status="success",
+                file=cmd.file_path,
+                summary={"total": 0, "closed": 0, "promising": 0, "failed": 0, "timed_out": 0},
+                results=[],
+                metadata={"elapsed_ms": round((time.time() - start_time) * 1000.0, 2)},
+            )
+
+        # 2. Probe each theorem (collect errors but continue)
+        results = []
+        errors = []
+
+        for theorem_id in theorem_ids:
+            try:
+                # Create probe command for this theorem
+                probe_cmd = ProbeCommand(
+                    file_path=cmd.file_path,
+                    theorem_id=theorem_id,
+                    mode=cmd.mode,
+                    budget_s=cmd.budget_s_per,
+                )
+
+                # Execute probe
+                probe_result = self.probe_handler.handle(probe_cmd)
+
+                # Extract summary for this theorem
+                theorem_summary = self._extract_summary(probe_result, theorem_id)
+                results.append(theorem_summary)
+
+            except Exception as e:
+                # Log error but continue processing
+                logger.warning(f"Probe failed for theorem '{theorem_id}': {e}")
+                errors.append({"theorem_id": theorem_id, "error": str(e)})
+
+        # 3. Aggregate results into summary
+        summary = self._aggregate_results(results)
+
+        # 4. Determine overall status
+        if len(results) == 0:
+            status = "error"
+        elif len(errors) > 0:
+            status = "partial"
+        else:
+            status = "success"
+
+        # 5. Build final result
+        elapsed_ms = round((time.time() - start_time) * 1000.0, 2)
+
+        metadata = {
+            "elapsed_ms": elapsed_ms,
+            "total_theorems": len(theorem_ids),
+            "successful_probes": len(results),
+            "failed_probes": len(errors),
+        }
+
+        if errors:
+            metadata["errors"] = errors
+
+        return ProbeFileResult(
+            api_version="0.1.0",
+            status=status,
+            file=cmd.file_path,
+            summary=summary,
+            results=results,
+            metadata=metadata,
+        )
+
+    def _enumerate_theorems(self, cmd: ProbeFileCommand) -> list[str]:
+        """
+        Enumerate theorems using scan_file and optionally rank_targets.
+
+        This method calls scan_file to get all theorems, applies the specified
+        ordering mode, and enforces the limit.
+
+        Args:
+            cmd: ProbeFileCommand with file_path, ordering, and limit
+
+        Returns:
+            List of theorem_ids in specified order, limited to cmd.limit
+
+        Raises:
+            RuntimeError: If scan_file or rank_targets fails
+            ValueError: If ordering mode requires rank_targets but it's not available
+
+        Requirements: 4.1, 5.5, 5.6
+        """
+        # Call scan_file to get all theorems
+        scan_result = self.scan_file_fn({"file": cmd.file_path})
+
+        if scan_result.get("status") != "success":
+            raise RuntimeError(f"scan_file failed: {scan_result.get('error', 'Unknown error')}")
+
+        theorems = scan_result.get("theorems", [])
+
+        # Apply ordering
+        if cmd.ordering == "file_order":
+            # Use file order (already sorted by scan_file)
+            theorem_ids = [t["theorem_id"] for t in theorems]
+
+        elif cmd.ordering == "rank_targets":
+            # Use rank_targets to prioritize
+            if self.rank_targets_fn is None:
+                raise ValueError("rank_targets_fn required for rank_targets ordering")
+
+            rank_result = self.rank_targets_fn(
+                {
+                    "file": cmd.file_path,
+                    "objective": "maximize_success",
+                    "limit": len(theorems),
+                }
+            )
+
+            if rank_result.get("status") != "success":
+                raise RuntimeError(f"rank_targets failed: {rank_result.get('error', 'Unknown error')}")
+
+            # Extract theorem_ids from ranking
+            theorem_ids = [t["theorem_id"] for t in rank_result.get("ranking", [])]
+
+        else:
+            raise ValueError(f"Invalid ordering mode: {cmd.ordering}")
+
+        # Apply limit
+        return theorem_ids[: cmd.limit]
+
+    def _aggregate_results(self, results: list[dict]) -> dict[str, int]:
+        """
+        Build summary statistics from individual probe results.
+
+        This method counts the number of theorems in each classification
+        category to provide file-level statistics.
+
+        Args:
+            results: List of per-theorem result summaries
+
+        Returns:
+            Summary dict with total, closed, promising, failed, timed_out counts
+
+        Requirements: 4.4, 5.3
+        """
+        summary = {
+            "total": len(results),
+            "closed": 0,
+            "promising": 0,
+            "failed": 0,
+            "timed_out": 0,
+        }
+
+        for result in results:
+            classification = result.get("classification", "")
+            if classification == "trivial":
+                summary["closed"] += 1
+            elif classification == "promising":
+                summary["promising"] += 1
+            elif classification == "failed":
+                summary["failed"] += 1
+            elif classification == "timed_out":
+                summary["timed_out"] += 1
+            # Note: "error" classification is not counted in summary categories
+
+        return summary
+
+    def _extract_summary(self, probe_result: ProbeResult, theorem_id: str) -> dict:
+        """
+        Extract summary information from individual probe result.
+
+        This method converts a full ProbeResult into a compact per-theorem
+        summary suitable for inclusion in the probe_file results array.
+
+        Args:
+            probe_result: Full probe result from ProbeCommandHandler
+            theorem_id: Theorem identifier
+
+        Returns:
+            Dict with theorem_id, outcome, classification, elapsed_ms
+
+        Requirements: 5.4
+        """
+        return {
+            "theorem_id": theorem_id,
+            "outcome": probe_result.probe_result.outcome,
+            "classification": probe_result.probe_result.classification,
+            "elapsed_ms": probe_result.timing.get("elapsed_ms", 0.0),
+        }
+
+    def _build_error_result(
+        self,
+        cmd: ProbeFileCommand,
+        error_message: str,
+        start_time: float,
+    ) -> ProbeFileResult:
+        """
+        Build error result for scan_file failures.
+
+        Args:
+            cmd: Original probe_file command
+            error_message: Error message
+            start_time: Start time for timing calculation
+
+        Returns:
+            ProbeFileResult with error status
+
+        Requirements: 10.4
+        """
+        elapsed_ms = round((time.time() - start_time) * 1000.0, 2)
+
+        return ProbeFileResult(
+            api_version="0.1.0",
+            status="error",
+            file=cmd.file_path,
+            summary={"total": 0, "closed": 0, "promising": 0, "failed": 0, "timed_out": 0},
+            results=[],
+            metadata={
+                "elapsed_ms": elapsed_ms,
+                "error": error_message,
+            },
+        )
 
 
 # Import LeanRunner and WorkspaceProvider from verify_domain for type hints

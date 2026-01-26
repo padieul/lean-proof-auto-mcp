@@ -119,8 +119,8 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
   - **Property 23: Limit Enforcement** - Test limit validation
   - **Validates: Requirements 5.1, 5.5, 5.6**
 
-- [ ] 7. Implement probe_file command handler
-  - [ ] 7.1 Create ProbeFileCommandHandler in `src/lean_proof_auto_mcp/core/probe_domain.py`
+- [x] 7. Implement probe_file command handler
+  - [x] 7.1 Create ProbeFileCommandHandler in `src/lean_proof_auto_mcp/core/probe_domain.py`
     - Implement `__init__` with dependency injection (probe_handler, scan_file_fn, rank_targets_fn)
     - Implement `handle` method orchestrating batch probe workflow
     - Add `_enumerate_theorems` method using scan_file and optionally rank_targets (stable ordering)
@@ -132,7 +132,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Determine status: error if no results, partial if some errors, success if no errors
     - _Requirements: 4.1-4.7, 5.2-5.6, 10.4_
 
-  - [ ] 7.2 Write unit tests for probe_file handler
+  - [x] 7.2 Write unit tests for probe_file handler
     - Test successful batch probing with mocked dependencies
     - Test theorem enumeration with file_order
     - Test theorem enumeration with rank_targets
@@ -143,7 +143,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Test empty file handling
     - _Requirements: 4.1-4.7, 5.2-5.6, 10.4_
 
-  - [ ] 7.3 Write property tests for probe_file handler
+  - [x] 7.3 Write property tests for probe_file handler
     - **Property 15: Scan_File Integration** - Test calls scan_file and uses output
     - **Property 16: Batch Probe Invocation** - Test calls probe for each theorem
     - **Property 17: Per-Theorem Budget Isolation** - Test each theorem gets own budget

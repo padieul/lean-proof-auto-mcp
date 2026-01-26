@@ -211,7 +211,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Test tools return valid JSON responses
     - _Requirements: 1.1, 4.1_
 
-- [ ] 13. Create JSON schemas for probe tools
+- [x] 13. Create JSON schemas for probe tools
   - Create `docs/mcp/schemas/probe.json` with input/output schemas
     - Input: api_version, scope (file, theorem_id), mode, budget_s, runner configuration
     - Output: api_version, status, run_id, probe_result, diagnostics, timing, metadata
@@ -221,8 +221,8 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
   - Ensure schemas match design document specifications
   - _Requirements: 3.1-3.8, 5.1-5.6_
 
-- [ ] 14. Final checkpoint - End-to-end integration tests
-  - [ ] 14.1 Write end-to-end tests for probe
+- [x] 14. Final checkpoint - End-to-end integration tests
+  - [x] 14.1 Write end-to-end tests for probe
     - Test probe on real Lean file with aesop mode
     - Test probe on real Lean file with aesop? mode
     - Test probe on real Lean file with grind mode
@@ -230,14 +230,14 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Test probe error handling
     - _Requirements: 1.1-1.8, 2.1-2.6, 3.1-3.8_
 
-  - [ ] 14.2 Write end-to-end tests for probe_file
+  - [x] 14.2 Write end-to-end tests for probe_file
     - Test probe_file with file_order ordering
     - Test probe_file with rank_targets ordering
     - Test probe_file with limit parameter
     - Test probe_file partial success
     - _Requirements: 4.1-4.7, 5.1-5.6_
 
-- [ ] 15. Final checkpoint - Ensure all tests pass
+- [x] 15. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

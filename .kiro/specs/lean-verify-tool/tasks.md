@@ -154,41 +154,41 @@ This plan implements the `verify` tool as the foundational Lean execution primit
 - [ ] 5. Checkpoint - LeanInteract adapter complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Implement GitWorktreeProvider adapter
-  - [ ] 6.1 Implement GitWorktreeProvider class
+- [x] 6. Implement GitWorktreeProvider adapter
+  - [x] 6.1 Implement GitWorktreeProvider class
     - Initialize with worktree_dir parameter
     - Implement create_workspace() method
     - Implement cleanup_workspace() method
     - _Requirements: 1.2, 6.1, 6.3_
 
-  - [ ] 6.2 Implement workspace creation with git worktree
+  - [x] 6.2 Implement workspace creation with git worktree
     - Generate unique workspace_id (timestamp + random suffix)
     - Run: git worktree add <path> HEAD
     - Return Workspace with path, workspace_id, mode="worktree"
     - Handle git command errors gracefully
     - _Requirements: 1.2, 6.1_
 
-  - [ ] 6.3 Write property test for workspace isolation
+  - [x] 6.3 Write property test for workspace isolation
     - **Property 3: Workspace Isolation**
     - **Validates: Requirements 1.2, 6.1, 6.2**
 
-  - [ ] 6.4 Implement workspace cleanup
+  - [x] 6.4 Implement workspace cleanup
     - Run: git worktree remove <path> --force
     - Handle cleanup errors (log but don't fail)
     - _Requirements: 6.3_
 
-  - [ ] 6.5 Implement TempCopyProvider as fallback
+  - [x] 6.5 Implement TempCopyProvider as fallback
     - Copy project directory to temp location
     - Return Workspace with mode="temp"
     - Clean up temp directory on cleanup_workspace()
     - _Requirements: 1.2, 6.1_
 
-  - [ ] 6.6 Implement workspace mode auto-detection
+  - [x] 6.6 Implement workspace mode auto-detection
     - Check if .git directory exists
     - Return "worktree" if git repo, "temp" otherwise
     - _Requirements: 6.5_
 
-  - [ ] 6.7 Write unit test for workspace mode detection
+  - [x] 6.7 Write unit test for workspace mode detection
     - Test with git repository
     - Test without git repository
     - Verify correct mode selected

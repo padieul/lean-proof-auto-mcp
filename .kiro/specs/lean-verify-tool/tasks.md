@@ -294,39 +294,39 @@ This plan implements the `verify` tool as the foundational Lean execution primit
     - Test output schema validation
     - _Requirements: 8.3_
 
-- [ ] 11. Integration testing with mathlib fixtures
-  - [ ] 11.1 Create mathlib test fixtures
+- [x] 11. Integration testing with mathlib fixtures
+  - [x] 11.1 Create mathlib test fixtures
     - Create tests/fixtures/lean/valid_theorem.lean
     - Create tests/fixtures/lean/type_error.lean
     - Create tests/fixtures/lean/sorry_proof.lean
     - Create tests/fixtures/lean/slow_verification.lean
     - _Requirements: 1.1, 1.3_
 
-  - [ ] 11.2 Write integration test for valid theorem
+  - [x] 11.2 Write integration test for valid theorem
     - Verify file with no errors
     - Verify status="success"
     - Verify no error diagnostics
     - _Requirements: 1.1_
 
-  - [ ] 11.3 Write integration test for type error
+  - [x] 11.3 Write integration test for type error
     - Verify file with type error
     - Verify status="fail"
     - Verify error diagnostic present
     - _Requirements: 1.1, 1.4_
 
-  - [ ] 11.4 Write integration test for sorry proof
+  - [x] 11.4 Write integration test for sorry proof
     - Verify file with incomplete proof
     - Verify status="success" (sorry is warning, not error)
     - Verify warning diagnostic present
     - _Requirements: 1.1, 1.4_
 
-  - [ ] 11.5 Write integration test for timeout
+  - [x] 11.5 Write integration test for timeout
     - Verify slow file with small budget
     - Verify status="timeout"
     - Verify timeout within 100ms of budget
     - _Requirements: 1.3, 4.2, 4.3_
 
-  - [ ] 11.6 Write integration test for theorem-level verification
+  - [x] 11.6 Write integration test for theorem-level verification
     - Verify specific theorem by theorem_id
     - Verify scope_used="theorem"
     - Verify diagnostics scoped to theorem

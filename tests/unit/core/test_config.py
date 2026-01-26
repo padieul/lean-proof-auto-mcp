@@ -441,6 +441,7 @@ class TestConfigValueValidation:
         """Test that automation detection penalty > 1.0 raises error."""
         with pytest.raises(ValueError, match="tactic_penalty must be in \\[0.0, 1.0\\]"):
             AutomationDetectionConfig(
+                detection_mode="conservative",
                 tactic_penalty=1.5,  # Invalid
                 attribute_penalty=0.5,
                 trivial_penalty=0.8,

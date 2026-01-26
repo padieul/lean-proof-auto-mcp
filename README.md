@@ -188,6 +188,32 @@ Each ranked theorem includes a tier classification:
 
 Tiers are relative to the file, not absolute scores.
 
+### Workspace Modes
+
+The verify tool supports two workspace isolation modes:
+
+- **temp** (default): Copies files to a temporary directory. Safest option, works everywhere.
+- **worktree**: Uses git worktree for faster isolation. Requires git repository.
+
+**Default behavior**: The system always uses temp mode unless you explicitly request worktree mode.
+
+To use worktree mode explicitly:
+
+```json
+{
+  "tool": "verify",
+  "arguments": {
+    "file": "MyTheorem.lean",
+    "budget_s": 30.0,
+    "workspace_mode": "worktree"
+  }
+}
+```
+
+**For tests**: Always use temp mode to avoid polluting your development repository with git worktrees.
+
+See [Workspace Modes Documentation](docs/workspace_modes.md) for complete details on workspace isolation, trade-offs, and best practices.
+
 ### Configuration
 
 Customize all heuristic parameters via YAML configuration:

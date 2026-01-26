@@ -121,7 +121,7 @@ def test_verify_tool_is_registered():
 
 def test_verify_accepts_valid_file_only_input():
     """Test that verify accepts minimal valid input (file only)."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
 
     # Should return valid response (error is ok, we're testing input acceptance)
     _assert_contract_guarantees(resp)
@@ -146,7 +146,7 @@ def test_verify_accepts_all_optional_parameters():
 
 def test_verify_rejects_missing_file():
     """Test that verify rejects input without file parameter."""
-    resp = verify({})
+    resp = verify({"workspace_mode": "temp"})
 
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
@@ -158,7 +158,7 @@ def test_verify_rejects_missing_file():
 
 def test_verify_rejects_empty_file():
     """Test that verify rejects empty file parameter."""
-    resp = verify({"file": ""})
+    resp = verify({"file": "", "workspace_mode": "temp"})
 
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
@@ -166,7 +166,7 @@ def test_verify_rejects_empty_file():
 
 def test_verify_rejects_invalid_budget_s():
     """Test that verify rejects negative budget_s."""
-    resp = verify({"file": "test.lean", "budget_s": -10.0})
+    resp = verify({"file": "test.lean", "budget_s": -10.0, "workspace_mode": "temp"})
 
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
@@ -174,7 +174,7 @@ def test_verify_rejects_invalid_budget_s():
 
 def test_verify_rejects_zero_budget_s():
     """Test that verify rejects zero budget_s."""
-    resp = verify({"file": "test.lean", "budget_s": 0.0})
+    resp = verify({"file": "test.lean", "budget_s": 0.0, "workspace_mode": "temp"})
 
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
@@ -182,7 +182,7 @@ def test_verify_rejects_zero_budget_s():
 
 def test_verify_rejects_invalid_max_log_excerpt_chars():
     """Test that verify rejects negative max_log_excerpt_chars."""
-    resp = verify({"file": "test.lean", "max_log_excerpt_chars": -100})
+    resp = verify({"file": "test.lean", "max_log_excerpt_chars": -100, "workspace_mode": "temp"})
 
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
@@ -203,13 +203,13 @@ def test_verify_rejects_invalid_workspace_mode():
 
 def test_verify_response_validates_against_schema(verify_validator):
     """Test that verify response validates against JSON schema."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
     _assert_schema_valid(verify_validator, resp)
 
 
 def test_verify_error_response_validates_against_schema(verify_validator):
     """Test that verify error response validates against JSON schema."""
-    resp = verify({"file": ""})
+    resp = verify({"file": "", "workspace_mode": "temp"})
     _assert_schema_valid(verify_validator, resp)
 
 
@@ -220,7 +220,7 @@ def test_verify_error_response_validates_against_schema(verify_validator):
 
 def test_verify_required_fields_present():
     """Test that all required fields are present in response."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
 
     # Top-level required fields
     required_fields = [
@@ -252,7 +252,7 @@ def test_verify_required_fields_present():
 
 def test_verify_field_types():
     """Test that fields have correct types."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
 
     # Type checks for top-level fields
     assert isinstance(resp["api_version"], str), "api_version must be string"
@@ -286,7 +286,7 @@ def test_verify_field_types():
 
 def test_verify_diagnostics_structure():
     """Test that diagnostics (when present) have correct structure."""
-    resp = verify({"file": ""})  # Use invalid input to get diagnostics
+    resp = verify({"file": "", "workspace_mode": "temp"})  # Use invalid input to get diagnostics
 
     if len(resp["diagnostics"]) > 0:
         for diag in resp["diagnostics"]:
@@ -316,7 +316,7 @@ def test_verify_diagnostics_structure():
 
 def test_verify_verification_scope_used_valid():
     """Test that verification_scope_used is one of valid values."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
 
     valid_scopes = {"file", "theorem", "file_fallback", "none"}
     assert resp["verification_scope_used"] in valid_scopes, (
@@ -327,7 +327,7 @@ def test_verify_verification_scope_used_valid():
 
 def test_verify_status_valid():
     """Test that status is one of the valid values."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
 
     valid_statuses = {"success", "fail", "timeout", "error"}
     assert resp["status"] in valid_statuses, (
@@ -337,7 +337,7 @@ def test_verify_status_valid():
 
 def test_verify_api_version_format():
     """Test that api_version follows the required format (0.2.0)."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
 
     # Must be exactly "0.2.0" for API version 0.2.0
     assert resp["api_version"] == "0.2.0", (
@@ -347,13 +347,13 @@ def test_verify_api_version_format():
 
 def test_verify_run_id_non_empty():
     """Test that run_id is non-empty."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
     assert len(resp["run_id"]) > 0, "run_id must be non-empty"
 
 
 def test_verify_run_id_format():
     """Test that run_id follows expected format (verify-timestamp-hash)."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
 
     # run_id should start with "verify-"
     assert resp["run_id"].startswith("verify-"), "run_id should start with 'verify-'"
@@ -370,7 +370,7 @@ def test_verify_run_id_format():
 
 def test_verify_error_response_structure():
     """Test that error responses have correct structure."""
-    resp = verify({"file": ""})
+    resp = verify({"file": "", "workspace_mode": "temp"})
 
     # Should be error status
     _assert_contract_guarantees(resp, expected_status="error")
@@ -388,7 +388,7 @@ def test_verify_error_response_structure():
 
 def test_verify_error_handling_invalid_file_type():
     """Test that verify handles invalid file type gracefully."""
-    resp = verify({"file": 123})  # number instead of string
+    resp = verify({"file": 123, "workspace_mode": "temp"})  # number instead of string
 
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
@@ -399,7 +399,7 @@ def test_verify_error_handling_invalid_file_type():
 
 def test_verify_error_handling_whitespace_only_file():
     """Test that verify handles whitespace-only file argument gracefully."""
-    resp = verify({"file": "   "})
+    resp = verify({"file": "   ", "workspace_mode": "temp"})
 
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
@@ -415,16 +415,31 @@ def test_verify_error_handling_whitespace_only_file():
 
 def test_verify_determinism_with_same_input():
     """Test that verify returns identical output for repeated calls with same input."""
-    input_args = {"file": "test.lean"}
+    input_args = {"file": "test.lean", "workspace_mode": "temp"}
 
     # Call multiple times
     resp1 = verify(input_args)
     resp2 = verify(input_args)
 
-    # Responses should be identical except for run_id (which includes timestamp)
-    # Compare all fields except run_id
+    # Responses should be identical except for:
+    # - run_id (includes timestamp and random suffix)
+    # - metadata.workspace_id (unique for each temp workspace)
+    # - timing (varies based on system load)
+    # Compare all fields except these
     for key in resp1:
-        if key != "run_id":
+        if key == "run_id":
+            continue  # run_id includes timestamp and random suffix
+        if key == "timing":
+            continue  # timing varies based on system load
+        if key == "metadata":
+            # Compare metadata fields except workspace_id
+            for meta_key in resp1["metadata"]:
+                if meta_key != "workspace_id":
+                    assert resp1["metadata"][meta_key] == resp2["metadata"][meta_key], (
+                        f"Metadata field '{meta_key}' differs between calls: "
+                        f"{resp1['metadata'][meta_key]} != {resp2['metadata'][meta_key]}"
+                    )
+        else:
             assert resp1[key] == resp2[key], (
                 f"Field '{key}' differs between calls: {resp1[key]} != {resp2[key]}"
             )
@@ -432,8 +447,8 @@ def test_verify_determinism_with_same_input():
 
 def test_verify_determinism_with_different_files():
     """Test that verify returns different outputs for different files."""
-    resp1 = verify({"file": "test1.lean"})
-    resp2 = verify({"file": "test2.lean"})
+    resp1 = verify({"file": "test1.lean", "workspace_mode": "temp"})
+    resp2 = verify({"file": "test2.lean", "workspace_mode": "temp"})
 
     # Responses should differ in the file field at minimum
     assert resp1["file"] != resp2["file"], "Different inputs should produce different file fields"
@@ -446,7 +461,7 @@ def test_verify_determinism_with_different_files():
 
 def test_verify_diagnostic_counts_non_negative():
     """Test that diagnostic counts are non-negative."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
 
     assert resp["diagnostic_summary"]["error_count"] >= 0, "error_count must be non-negative"
     assert resp["diagnostic_summary"]["warning_count"] >= 0, "warning_count must be non-negative"
@@ -455,7 +470,7 @@ def test_verify_diagnostic_counts_non_negative():
 
 def test_verify_diagnostic_counts_match_diagnostics():
     """Test that diagnostic counts match actual diagnostics array."""
-    resp = verify({"file": ""})  # Use invalid input to get diagnostics
+    resp = verify({"file": "", "workspace_mode": "temp"})  # Use invalid input to get diagnostics
 
     # Count diagnostics by severity
     error_count = sum(1 for d in resp["diagnostics"] if d["severity"] == "error")
@@ -481,7 +496,7 @@ def test_verify_diagnostic_counts_match_diagnostics():
 
 def test_verify_notes_are_strings():
     """Test that all notes are strings."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
 
     for note in resp["evidence"]["notes"]:
         assert isinstance(note, str), f"Note must be string, got {type(note)}"
@@ -489,7 +504,7 @@ def test_verify_notes_are_strings():
 
 def test_verify_notes_non_empty():
     """Test that notes are non-empty strings."""
-    resp = verify({"file": "test.lean"})
+    resp = verify({"file": "test.lean", "workspace_mode": "temp"})
 
     for note in resp["evidence"]["notes"]:
         assert len(note) > 0, "Note must be non-empty string"

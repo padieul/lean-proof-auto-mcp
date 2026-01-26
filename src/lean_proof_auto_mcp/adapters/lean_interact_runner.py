@@ -16,10 +16,17 @@ from ..core.verify_domain import LeanRunResult
 # Try to import LeanInteract, but allow module to load even if not installed
 try:
     from lean_interact import LeanServer
+    from lean_interact.config import LeanREPLConfig
+    from lean_interact.interface import FileCommand, LeanError
+    from lean_interact.project import LocalProject
 
     LEAN_INTERACT_AVAILABLE = True
 except ImportError:
-    LeanServer = None
+    LeanServer = None  # type: ignore[assignment, misc]
+    LeanREPLConfig = None  # type: ignore[assignment, misc]
+    FileCommand = None  # type: ignore[assignment, misc]
+    LeanError = None  # type: ignore[assignment, misc]
+    LocalProject = None  # type: ignore[assignment, misc]
     LEAN_INTERACT_AVAILABLE = False
 
 
@@ -99,13 +106,41 @@ class LeanInteractRunner:
         # Initialize LeanServer with project context
         server = None
         try:
-            server = LeanServer(
-                project_path=str(workspace_path),
-                timeout=budget_s,
-            )
+            # Create config without project, just specify lean_version
+            # This allows LeanInteract to work without a full Lean project structure
+            config = LeanREPLConfig(lean_version="v4.15.0")
+            server = LeanServer(config)
 
-            # Run file verification
-            response = server.run_file(target_file)
+            # Run file verification with timeout
+            command = FileCommand(path=target_file)
+            response = server.run(command, timeout=budget_s)
+
+            # Check if response indicates an error (including timeout)
+            if isinstance(response, LeanError):
+                # LeanError response - could be timeout or other error
+                elapsed = time.time() - start_time
+                error_msg = str(response)
+
+                # Check if it's a timeout error
+                if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                    return LeanRunResult(
+                        status="timeout",
+                        diagnostics=[],
+                        scope_used=scope_used,
+                        full_logs=error_msg,
+                        timing={"lean_execution_s": elapsed},
+                        exit_code=-1,
+                    )
+                else:
+                    # Other error
+                    return LeanRunResult(
+                        status="error",
+                        diagnostics=[],
+                        scope_used=scope_used,
+                        full_logs=error_msg,
+                        timing={"lean_execution_s": elapsed},
+                        exit_code=1,
+                    )
 
             # Parse diagnostics from response
             diagnostics = self._parse_diagnostics(response)
@@ -144,7 +179,10 @@ class LeanInteractRunner:
         finally:
             # Always close server to cleanup Lean process
             if server is not None:
-                server.close()
+                from contextlib import suppress
+
+                with suppress(Exception):
+                    server.kill()
 
     def _prepare_theorem_verification(
         self,

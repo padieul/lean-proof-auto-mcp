@@ -268,8 +268,9 @@ class TestBuildErrorResponse:
         run_id = response["run_id"]
         assert run_id.startswith("verify-")
         parts = run_id.split("-")
-        assert len(parts) == 4  # verify-YYYYMMDD-HHMMSS-hash
-        assert len(parts[3]) == 8  # 8-character hash
+        assert len(parts) == 5  # verify-YYYYMMDD-HHMMSS-hash-random
+        assert len(parts[3]) == 8  # 8-character file hash
+        assert len(parts[4]) == 6  # 6-character random suffix
 
 
 class TestBoundaryConditions:

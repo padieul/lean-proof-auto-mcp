@@ -303,28 +303,28 @@ class TempCopyProvider:
 
 def detect_workspace_mode(project_root: Path | None = None) -> str:
     """
-    Auto-detect appropriate workspace mode based on project structure.
+    Auto-detect appropriate workspace mode.
 
-    Strategy:
-    1. Check if .git directory exists
-    2. Return "worktree" if git repo, "temp" otherwise
+    Always returns "temp" for safety and IDE compatibility.
+    Users can explicitly request "worktree" mode if needed.
+
+    Rationale:
+    - Temp mode works in all environments
+    - Prevents git worktree pollution in development repos
+    - Avoids IDE confusion with nested git repositories
+    - Users who want worktree performance can opt-in explicitly
 
     Args:
-        project_root: Optional project root to check (defaults to current directory)
+        project_root: Ignored (kept for API compatibility)
 
     Returns:
-        Workspace mode string ("worktree" or "temp")
+        Always "temp"
 
     Requirements: 6.5
     """
-    project_root = Path.cwd() if project_root is None else Path(project_root)
-
-    # Check if .git directory exists
-    git_dir = project_root / ".git"
-    if git_dir.exists() and git_dir.is_dir():
-        return "worktree"
-    else:
-        return "temp"
+    # Always default to temp mode for safety
+    # Users can explicitly request worktree mode if needed
+    return "temp"
 
 
 def create_workspace_provider(

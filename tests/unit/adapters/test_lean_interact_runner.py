@@ -203,8 +203,12 @@ class TestProcessCleanup:
     """
 
     @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanServer", create=True)
-    def test_server_close_called_on_success(self, mock_lean_server_class, tmp_path):
-        """Test that server.close() is called on successful verification."""
+    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanREPLConfig", create=True)
+    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.FileCommand", create=True)
+    def test_server_close_called_on_success(
+        self, mock_file_command_class, mock_config_class, mock_lean_server_class, tmp_path
+    ):
+        """Test that server.kill() is called on successful verification."""
         # Skip this test if LeanInteract is not installed
         pytest.importorskip("lean_interact")
 
@@ -220,7 +224,7 @@ class TestProcessCleanup:
         mock_response = Mock()
         mock_response.messages = []
         mock_response.sorries = []
-        mock_server.run_file.return_value = mock_response
+        mock_server.run.return_value = mock_response
         mock_lean_server_class.return_value = mock_server
 
         # Act
@@ -232,11 +236,19 @@ class TestProcessCleanup:
         )
 
         # Assert
-        mock_server.close.assert_called_once()
+        mock_server.kill.assert_called_once()
 
     @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanServer", create=True)
-    def test_server_close_called_on_timeout(self, mock_lean_server_class, tmp_path):
-        """Test that server.close() is called even on timeout."""
+    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanREPLConfig", create=True)
+    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.FileCommand", create=True)
+    def test_server_close_called_on_timeout(
+        self,
+        mock_file_command_class,
+        mock_config_class,
+        mock_lean_server_class,
+        tmp_path,
+    ):
+        """Test that server.kill() is called even on timeout."""
         # Skip this test if LeanInteract is not installed
         pytest.importorskip("lean_interact")
 
@@ -247,9 +259,9 @@ class TestProcessCleanup:
         test_file = tmp_path / "test.lean"
         test_file.write_text("theorem test : True := trivial\n")
 
-        # Setup mock to raise TimeoutError
+        # Setup mock to raise TimeoutError (which is caught and handled)
         mock_server = MagicMock()
-        mock_server.run_file.side_effect = TimeoutError("Timeout")
+        mock_server.run.side_effect = TimeoutError("Timeout")
         mock_lean_server_class.return_value = mock_server
 
         # Act
@@ -262,11 +274,15 @@ class TestProcessCleanup:
 
         # Assert
         assert result.status == "timeout"
-        mock_server.close.assert_called_once()
+        mock_server.kill.assert_called_once()
 
     @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanServer", create=True)
-    def test_server_close_called_on_exception(self, mock_lean_server_class, tmp_path):
-        """Test that server.close() is called even on unexpected exception."""
+    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanREPLConfig", create=True)
+    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.FileCommand", create=True)
+    def test_server_close_called_on_exception(
+        self, mock_file_command_class, mock_config_class, mock_lean_server_class, tmp_path
+    ):
+        """Test that server.kill() is called even on unexpected exception."""
         # Skip this test if LeanInteract is not installed
         pytest.importorskip("lean_interact")
 
@@ -279,7 +295,7 @@ class TestProcessCleanup:
 
         # Setup mock to raise exception
         mock_server = MagicMock()
-        mock_server.run_file.side_effect = RuntimeError("Unexpected error")
+        mock_server.run.side_effect = RuntimeError("Unexpected error")
         mock_lean_server_class.return_value = mock_server
 
         # Act & Assert
@@ -291,5 +307,5 @@ class TestProcessCleanup:
                 budget_s=30.0,
             )
 
-        # Assert cleanup happened
-        mock_server.close.assert_called_once()
+        # Assert server.kill() was called even on exception
+        mock_server.kill.assert_called_once()

@@ -183,7 +183,7 @@ class TestRankTargetsArgs:
                 include_reasons=True,
                 use_deep_structure=False,
                 min_confidence=0.0,
-                skip_already_automated=False,
+                skip_already_automated="not_a_boolean",  # Invalid type
                 config_path=None,
             )
 

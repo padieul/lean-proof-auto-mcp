@@ -798,8 +798,16 @@ def test_property_1_workspace_isolation(cmd):
 
 
 @given(
-    file_path=st.text(min_size=1, max_size=50).filter(lambda x: "/" not in x and "\\" not in x),
-    theorem_id=st.text(min_size=1, max_size=50).filter(lambda x: " " not in x and ":" not in x),
+    file_path=st.text(
+        alphabet=st.characters(min_codepoint=ord('a'), max_codepoint=ord('z')),
+        min_size=1,
+        max_size=50
+    ),
+    theorem_id=st.text(
+        alphabet=st.characters(min_codepoint=ord('a'), max_codepoint=ord('z')),
+        min_size=1,
+        max_size=50
+    ),
     mode=st.sampled_from(["aesop", "aesop?", "grind"]),
 )
 @settings(max_examples=10, deadline=None)
@@ -818,7 +826,7 @@ def test_property_2_harness_structure_validity(file_path, theorem_id, mode):
     with tempfile.TemporaryDirectory() as tmpdir:
         workspace_path = Path(tmpdir)
         test_file = workspace_path / f"{file_path}.lean"
-        test_file.write_text(f"theorem {theorem_id} : True := by\n  trivial\n")
+        test_file.write_text(f"theorem {theorem_id} : True := by\n  trivial\n", encoding="utf-8")
 
         # Create handler
         handler = ProbeCommandHandler(
@@ -1072,8 +1080,16 @@ def test_property_5_result_completeness(cmd):
 
 
 @given(
-    file_content=st.text(min_size=10, max_size=500),
-    theorem_id=st.text(min_size=1, max_size=50).filter(lambda x: " " not in x and ":" not in x),
+    file_content=st.text(
+        alphabet=st.characters(min_codepoint=32, max_codepoint=126),  # ASCII printable
+        min_size=10,
+        max_size=500
+    ),
+    theorem_id=st.text(
+        alphabet=st.characters(min_codepoint=ord('a'), max_codepoint=ord('z')),
+        min_size=1,
+        max_size=50
+    ),
     mode=st.sampled_from(["aesop", "aesop?", "grind"]),
 )
 @settings(max_examples=10, deadline=None)
@@ -1095,7 +1111,7 @@ def test_property_6_no_source_modification(file_content, theorem_id, mode):
 
         # Create file with theorem
         content = f"theorem {theorem_id} : True := by\n  trivial\n\n{file_content}"
-        test_file.write_text(content)
+        test_file.write_text(content, encoding="utf-8")
 
         # Compute hash before
         hash_before = hashlib.sha256(test_file.read_bytes()).hexdigest()

@@ -88,8 +88,8 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
 - [ ] 4. Checkpoint - Ensure probe handler tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Implement MCP tool entry point for probe
-  - [ ] 5.1 Create `src/lean_proof_auto_mcp/tools/probe.py`
+- [x] 5. Implement MCP tool entry point for probe
+  - [x] 5.1 Create `src/lean_proof_auto_mcp/tools/probe.py`
     - Implement `probe(args: dict) -> dict` function
     - Add `_coerce_args` for argument validation and coercion
     - Add `_build_command` to construct ProbeCommand from args
@@ -98,7 +98,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Handle all exceptions and return error responses
     - _Requirements: 1.1, 3.1-3.8, 10.1-10.3, 10.5_
 
-  - [ ] 5.2 Write unit tests for probe tool entry point
+  - [x] 5.2 Write unit tests for probe tool entry point
     - Test valid inputs are accepted
     - Test invalid inputs return error responses
     - Test theorem not found returns error
@@ -106,7 +106,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Test no unhandled exceptions escape
     - _Requirements: 10.1-10.3, 10.5_
 
-- [ ] 6. Implement probe_file domain structures
+- [x] 6. Implement probe_file domain structures
   - Create ProbeFileCommand dataclass with file_path, mode, budget_s_per, limit, ordering
   - Create ProbeFileResult dataclass with api_version, status, file, summary, results, metadata
   - Add validation for ordering modes (file_order, rank_targets)
@@ -114,7 +114,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
   - Add validation for mode (aesop, aesop?, grind)
   - _Requirements: 4.1-4.7, 5.1-5.6_
 
-- [ ] 6.1 Write property tests for probe_file domain structures
+- [x] 6.1 Write property tests for probe_file domain structures
   - **Property 22: Ordering Mode Support** - Test ordering mode validation
   - **Property 23: Limit Enforcement** - Test limit validation
   - **Validates: Requirements 5.1, 5.5, 5.6**

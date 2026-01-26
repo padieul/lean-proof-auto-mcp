@@ -361,7 +361,7 @@ objectives:
       annotation_value: 0.10
       subgoal_potential: 0.10
       risk: -0.20
-  
+
   maximize_impact:
     description: "Prioritize theorems that save the most time when automated"
     use_case: "When you want maximum ROI on automation effort"
@@ -371,7 +371,7 @@ objectives:
       annotation_value: 0.30
       subgoal_potential: 0.05
       risk: -0.05
-  
+
   maximize_subgoal_automation:
     description: "Prioritize theorems with good partial automation opportunities"
     use_case: "When you want to automate proof steps rather than whole goals"
@@ -381,7 +381,7 @@ objectives:
       annotation_value: 0.20
       subgoal_potential: 0.40
       risk: -0.10
-  
+
   balanced:
     description: "Balanced weighting across all factors"
     use_case: "When you want a general-purpose ranking"
@@ -596,7 +596,7 @@ Fix the invalid value and reload.
 
 **Problem**: Scores don't match expectations.
 
-**Solution**: 
+**Solution**:
 1. Check objective weights in configuration
 2. Verify component scores in response (use `include_components: true`)
 3. Adjust relevant parameters incrementally

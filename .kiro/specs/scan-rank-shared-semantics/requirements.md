@@ -14,8 +14,8 @@ This spec defines shared semantics and fixes to make these tools production-read
 ## User Stories
 
 ### US-1: Confidence Values Are Exposed and Usable
-**As a** user filtering theorems by confidence  
-**I want to** see actual confidence values (not 0.0) in tool outputs  
+**As a** user filtering theorems by confidence
+**I want to** see actual confidence values (not 0.0) in tool outputs
 **So that** I can filter unreliable analyses and trust min_confidence filtering
 
 **Acceptance Criteria:**
@@ -37,8 +37,8 @@ notes.append(f"confidence: {features.confidence:.2f}")  # ✓
 ```
 
 ### US-2: Skip Already-Automated Theorems
-**As a** user prioritizing annotation work  
-**I want to** exclude theorems that already use automation tactics  
+**As a** user prioritizing annotation work
+**I want to** exclude theorems that already use automation tactics
 **So that** I don't waste time "improving" proofs that are already automated
 
 **Acceptance Criteria:**
@@ -55,8 +55,8 @@ notes.append(f"confidence: {features.confidence:.2f}")  # ✓
 - Proof is trivial: `:= by rfl`, `:= rfl`, `:= trivial`
 
 ### US-3: Objective Discovery and Validation
-**As a** client using rank_targets  
-**I want to** discover valid objectives without trial-and-error  
+**As a** client using rank_targets
+**I want to** discover valid objectives without trial-and-error
 **So that** I don't get schema errors when exploring ranking strategies
 
 **Acceptance Criteria:**
@@ -86,8 +86,8 @@ notes.append(f"confidence: {features.confidence:.2f}")  # ✓
 ```
 
 ### US-4: Human-Friendly Score Tiers
-**As a** user reviewing ranked theorems  
-**I want to** see intuitive quality tiers (S/A/B/C/D)  
+**As a** user reviewing ranked theorems
+**I want to** see intuitive quality tiers (S/A/B/C/D)
 **So that** I can quickly identify excellent vs mediocre candidates
 
 **Acceptance Criteria:**
@@ -106,8 +106,8 @@ notes.append(f"confidence: {features.confidence:.2f}")  # ✓
 - **D-tier**: Weak candidates, consider skipping
 
 ### US-5: Already-Automated Penalty Component
-**As a** user who wants nuanced control  
-**I want to** down-rank (not skip) already-automated theorems  
+**As a** user who wants nuanced control
+**I want to** down-rank (not skip) already-automated theorems
 **So that** I can still see them but prioritize unannotated work
 
 **Acceptance Criteria:**
@@ -124,8 +124,8 @@ notes.append(f"confidence: {features.confidence:.2f}")  # ✓
 - When `skip_already_automated=true`: theorems filtered out entirely
 
 ### US-6: Confidence Default is Safe
-**As a** new user trying rank_targets  
-**I want to** see results on first try (not empty list)  
+**As a** new user trying rank_targets
+**I want to** see results on first try (not empty list)
 **So that** I can evaluate the tool before tuning parameters
 
 **Acceptance Criteria:**
@@ -152,8 +152,8 @@ notes.append(f"confidence: {features.confidence:.2f}")  # ✓
 ```
 
 ### US-7: Configurable Heuristic Parameters
-**As a** researcher or power user tuning automation scoring  
-**I want to** adjust heuristic thresholds and weights without modifying code  
+**As a** researcher or power user tuning automation scoring
+**I want to** adjust heuristic thresholds and weights without modifying code
 **So that** I can experiment with scoring strategies and adapt to different codebases
 
 **Acceptance Criteria:**

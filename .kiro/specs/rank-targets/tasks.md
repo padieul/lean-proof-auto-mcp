@@ -1,7 +1,7 @@
 # Tasks: rank_targets MCP Tool
 
-**Feature:** rank_targets  
-**Status:** in_progress  
+**Feature:** rank_targets
+**Status:** in_progress
 **Created:** 2026-01-21
 
 ## 1. Core Ranking Module

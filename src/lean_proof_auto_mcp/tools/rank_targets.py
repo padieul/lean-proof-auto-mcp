@@ -125,7 +125,7 @@ def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
         raise ValueError("rank_targets: 'use_deep_structure' must be a boolean")
 
     min_confidence = args.get("min_confidence", 0.0)
-    if not isinstance(min_confidence, (int, float)):
+    if not isinstance(min_confidence, int | float):
         raise ValueError("rank_targets: 'min_confidence' must be a number")
 
     skip_already_automated = args.get("skip_already_automated", False)

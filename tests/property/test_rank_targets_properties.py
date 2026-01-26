@@ -322,7 +322,7 @@ class TestRankTargetsProperties:
         assert isinstance(result["metadata"]["deep_structure_used"], bool), (
             "metadata.deep_structure_used must be boolean"
         )
-        assert isinstance(result["metadata"]["computation_time_ms"], (int, float)), (
+        assert isinstance(result["metadata"]["computation_time_ms"], int | float), (
             "metadata.computation_time_ms must be number"
         )
 
@@ -331,7 +331,7 @@ class TestRankTargetsProperties:
             assert isinstance(theorem, dict), "Each ranking item must be object"
             assert isinstance(theorem["theorem_id"], str), "theorem_id must be string"
             assert isinstance(theorem["range"], dict), "range must be object"
-            assert isinstance(theorem["score"], (int, float)), "score must be number"
+            assert isinstance(theorem["score"], int | float), "score must be number"
             assert isinstance(theorem["signals"], dict), "signals must be object"
             assert isinstance(theorem["tier"], str), "tier must be string"
 
@@ -669,7 +669,7 @@ class TestRankTargetsProperties:
                 assert component in weights, (
                     f"Objective {obj['name']} missing weight for {component}"
                 )
-                assert isinstance(weights[component], (int, float)), (
+                assert isinstance(weights[component], int | float), (
                     f"Weight for {component} must be number"
                 )
 
@@ -695,7 +695,7 @@ class TestRankTargetsProperties:
                     )
 
                     penalty = components["already_automated_penalty"]
-                    assert isinstance(penalty, (int, float)), (
+                    assert isinstance(penalty, int | float), (
                         "already_automated_penalty must be number"
                     )
                     assert 0.0 <= penalty <= 1.0, (

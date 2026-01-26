@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["api_version", "status", "run_id", "tool", "file", "objective", "ranking", "summary", "diagnostics", "metadata", "available_objectives"],
   "properties": {
-    "api_version": { 
+    "api_version": {
       "$ref": "common.json#/$defs/api_version",
       "const": "1.0",
       "description": "API version 1.0 - BREAKING CHANGES from 0.x"
@@ -35,8 +35,8 @@
         "additionalProperties": false,
         "required": ["theorem_id", "range", "score", "tier", "signals"],
         "properties": {
-          "theorem_id": { 
-            "type": "string", 
+          "theorem_id": {
+            "type": "string",
             "minLength": 1,
             "description": "Unique identifier for the theorem"
           },
@@ -45,21 +45,21 @@
             "additionalProperties": false,
             "required": ["start_line", "end_line"],
             "properties": {
-              "start_line": { 
-                "type": "integer", 
+              "start_line": {
+                "type": "integer",
                 "minimum": 0,
                 "description": "Starting line number (0-indexed)"
               },
-              "end_line": { 
-                "type": "integer", 
+              "end_line": {
+                "type": "integer",
                 "minimum": 0,
                 "description": "Ending line number (0-indexed)"
               }
             }
           },
-          "score": { 
-            "type": "number", 
-            "minimum": 0.0, 
+          "score": {
+            "type": "number",
+            "minimum": 0.0,
             "maximum": 1.0,
             "description": "Final ranking score (0.0-1.0)"
           },
@@ -73,33 +73,33 @@
             "additionalProperties": false,
             "required": ["success_likelihood", "impact", "annotation_value", "subgoal_potential", "risk", "already_automated_penalty"],
             "properties": {
-              "success_likelihood": { 
-                "type": "number", 
-                "minimum": 0.0, 
+              "success_likelihood": {
+                "type": "number",
+                "minimum": 0.0,
                 "maximum": 1.0,
                 "description": "Likelihood of successful automation"
               },
-              "impact": { 
-                "type": "number", 
-                "minimum": 0.0, 
+              "impact": {
+                "type": "number",
+                "minimum": 0.0,
                 "maximum": 1.0,
                 "description": "Time saved by automating this theorem"
               },
-              "annotation_value": { 
-                "type": "number", 
-                "minimum": 0.0, 
+              "annotation_value": {
+                "type": "number",
+                "minimum": 0.0,
                 "maximum": 1.0,
                 "description": "Value of adding automation annotations"
               },
-              "subgoal_potential": { 
-                "type": "number", 
-                "minimum": 0.0, 
+              "subgoal_potential": {
+                "type": "number",
+                "minimum": 0.0,
                 "maximum": 1.0,
                 "description": "Potential for partial automation of proof steps"
               },
-              "risk": { 
-                "type": "number", 
-                "minimum": 0.0, 
+              "risk": {
+                "type": "number",
+                "minimum": 0.0,
                 "maximum": 1.0,
                 "description": "Risk of unintended side effects"
               },
@@ -127,15 +127,15 @@
                 "additionalProperties": false,
                 "required": ["aesop", "grind"],
                 "properties": {
-                  "aesop": { 
-                    "type": "number", 
-                    "minimum": 0.0, 
+                  "aesop": {
+                    "type": "number",
+                    "minimum": 0.0,
                     "maximum": 1.0,
                     "description": "Potential for aesop to solve the whole goal"
                   },
-                  "grind": { 
-                    "type": "number", 
-                    "minimum": 0.0, 
+                  "grind": {
+                    "type": "number",
+                    "minimum": 0.0,
                     "maximum": 1.0,
                     "description": "Potential for grind to solve the whole goal"
                   }
@@ -146,34 +146,34 @@
                 "additionalProperties": false,
                 "required": ["aesop", "grind"],
                 "properties": {
-                  "aesop": { 
-                    "type": "number", 
-                    "minimum": 0.0, 
+                  "aesop": {
+                    "type": "number",
+                    "minimum": 0.0,
                     "maximum": 1.0,
                     "description": "Potential for aesop to solve proof subgoals"
                   },
-                  "grind": { 
-                    "type": "number", 
-                    "minimum": 0.0, 
+                  "grind": {
+                    "type": "number",
+                    "minimum": 0.0,
                     "maximum": 1.0,
                     "description": "Potential for grind to solve proof subgoals"
                   }
                 }
               },
-              "annotation_value": { 
-                "type": "number", 
-                "minimum": 0.0, 
+              "annotation_value": {
+                "type": "number",
+                "minimum": 0.0,
                 "maximum": 1.0,
                 "description": "Value of adding automation annotations"
               },
-              "proof_lines": { 
-                "type": "integer", 
+              "proof_lines": {
+                "type": "integer",
                 "minimum": 0,
                 "description": "Number of lines in the proof"
               },
-              "confidence": { 
-                "type": "number", 
-                "minimum": 0.0, 
+              "confidence": {
+                "type": "number",
+                "minimum": 0.0,
                 "maximum": 1.0,
                 "description": "Confidence in the analysis (0.0-1.0)"
               }
@@ -187,18 +187,18 @@
       "additionalProperties": false,
       "required": ["total", "returned", "skipped_low_confidence", "skipped_already_automated", "tier_distribution"],
       "properties": {
-        "total": { 
-          "type": "integer", 
+        "total": {
+          "type": "integer",
           "minimum": 0,
           "description": "Total number of theorems analyzed"
         },
-        "returned": { 
-          "type": "integer", 
+        "returned": {
+          "type": "integer",
           "minimum": 0,
           "description": "Number of theorems returned in ranking"
         },
-        "skipped_low_confidence": { 
-          "type": "integer", 
+        "skipped_low_confidence": {
+          "type": "integer",
           "minimum": 0,
           "description": "Number of theorems filtered by min_confidence threshold"
         },
@@ -212,28 +212,28 @@
           "additionalProperties": false,
           "required": ["S", "A", "B", "C", "D"],
           "properties": {
-            "S": { 
-              "type": "integer", 
+            "S": {
+              "type": "integer",
               "minimum": 0,
               "description": "Count of S-tier theorems (top 10%)"
             },
-            "A": { 
-              "type": "integer", 
+            "A": {
+              "type": "integer",
               "minimum": 0,
               "description": "Count of A-tier theorems (10-25%)"
             },
-            "B": { 
-              "type": "integer", 
+            "B": {
+              "type": "integer",
               "minimum": 0,
               "description": "Count of B-tier theorems (25-50%)"
             },
-            "C": { 
-              "type": "integer", 
+            "C": {
+              "type": "integer",
               "minimum": 0,
               "description": "Count of C-tier theorems (50-75%)"
             },
-            "D": { 
-              "type": "integer", 
+            "D": {
+              "type": "integer",
               "minimum": 0,
               "description": "Count of D-tier theorems (75-100%)"
             }
@@ -251,16 +251,16 @@
       "additionalProperties": false,
       "required": ["deep_structure_used", "computation_time_ms"],
       "properties": {
-        "scan_file_run_id": { 
+        "scan_file_run_id": {
           "type": "string",
           "description": "Run ID of the underlying scan_file call"
         },
-        "deep_structure_used": { 
+        "deep_structure_used": {
           "type": "boolean",
           "description": "Whether deep structure analysis was used"
         },
-        "computation_time_ms": { 
-          "type": "number", 
+        "computation_time_ms": {
+          "type": "number",
           "minimum": 0,
           "description": "Time taken for computation in milliseconds"
         },
@@ -299,23 +299,23 @@
             "additionalProperties": false,
             "required": ["success_likelihood", "impact", "annotation_value", "subgoal_potential", "risk"],
             "properties": {
-              "success_likelihood": { 
+              "success_likelihood": {
                 "type": "number",
                 "description": "Weight for success likelihood component"
               },
-              "impact": { 
+              "impact": {
                 "type": "number",
                 "description": "Weight for impact component"
               },
-              "annotation_value": { 
+              "annotation_value": {
                 "type": "number",
                 "description": "Weight for annotation value component"
               },
-              "subgoal_potential": { 
+              "subgoal_potential": {
                 "type": "number",
                 "description": "Weight for subgoal potential component"
               },
-              "risk": { 
+              "risk": {
                 "type": "number",
                 "description": "Weight for risk component (typically negative)"
               }

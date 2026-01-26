@@ -7,8 +7,8 @@ The `rank_targets` tool provides deterministic, interpretable ranking of theorem
 ## User Stories
 
 ### US-1: Interactive Proof Automation Prioritization
-**As a** Lean developer working on a file with many theorems  
-**I want to** see which theorems are most likely to benefit from automation  
+**As a** Lean developer working on a file with many theorems
+**I want to** see which theorems are most likely to benefit from automation
 **So that** I can focus my manual annotation efforts on high-value targets
 
 **Acceptance Criteria:**
@@ -19,8 +19,8 @@ The `rank_targets` tool provides deterministic, interpretable ranking of theorem
 - 1.5: Tool provides clear diagnostics for any issues encountered
 
 ### US-2: Objective-Driven Ranking
-**As a** user with specific automation goals  
-**I want to** rank theorems according to different objectives  
+**As a** user with specific automation goals
+**I want to** rank theorems according to different objectives
 **So that** I can optimize for success rate, impact, or other criteria
 
 **Acceptance Criteria:**
@@ -31,8 +31,8 @@ The `rank_targets` tool provides deterministic, interpretable ranking of theorem
 - 2.5: Rankings for each objective are deterministic
 
 ### US-3: Confidence-Based Filtering
-**As a** user working with uncertain proof boundaries  
-**I want to** filter out low-confidence theorem detections  
+**As a** user working with uncertain proof boundaries
+**I want to** filter out low-confidence theorem detections
 **So that** I only see theorems where the analysis is reliable
 
 **Acceptance Criteria:**
@@ -42,8 +42,8 @@ The `rank_targets` tool provides deterministic, interpretable ranking of theorem
 - 3.4: Default min_confidence is 0.0 (no filtering)
 
 ### US-4: Transparent Scoring
-**As a** user evaluating automation recommendations  
-**I want to** understand why each theorem received its score  
+**As a** user evaluating automation recommendations
+**I want to** understand why each theorem received its score
 **So that** I can validate the ranking logic and make informed decisions
 
 **Acceptance Criteria:**
@@ -54,8 +54,8 @@ The `rank_targets` tool provides deterministic, interpretable ranking of theorem
 - 4.5: Users can disable component/reason output for performance
 
 ### US-5: Batch Processing for Agents
-**As an** automated agent processing multiple files  
-**I want to** rank theorems efficiently without deep structure analysis  
+**As an** automated agent processing multiple files
+**I want to** rank theorems efficiently without deep structure analysis
 **So that** I can make quick decisions at scale
 
 **Acceptance Criteria:**
@@ -66,8 +66,8 @@ The `rank_targets` tool provides deterministic, interpretable ranking of theorem
 - 5.5: Tool returns structured JSON conforming to schema
 
 ### US-6: Resilient to Missing Data
-**As a** user working with incomplete or evolving scan_file output  
-**I want to** get rankings even when some fields are missing  
+**As a** user working with incomplete or evolving scan_file output
+**I want to** get rankings even when some fields are missing
 **So that** the tool remains useful as the codebase evolves
 
 **Acceptance Criteria:**

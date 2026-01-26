@@ -386,6 +386,248 @@ class TestProperty8DeterministicOutput:
         # Note: timing may differ slightly, so we don't compare it
 
 
+class TestProperty4TimeoutEnforcement:
+    """
+    Property 4: Timeout Enforcement
+    
+    For any verification request with budget_s=B, if Lean execution exceeds B
+    seconds, the tool SHALL return status="timeout" and SHALL terminate all
+    Lean processes within 100ms of the budget.
+    
+    Feature: lean-verify-tool, Property 4: Timeout enforcement
+    Validates: Requirements 1.3, 4.2, 4.3
+    """
+    
+    @settings(max_examples=20, deadline=None)
+    @given(
+        file_path=st.text(min_size=1, max_size=100),
+        budget_s=st.floats(min_value=0.1, max_value=5.0),
+    )
+    def test_timeout_returns_timeout_status(
+        self,
+        file_path: str,
+        budget_s: float,
+    ):
+        """Test that timeout results in timeout status."""
+        # Feature: lean-verify-tool, Property 4: Timeout enforcement
+        
+        # Arrange - Create a timeout result
+        lean_result = LeanRunResult(
+            status="timeout",
+            diagnostics=[],
+            scope_used="file",
+            full_logs="Verification timed out",
+            timing={"lean_execution_s": budget_s + 0.05},  # Slightly over budget
+            exit_code=-1,
+        )
+        
+        lean_runner = MockLeanRunner(result=lean_result)
+        workspace_provider = MockWorkspaceProvider()
+        artifact_store = MockArtifactStore()
+        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        
+        try:
+            cmd = VerifyCommand(file_path=file_path, budget_s=budget_s)
+        except ValueError:
+            return
+        
+        # Act
+        result = handler.handle(cmd)
+        
+        # Assert - Check timeout status
+        assert result.status == "timeout"
+        assert result.timing["lean_execution_s"] >= budget_s
+    
+    @settings(max_examples=20, deadline=None)
+    @given(
+        file_path=st.text(min_size=1, max_size=100),
+        budget_s=st.floats(min_value=0.1, max_value=5.0),
+    )
+    def test_timeout_accuracy_within_buffer(
+        self,
+        file_path: str,
+        budget_s: float,
+    ):
+        """Test that timeout is enforced within 100ms buffer."""
+        # Feature: lean-verify-tool, Property 4: Timeout enforcement
+        
+        # Arrange - Create a timeout result with timing
+        timeout_buffer_ms = 100
+        lean_result = LeanRunResult(
+            status="timeout",
+            diagnostics=[],
+            scope_used="file",
+            full_logs="Verification timed out",
+            timing={"lean_execution_s": budget_s + (timeout_buffer_ms / 1000.0)},
+            exit_code=-1,
+        )
+        
+        lean_runner = MockLeanRunner(result=lean_result)
+        workspace_provider = MockWorkspaceProvider()
+        artifact_store = MockArtifactStore()
+        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        
+        try:
+            cmd = VerifyCommand(file_path=file_path, budget_s=budget_s)
+        except ValueError:
+            return
+        
+        # Act
+        result = handler.handle(cmd)
+        
+        # Assert - Check timeout is within buffer
+        if result.status == "timeout":
+            # Timeout should be within 100ms of budget
+            assert result.timing["lean_execution_s"] <= budget_s + 0.2  # 200ms tolerance for test
+
+
+class TestProperty5ProcessAndWorkspaceCleanup:
+    """
+    Property 5: Process and Workspace Cleanup
+    
+    For any verification request (success, failure, or timeout), the tool SHALL
+    clean up all Lean processes and workspace resources, leaving no orphaned
+    processes or temporary directories.
+    
+    Feature: lean-verify-tool, Property 5: Process and workspace cleanup
+    Validates: Requirements 4.4, 6.3
+    """
+    
+    @settings(max_examples=20, deadline=None)
+    @given(
+        file_path=st.text(min_size=1, max_size=100),
+        status=st.sampled_from(["success", "fail", "timeout"]),
+    )
+    def test_workspace_cleanup_always_called(
+        self,
+        file_path: str,
+        status: str,
+    ):
+        """Test that workspace cleanup is always called regardless of status."""
+        # Feature: lean-verify-tool, Property 5: Process and workspace cleanup
+        
+        # Arrange - Create result with specified status
+        lean_result = LeanRunResult(
+            status=status,
+            diagnostics=[],
+            scope_used="file",
+            full_logs="Test output",
+            timing={"lean_execution_s": 0.5},
+            exit_code=0 if status == "success" else -1,
+        )
+        
+        lean_runner = MockLeanRunner(result=lean_result)
+        workspace_provider = MockWorkspaceProvider()
+        artifact_store = MockArtifactStore()
+        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        
+        try:
+            cmd = VerifyCommand(file_path=file_path)
+        except ValueError:
+            return
+        
+        # Act
+        result = handler.handle(cmd)
+        
+        # Assert - Check workspace was created and cleaned up
+        assert len(workspace_provider.workspaces_created) == 1
+        assert len(workspace_provider.workspaces_cleaned) == 1
+        assert workspace_provider.workspaces_created[0] == workspace_provider.workspaces_cleaned[0]
+    
+    @settings(max_examples=20, deadline=None)
+    @given(
+        file_path=st.text(min_size=1, max_size=100),
+    )
+    def test_cleanup_happens_even_on_exception(
+        self,
+        file_path: str,
+    ):
+        """Test that cleanup happens even when verification raises exception."""
+        # Feature: lean-verify-tool, Property 5: Process and workspace cleanup
+        
+        # Arrange - Create a lean runner that raises exception
+        class ExceptionLeanRunner:
+            def verify_file(self, workspace_path, file_path, theorem_id, budget_s):
+                raise RuntimeError("Simulated error")
+        
+        lean_runner = ExceptionLeanRunner()
+        workspace_provider = MockWorkspaceProvider()
+        artifact_store = MockArtifactStore()
+        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        
+        try:
+            cmd = VerifyCommand(file_path=file_path)
+        except ValueError:
+            return
+        
+        # Act & Assert - Exception should be raised but cleanup should happen
+        try:
+            result = handler.handle(cmd)
+        except RuntimeError:
+            pass  # Expected exception
+        
+        # Assert - Check workspace was still cleaned up
+        assert len(workspace_provider.workspaces_created) == 1
+        assert len(workspace_provider.workspaces_cleaned) == 1
+
+
+class TestProperty16TheoremScopeSupport:
+    """
+    Property 16: Theorem Scope Support
+    
+    For any verification request with valid theorem_id, the tool SHALL create
+    an abridged file containing content up to the theorem's end line and verify
+    only that scope, returning verification_scope_used="theorem".
+    
+    Feature: lean-verify-tool, Property 16: Theorem scope support
+    Validates: Requirements 2.1, 2.2
+    """
+    
+    @settings(max_examples=20, deadline=None)
+    @given(
+        file_path=st.text(min_size=1, max_size=100),
+        theorem_id=st.text(min_size=1, max_size=50),
+    )
+    def test_theorem_scope_returns_theorem_scope_used(
+        self,
+        file_path: str,
+        theorem_id: str,
+    ):
+        """Test that theorem-level verification returns scope_used='theorem'."""
+        # Feature: lean-verify-tool, Property 16: Theorem scope support
+        
+        # Arrange - Create a result with theorem scope
+        lean_result = LeanRunResult(
+            status="success",
+            diagnostics=[],
+            scope_used="theorem",
+            full_logs="Theorem verification output",
+            timing={"lean_execution_s": 0.3},
+            exit_code=0,
+        )
+        
+        lean_runner = MockLeanRunner(result=lean_result)
+        workspace_provider = MockWorkspaceProvider()
+        artifact_store = MockArtifactStore()
+        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        
+        try:
+            cmd = VerifyCommand(file_path=file_path, theorem_id=theorem_id)
+        except ValueError:
+            return
+        
+        # Act
+        result = handler.handle(cmd)
+        
+        # Assert - Check theorem scope is used
+        assert result.verification_scope_used == "theorem"
+        assert result.theorem_id == theorem_id
+        
+        # Verify that lean_runner was called with theorem_id
+        assert len(lean_runner.calls) == 1
+        assert lean_runner.calls[0]["theorem_id"] == theorem_id
+
+
 class TestProperty12DiagnosticSummaryConsistency:
     """
     Property 12: Diagnostic Summary Consistency

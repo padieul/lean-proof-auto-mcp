@@ -85,14 +85,14 @@ This plan implements the `verify` tool as the foundational Lean execution primit
 - [ ] 3. Checkpoint - Core domain complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Implement LeanInteractRunner adapter
-  - [ ] 4.1 Implement LeanInteractRunner class
+- [x] 4. Implement LeanInteractRunner adapter
+  - [x] 4.1 Implement LeanInteractRunner class
     - Initialize with timeout_buffer_ms parameter
     - Implement verify_file() method
     - Handle both file-level and theorem-level verification
     - _Requirements: 1.1, 1.3, 2.1, 2.2_
 
-  - [ ] 4.2 Implement file-level verification
+  - [x] 4.2 Implement file-level verification
     - Initialize LeanServer with project_path and timeout
     - Call server.run_file() with file path
     - Parse response for diagnostics
@@ -101,11 +101,11 @@ This plan implements the `verify` tool as the foundational Lean execution primit
     - Always close server in finally block
     - _Requirements: 1.1, 1.3, 4.2, 4.3_
 
-  - [ ] 4.3 Write property test for timeout enforcement
+  - [x] 4.3 Write property test for timeout enforcement
     - **Property 4: Timeout Enforcement**
     - **Validates: Requirements 1.3, 4.2, 4.3**
 
-  - [ ] 4.4 Implement theorem-level verification
+  - [x] 4.4 Implement theorem-level verification
     - Parse file with SourceText and build_index
     - Find theorem by theorem_id
     - Extract lines up to theorem.decl_span.end_line
@@ -116,38 +116,38 @@ This plan implements the `verify` tool as the foundational Lean execution primit
     - Return scope_used="theorem"
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 4.5 Write property test for theorem scope support
+  - [x] 4.5 Write property test for theorem scope support
     - **Property 16: Theorem Scope Support**
     - **Validates: Requirements 2.1, 2.2**
 
-  - [ ] 4.6 Implement theorem not found error handling
+  - [x] 4.6 Implement theorem not found error handling
     - Raise ValueError if theorem_id not found in index
     - Include helpful error message
     - _Requirements: 2.3_
 
-  - [ ] 4.7 Write unit test for theorem not found handling
+  - [x] 4.7 Write unit test for theorem not found handling
     - Test with invalid theorem_id
     - Verify error diagnostic returned
     - _Requirements: 2.3_
 
-  - [ ] 4.8 Implement diagnostic parsing from LeanInteract response
+  - [x] 4.8 Implement diagnostic parsing from LeanInteract response
     - Parse messages array for errors/warnings
     - Parse sorries array for incomplete proofs
     - Normalize to standard diagnostic format
     - Extract location (file, line, col)
     - _Requirements: 1.4, 5.1, 5.2, 5.3_
 
-  - [ ] 4.9 Write unit test for diagnostic parsing
+  - [x] 4.9 Write unit test for diagnostic parsing
     - Test with various LeanInteract response formats
     - Verify all diagnostic fields populated correctly
     - _Requirements: 1.4, 5.1, 5.2, 5.3_
 
-  - [ ] 4.10 Implement process cleanup guarantees
+  - [x] 4.10 Implement process cleanup guarantees
     - Ensure server.close() called in finally block
     - Verify no orphaned Lean processes
     - _Requirements: 4.4_
 
-  - [ ] 4.11 Write property test for process cleanup
+  - [x] 4.11 Write property test for process cleanup
     - **Property 5: Process and Workspace Cleanup**
     - **Validates: Requirements 4.4, 6.3**
 

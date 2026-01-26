@@ -22,8 +22,8 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
   - **Property 28: Invalid Input Handling** - Test validation errors for invalid inputs
   - **Validates: Requirements 1.8, 3.1, 10.3, 10.5**
 
-- [ ] 2. Implement automation classifier
-  - [ ] 2.1 Create `src/lean_proof_auto_mcp/core/probe_classifier.py` with HeuristicClassifier
+- [x] 2. Implement automation classifier
+  - [x] 2.1 Create `src/lean_proof_auto_mcp/core/probe_classifier.py` with HeuristicClassifier
     - Implement classify method with deterministic rules
     - Add trivial classification (< 20% budget)
     - Add promising classification (shallow subgoals ≤ 3 levels)
@@ -32,7 +32,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Implement `_estimate_subgoal_depth` helper
     - _Requirements: 2.1-2.6_
 
-  - [ ] 2.2 Write unit tests for classifier
+  - [x] 2.2 Write unit tests for classifier
     - Test trivial classification with quick success examples
     - Test promising classification with shallow subgoal examples
     - Test failed classification with deep subgoal examples
@@ -41,7 +41,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Test boundary cases (exactly 20% budget, exactly 3 levels)
     - _Requirements: 2.1-2.6_
 
-  - [ ] 2.3 Write property tests for classifier
+  - [x] 2.3 Write property tests for classifier
     - **Property 8: Trivial Classification** - Test quick success → trivial
     - **Property 9: Promising Classification** - Test shallow subgoals → promising
     - **Property 10: Failed Classification** - Test deep subgoals → failed

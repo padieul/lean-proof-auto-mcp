@@ -441,3 +441,274 @@ def test_valid_probe_file_commands_are_accepted(cmd):
     assert cmd.budget_s_per > 0
     assert cmd.limit > 0
     assert cmd.ordering in ("file_order", "rank_targets")
+
+
+# ============================================================================
+# Classifier Property Tests (Requirements 2.1-2.6)
+# ============================================================================
+
+from lean_proof_auto_mcp.core.probe_classifier import HeuristicClassifier
+
+
+# ============================================================================
+# Property 8: Trivial Classification
+# ============================================================================
+
+
+@given(
+    budget_s=st.floats(min_value=1.0, max_value=60.0),
+    elapsed_fraction=st.floats(min_value=0.0, max_value=0.19),
+)
+@settings(max_examples=100)
+def test_property_8_trivial_classification_quick_success(budget_s, elapsed_fraction):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 8: Trivial Classification
+
+    For any automation run where the goal closes in less than 20% of the budget,
+    the classification should be "trivial".
+
+    Validates: Requirements 2.1
+    """
+    # Setup
+    classifier = HeuristicClassifier()
+    outcome = "closed"
+    elapsed_ms = budget_s * elapsed_fraction * 1000.0
+    diagnostics = []
+    timing = {"elapsed_ms": elapsed_ms}
+
+    # Execute
+    result = classifier.classify(outcome, diagnostics, timing, budget_s)
+
+    # Verify
+    assert result == "trivial"
+
+
+@given(
+    budget_s=st.floats(min_value=1.0, max_value=60.0),
+    elapsed_fraction=st.floats(min_value=0.2, max_value=1.0),
+)
+@settings(max_examples=100)
+def test_property_8_trivial_classification_any_closed(budget_s, elapsed_fraction):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 8: Trivial Classification (Any Closed)
+
+    For any automation run where the goal closes (regardless of time),
+    the classification should be "trivial".
+
+    Validates: Requirements 2.1
+    """
+    # Setup
+    classifier = HeuristicClassifier()
+    outcome = "closed"
+    elapsed_ms = budget_s * elapsed_fraction * 1000.0
+    diagnostics = []
+    timing = {"elapsed_ms": elapsed_ms}
+
+    # Execute
+    result = classifier.classify(outcome, diagnostics, timing, budget_s)
+
+    # Verify: Any closed outcome is trivial
+    assert result == "trivial"
+
+
+# ============================================================================
+# Property 9: Promising Classification
+# ============================================================================
+
+
+@given(
+    budget_s=st.floats(min_value=1.0, max_value=60.0),
+    num_goals=st.integers(min_value=1, max_value=3),
+)
+@settings(max_examples=100)
+def test_property_9_promising_classification_shallow_subgoals(budget_s, num_goals):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 9: Promising Classification
+
+    For any automation run that fails but produces diagnostics indicating
+    shallow subgoals (depth ≤ 3), the classification should be "promising".
+
+    Validates: Requirements 2.2
+    """
+    # Setup: Create diagnostics with shallow subgoals
+    classifier = HeuristicClassifier()
+    outcome = "not_closed"
+    diagnostics = [
+        {"message": f"unsolved goals\n⊢ Goal_{i}"} for i in range(num_goals)
+    ]
+    timing = {"elapsed_ms": budget_s * 500.0}
+
+    # Execute
+    result = classifier.classify(outcome, diagnostics, timing, budget_s)
+
+    # Verify
+    assert result == "promising"
+
+
+# ============================================================================
+# Property 10: Failed Classification
+# ============================================================================
+
+
+@given(
+    budget_s=st.floats(min_value=1.0, max_value=60.0),
+    num_goals=st.integers(min_value=4, max_value=10),
+)
+@settings(max_examples=100)
+def test_property_10_failed_classification_deep_subgoals(budget_s, num_goals):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 10: Failed Classification
+
+    For any automation run that fails and produces diagnostics indicating
+    deep subgoals (depth > 3) or no progress, the classification should be "failed".
+
+    Validates: Requirements 2.3
+    """
+    # Setup: Create diagnostics with many subgoals (> 3)
+    classifier = HeuristicClassifier()
+    outcome = "not_closed"
+    diagnostics = [
+        {"message": f"unsolved goals\n⊢ Goal_{i}"} for i in range(num_goals)
+    ]
+    timing = {"elapsed_ms": budget_s * 500.0}
+
+    # Execute
+    result = classifier.classify(outcome, diagnostics, timing, budget_s)
+
+    # Verify
+    assert result == "failed"
+
+
+@given(budget_s=st.floats(min_value=1.0, max_value=60.0))
+@settings(max_examples=100)
+def test_property_10_failed_classification_no_progress(budget_s):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 10: Failed Classification (No Progress)
+
+    For any automation run that fails with no diagnostics (no progress),
+    the classification should be "failed".
+
+    Validates: Requirements 2.3
+    """
+    # Setup: No diagnostics indicates no progress
+    classifier = HeuristicClassifier()
+    outcome = "not_closed"
+    diagnostics = []
+    timing = {"elapsed_ms": budget_s * 500.0}
+
+    # Execute
+    result = classifier.classify(outcome, diagnostics, timing, budget_s)
+
+    # Verify
+    assert result == "failed"
+
+
+# ============================================================================
+# Property 11: Timeout Classification
+# ============================================================================
+
+
+@given(
+    budget_s=st.floats(min_value=1.0, max_value=60.0),
+    num_diagnostics=st.integers(min_value=0, max_value=10),
+)
+@settings(max_examples=100)
+def test_property_11_timeout_classification(budget_s, num_diagnostics):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 11: Timeout Classification
+
+    For any automation run where the budget is exhausted, the classification
+    should be "timed_out" regardless of diagnostics.
+
+    Validates: Requirements 2.4
+    """
+    # Setup
+    classifier = HeuristicClassifier()
+    outcome = "timeout"
+    diagnostics = [{"message": f"goal {i}"} for i in range(num_diagnostics)]
+    timing = {"elapsed_ms": budget_s * 1000.0}
+
+    # Execute
+    result = classifier.classify(outcome, diagnostics, timing, budget_s)
+
+    # Verify
+    assert result == "timed_out"
+
+
+# ============================================================================
+# Property 12: Error Classification
+# ============================================================================
+
+
+@given(
+    budget_s=st.floats(min_value=1.0, max_value=60.0),
+    num_diagnostics=st.integers(min_value=0, max_value=10),
+)
+@settings(max_examples=100)
+def test_property_12_error_classification(budget_s, num_diagnostics):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 12: Error Classification
+
+    For any automation run where a toolchain or execution error occurs,
+    the classification should be "error" regardless of diagnostics.
+
+    Validates: Requirements 2.5
+    """
+    # Setup
+    classifier = HeuristicClassifier()
+    outcome = "error"
+    diagnostics = [{"message": f"error {i}"} for i in range(num_diagnostics)]
+    timing = {"elapsed_ms": budget_s * 100.0}
+
+    # Execute
+    result = classifier.classify(outcome, diagnostics, timing, budget_s)
+
+    # Verify
+    assert result == "error"
+
+
+# ============================================================================
+# Property 13: Deterministic Classification
+# ============================================================================
+
+
+@given(
+    outcome=st.sampled_from(["closed", "not_closed", "timeout", "error"]),
+    budget_s=st.floats(min_value=1.0, max_value=60.0),
+    elapsed_ms=st.floats(min_value=0.0, max_value=60000.0),
+    num_goals=st.integers(min_value=0, max_value=10),
+)
+@settings(max_examples=100)
+def test_property_13_deterministic_classification(
+    outcome, budget_s, elapsed_ms, num_goals
+):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 13: Deterministic Classification
+
+    For any identical probe inputs (same outcome, diagnostics, timing, budget),
+    running classify twice should produce identical classifications.
+
+    Validates: Requirements 2.6
+    """
+    # Setup: Create identical inputs
+    classifier = HeuristicClassifier()
+    diagnostics = [{"message": f"unsolved goals\n⊢ Goal_{i}"} for i in range(num_goals)]
+    timing = {"elapsed_ms": elapsed_ms}
+
+    # Execute: Run classification twice
+    result1 = classifier.classify(outcome, diagnostics, timing, budget_s)
+    result2 = classifier.classify(outcome, diagnostics, timing, budget_s)
+
+    # Verify: Results are identical
+    assert result1 == result2
+
+    # Verify: Result is one of the valid classifications
+    assert result1 in ("trivial", "promising", "failed", "timed_out", "error")

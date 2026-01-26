@@ -7,6 +7,7 @@ from .config import Config
 from .tools.rank_targets import rank_targets
 from .tools.scan_file import scan_file
 from .tools.scan_theorem import scan_theorem
+from .tools.verify import verify
 
 
 def create_app(cfg: Config) -> FastMCP:
@@ -16,6 +17,7 @@ def create_app(cfg: Config) -> FastMCP:
     router.register("scan_file", scan_file)
     router.register("scan_theorem", scan_theorem)
     router.register("rank_targets", rank_targets)
+    router.register("verify", verify)
 
     app = FastMCP(cfg.server_name)
 
@@ -50,6 +52,28 @@ def create_app(cfg: Config) -> FastMCP:
                 "include_reasons": include_reasons,
                 "use_deep_structure": use_deep_structure,
                 "min_confidence": min_confidence,
+            },
+        )
+
+    @app.tool(name="verify")
+    def verify_tool(
+        file: str,
+        theorem_id: str | None = None,
+        budget_s: float = 30.0,
+        max_log_excerpt_chars: int = 2000,
+        store_full_logs: bool = True,
+        workspace_mode: str | None = None,
+    ) -> dict:
+        """Verify a Lean file or theorem with deterministic, sandboxed execution."""
+        return router.dispatch(
+            "verify",
+            {
+                "file": file,
+                "theorem_id": theorem_id,
+                "budget_s": budget_s,
+                "max_log_excerpt_chars": max_log_excerpt_chars,
+                "store_full_logs": store_full_logs,
+                "workspace_mode": workspace_mode,
             },
         )
 

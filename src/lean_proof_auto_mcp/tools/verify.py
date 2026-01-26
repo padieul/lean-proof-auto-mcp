@@ -222,14 +222,16 @@ def _build_error_response(
     
     # Generate run_id for error response
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    file_hash = hashlib.md5(file.encode()).hexdigest()[:8]
+    # Ensure file is a string for hashing
+    file_str = str(file) if file is not None else "<invalid>"
+    file_hash = hashlib.md5(file_str.encode()).hexdigest()[:8]
     run_id = f"verify-{timestamp}-{file_hash}"
     
     return {
         "api_version": API_VERSION,
         "status": "error",
         "run_id": run_id,
-        "file": file,
+        "file": file_str,
         "theorem_id": theorem_id,
         "verification_scope_used": "none",
         "diagnostics": [

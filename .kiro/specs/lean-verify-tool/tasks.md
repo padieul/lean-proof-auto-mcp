@@ -277,18 +277,18 @@ This plan implements the `verify` tool as the foundational Lean execution primit
     - Verify cleanup happens
     - _Requirements: 1.1_
 
-- [ ] 10. Register verify tool with MCP router
-  - [ ] 10.1 Register verify handler in adapters/router.py
+- [x] 10. Register verify tool with MCP router
+  - [x] 10.1 Register verify handler in adapters/router.py
     - Import verify function
     - Register with router.register("verify", verify)
     - _Requirements: 8.3_
 
-  - [ ] 10.2 Add verify tool to MCP server tool list
+  - [x] 10.2 Add verify tool to MCP server tool list
     - Update server.py to include verify in list_tools()
     - Add tool description and input schema
     - _Requirements: 8.3_
 
-  - [ ] 10.3 Write MCP contract test for verify tool
+  - [x] 10.3 Write MCP contract test for verify tool
     - Test tool registration
     - Test input schema validation
     - Test output schema validation

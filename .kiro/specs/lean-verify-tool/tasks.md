@@ -194,13 +194,13 @@ This plan implements the `verify` tool as the foundational Lean execution primit
     - Verify correct mode selected
     - _Requirements: 6.5_
 
-- [ ] 7. Implement FilesystemArtifactStore adapter
-  - [ ] 7.1 Implement FilesystemArtifactStore class
+- [x] 7. Implement FilesystemArtifactStore adapter
+  - [x] 7.1 Implement FilesystemArtifactStore class
     - Initialize with artifacts_dir parameter
     - Implement store() method
     - _Requirements: 1.5, 7.1_
 
-  - [ ] 7.2 Implement artifact storage
+  - [x] 7.2 Implement artifact storage
     - Create run_id directory under artifacts_dir
     - Write request.json with command data
     - Write result.json with result data
@@ -208,25 +208,25 @@ This plan implements the `verify` tool as the foundational Lean execution primit
     - Use json.dump with indent=2 and sort_keys=True
     - _Requirements: 1.5, 7.1_
 
-  - [ ] 7.3 Write property test for artifact storage completeness
+  - [x] 7.3 Write property test for artifact storage completeness
     - **Property 10: Artifact Storage Completeness**
     - **Validates: Requirements 1.5, 7.1**
 
-  - [ ] 7.4 Implement conditional artifact storage
+  - [x] 7.4 Implement conditional artifact storage
     - Only store if store_full_logs=true
     - Skip storage if store_full_logs=false
     - _Requirements: 7.5_
 
-  - [ ] 7.5 Write property test for artifact storage control
+  - [x] 7.5 Write property test for artifact storage control
     - **Property 11: Artifact Storage Control**
     - **Validates: Requirements 7.5**
 
-  - [ ] 7.6 Implement artifact persistence
+  - [x] 7.6 Implement artifact persistence
     - Ensure artifacts exist after tool returns
     - Handle disk space errors gracefully
     - _Requirements: 7.4_
 
-  - [ ] 7.7 Write property test for artifact persistence
+  - [x] 7.7 Write property test for artifact persistence
     - **Property 19: Artifact Persistence**
     - **Validates: Requirements 7.4**
 

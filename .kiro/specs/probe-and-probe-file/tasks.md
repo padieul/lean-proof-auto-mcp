@@ -50,8 +50,8 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - **Property 13: Deterministic Classification** - Test identical inputs → identical outputs
     - **Validates: Requirements 2.1-2.6**
 
-- [ ] 3. Implement probe command handler
-  - [ ] 3.1 Create ProbeCommandHandler in `src/lean_proof_auto_mcp/core/probe_domain.py`
+- [x] 3. Implement probe command handler
+  - [x] 3.1 Create ProbeCommandHandler in `src/lean_proof_auto_mcp/core/probe_domain.py`
     - Implement `__init__` with dependency injection (lean_runner, workspace_provider, classifier)
     - Implement `handle` method orchestrating probe workflow
     - Add `_generate_run_id` method (format: probe-YYYYMMDD-HHMMSS-<hash>-<random>)
@@ -63,7 +63,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Implement error handling strategy from design (validation → workspace → execution → classification)
     - _Requirements: 1.1-1.6, 3.2-3.8, 6.1-6.4, 7.1-7.4, 8.1-8.2, 10.1-10.5_
 
-  - [ ] 3.2 Write unit tests for probe handler
+  - [x] 3.2 Write unit tests for probe handler
     - Test successful probe execution with mocked dependencies
     - Test workspace creation and cleanup
     - Test harness construction for different modes
@@ -74,7 +74,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Test run_id generation uniqueness
     - _Requirements: 1.1-1.6, 7.1-7.4, 10.1-10.5_
 
-  - [ ] 3.3 Write property tests for probe handler
+  - [x] 3.3 Write property tests for probe handler
     - **Property 1: Workspace Isolation** - Test workspace creation and cleanup
     - **Property 2: Harness Structure Validity** - Test harness has correct structure
     - **Property 3: Infrastructure Reuse** - Test uses same runner as verify

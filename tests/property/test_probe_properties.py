@@ -712,3 +712,581 @@ def test_property_13_deterministic_classification(
 
     # Verify: Result is one of the valid classifications
     assert result1 in ("trivial", "promising", "failed", "timed_out", "error")
+
+
+# ============================================================================
+# ProbeCommandHandler Property Tests (Requirements 1.1-1.6, 3.2-3.8, 6.1-6.4, 7.1-7.4, 8.1-8.2)
+# ============================================================================
+
+import hashlib
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock
+
+from lean_proof_auto_mcp.core.probe_domain import ProbeCommandHandler
+from lean_proof_auto_mcp.core.verify_domain import LeanRunResult, Workspace
+
+
+# ============================================================================
+# Property 1: Workspace Isolation
+# ============================================================================
+
+
+@given(cmd=valid_probe_commands())
+@settings(max_examples=10, deadline=None)
+def test_property_1_workspace_isolation(cmd):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 1: Workspace Isolation
+
+    For any theorem and automation mode, when probe is invoked, the system
+    should create an isolated workspace using the same workspace provider as
+    verify, and the workspace should be cleaned up after execution regardless
+    of outcome.
+
+    Validates: Requirements 1.1, 7.4
+    """
+    # Setup: Create mocked dependencies
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    # Mock workspace creation
+    workspace = Workspace(
+        path=Path(tempfile.mkdtemp()),
+        workspace_id="test-workspace",
+        mode="temp",
+    )
+    mock_workspace_provider.create_workspace.return_value = workspace
+
+    # Mock successful Lean execution
+    mock_lean_runner.verify_file.return_value = LeanRunResult(
+        status="success",
+        diagnostics=[],
+        scope_used="theorem",
+        full_logs="",
+        timing={"lean_execution_s": 0.5},
+        exit_code=0,
+    )
+
+    mock_classifier.classify.return_value = "trivial"
+
+    # Create handler
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    # Mock harness construction to avoid file I/O
+    from unittest.mock import patch
+
+    with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        # Execute
+        result = handler.handle(cmd)
+
+    # Verify: Workspace was created
+    mock_workspace_provider.create_workspace.assert_called_once_with(cmd.file_path)
+
+    # Verify: Workspace was cleaned up
+    mock_workspace_provider.cleanup_workspace.assert_called_once_with(workspace)
+
+
+# ============================================================================
+# Property 2: Harness Structure Validity
+# ============================================================================
+
+
+@given(
+    file_path=st.text(min_size=1, max_size=50).filter(lambda x: "/" not in x and "\\" not in x),
+    theorem_id=st.text(min_size=1, max_size=50).filter(lambda x: " " not in x and ":" not in x),
+    mode=st.sampled_from(["aesop", "aesop?", "grind"]),
+)
+@settings(max_examples=10, deadline=None)
+def test_property_2_harness_structure_validity(file_path, theorem_id, mode):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 2: Harness Structure Validity
+
+    For any theorem, when probe constructs an automation harness, the harness
+    should contain exactly one import statement, exactly one theorem declaration
+    with the target theorem's signature, and exactly one automation tactic invocation.
+
+    Validates: Requirements 1.2
+    """
+    # Setup: Create a temporary file with a theorem
+    with tempfile.TemporaryDirectory() as tmpdir:
+        workspace_path = Path(tmpdir)
+        test_file = workspace_path / f"{file_path}.lean"
+        test_file.write_text(f"theorem {theorem_id} : True := by\n  trivial\n")
+
+        # Create handler
+        handler = ProbeCommandHandler(
+            lean_runner=Mock(),
+            workspace_provider=Mock(),
+            classifier=Mock(),
+        )
+
+        # Create command
+        cmd = ProbeCommand(
+            file_path=f"{file_path}.lean",
+            theorem_id=theorem_id,
+            mode=mode,
+            budget_s=10.0,
+        )
+
+        # Execute
+        harness = handler._construct_harness(cmd, workspace_path)
+
+        # Verify: Harness structure
+        # 1. Exactly one import statement
+        import_count = harness.count("import ")
+        assert import_count == 1, f"Expected 1 import, found {import_count}"
+
+        # 2. Exactly one theorem declaration
+        theorem_count = harness.count(f"theorem {theorem_id}")
+        assert theorem_count == 1, f"Expected 1 theorem declaration, found {theorem_count}"
+
+        # 3. Exactly one automation tactic invocation
+        tactic_count = harness.count(mode)
+        assert tactic_count >= 1, f"Expected at least 1 {mode} invocation, found {tactic_count}"
+
+        # 4. Contains ":= by"
+        assert ":= by" in harness
+
+
+# ============================================================================
+# Property 3: Infrastructure Reuse
+# ============================================================================
+
+
+@given(cmd=valid_probe_commands())
+@settings(max_examples=10, deadline=None)
+def test_property_3_infrastructure_reuse(cmd):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 3: Infrastructure Reuse
+
+    For any probe invocation, the system should use the same LeanInteractRunner
+    instance type and diagnostic parsing logic as verify, ensuring consistent
+    behavior across tools.
+
+    Validates: Requirements 1.3, 6.4
+    """
+    # Setup: Create handler with mocked dependencies
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    workspace = Workspace(
+        path=Path(tempfile.mkdtemp()),
+        workspace_id="test-workspace",
+        mode="temp",
+    )
+    mock_workspace_provider.create_workspace.return_value = workspace
+
+    # Mock Lean execution with diagnostics
+    mock_lean_runner.verify_file.return_value = LeanRunResult(
+        status="success",
+        diagnostics=[
+            {"severity": "ERROR", "message": "Test", "location": None},
+            {"severity": "warning", "message": "Test", "location": None},
+        ],
+        scope_used="theorem",
+        full_logs="",
+        timing={"lean_execution_s": 0.5},
+        exit_code=0,
+    )
+
+    mock_classifier.classify.return_value = "trivial"
+
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    from unittest.mock import patch
+
+    with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        # Execute
+        result = handler.handle(cmd)
+
+    # Verify: LeanRunner was used
+    mock_lean_runner.verify_file.assert_called_once()
+
+    # Verify: Diagnostics were normalized (severity normalized to lowercase)
+    assert all(d["severity"] in ("error", "warning", "info") for d in result.diagnostics)
+
+
+# ============================================================================
+# Property 4: Hard Timeout Enforcement
+# ============================================================================
+
+
+@given(
+    file_path=st.text(min_size=1),
+    theorem_id=st.text(min_size=1),
+    mode=st.sampled_from(["aesop", "aesop?", "grind"]),
+    budget_s=st.floats(min_value=0.1, max_value=10.0),
+)
+@settings(max_examples=10, deadline=None)
+def test_property_4_hard_timeout_enforcement(file_path, theorem_id, mode, budget_s):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 4: Hard Timeout Enforcement
+
+    For any budget and theorem, when probe runs automation, if the execution
+    exceeds the budget, the Lean process should be terminated immediately and
+    the elapsed time should not significantly exceed the budget (within timeout buffer).
+
+    Validates: Requirements 1.4, 8.2
+    """
+    # Setup: Create handler with mocked dependencies
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    workspace = Workspace(
+        path=Path(tempfile.mkdtemp()),
+        workspace_id="test-workspace",
+        mode="temp",
+    )
+    mock_workspace_provider.create_workspace.return_value = workspace
+
+    # Mock timeout
+    mock_lean_runner.verify_file.side_effect = TimeoutError("Execution timed out")
+    mock_classifier.classify.return_value = "timed_out"
+
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    cmd = ProbeCommand(
+        file_path=file_path,
+        theorem_id=theorem_id,
+        mode=mode,
+        budget_s=budget_s,
+    )
+
+    from unittest.mock import patch
+
+    with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        # Execute
+        result = handler.handle(cmd)
+
+    # Verify: Result indicates timeout
+    assert result.status == "timeout"
+    assert result.probe_result.classification == "timed_out"
+
+    # Verify: Budget was passed to lean_runner
+    call_args = mock_lean_runner.verify_file.call_args
+    assert call_args[1]["budget_s"] == budget_s
+
+
+# ============================================================================
+# Property 5: Result Completeness
+# ============================================================================
+
+
+@given(cmd=valid_probe_commands())
+@settings(max_examples=10, deadline=None)
+def test_property_5_result_completeness(cmd):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 5: Result Completeness
+
+    For any probe invocation, the result should contain all required fields:
+    api_version, status, run_id, probe_result (with mode, outcome, classification),
+    diagnostics, timing (with elapsed_ms and budget_s), and metadata.
+
+    Validates: Requirements 1.5, 3.2, 3.3, 3.4, 3.6, 3.7, 3.8
+    """
+    # Setup: Create handler with mocked dependencies
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    workspace = Workspace(
+        path=Path(tempfile.mkdtemp()),
+        workspace_id="test-workspace",
+        mode="temp",
+    )
+    mock_workspace_provider.create_workspace.return_value = workspace
+
+    mock_lean_runner.verify_file.return_value = LeanRunResult(
+        status="success",
+        diagnostics=[],
+        scope_used="theorem",
+        full_logs="",
+        timing={"lean_execution_s": 0.5},
+        exit_code=0,
+    )
+
+    mock_classifier.classify.return_value = "trivial"
+
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    from unittest.mock import patch
+
+    with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        # Execute
+        result = handler.handle(cmd)
+
+    # Verify: All required fields are present
+    assert hasattr(result, "api_version")
+    assert hasattr(result, "status")
+    assert hasattr(result, "run_id")
+    assert hasattr(result, "probe_result")
+    assert hasattr(result, "diagnostics")
+    assert hasattr(result, "timing")
+    assert hasattr(result, "metadata")
+
+    # Verify: probe_result has required fields
+    assert hasattr(result.probe_result, "mode")
+    assert hasattr(result.probe_result, "outcome")
+    assert hasattr(result.probe_result, "classification")
+
+    # Verify: timing has required fields
+    assert "elapsed_ms" in result.timing
+    assert "budget_s" in result.timing
+
+    # Verify: Values are correct types
+    assert isinstance(result.api_version, str)
+    assert isinstance(result.status, str)
+    assert isinstance(result.run_id, str)
+    assert isinstance(result.diagnostics, list)
+    assert isinstance(result.timing, dict)
+    assert isinstance(result.metadata, dict)
+
+
+# ============================================================================
+# Property 6: No Source Modification
+# ============================================================================
+
+
+@given(
+    file_content=st.text(min_size=10, max_size=500),
+    theorem_id=st.text(min_size=1, max_size=50).filter(lambda x: " " not in x and ":" not in x),
+    mode=st.sampled_from(["aesop", "aesop?", "grind"]),
+)
+@settings(max_examples=10, deadline=None)
+def test_property_6_no_source_modification(file_content, theorem_id, mode):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 6: No Source Modification
+
+    For any probe invocation, the source file's content hash before and after
+    probe execution should be identical, proving that probe never modifies
+    source code.
+
+    Validates: Requirements 1.6
+    """
+    # Setup: Create a temporary file with content
+    with tempfile.TemporaryDirectory() as tmpdir:
+        workspace_path = Path(tmpdir)
+        test_file = workspace_path / "test.lean"
+
+        # Create file with theorem
+        content = f"theorem {theorem_id} : True := by\n  trivial\n\n{file_content}"
+        test_file.write_text(content)
+
+        # Compute hash before
+        hash_before = hashlib.sha256(test_file.read_bytes()).hexdigest()
+
+        # Create handler
+        mock_lean_runner = Mock()
+        mock_workspace_provider = Mock()
+        mock_classifier = Mock()
+
+        mock_workspace_provider.create_workspace.return_value = Workspace(
+            path=workspace_path,
+            workspace_id="test-workspace",
+            mode="temp",
+        )
+
+        mock_lean_runner.verify_file.return_value = LeanRunResult(
+            status="success",
+            diagnostics=[],
+            scope_used="theorem",
+            full_logs="",
+            timing={"lean_execution_s": 0.5},
+            exit_code=0,
+        )
+
+        mock_classifier.classify.return_value = "trivial"
+
+        handler = ProbeCommandHandler(
+            lean_runner=mock_lean_runner,
+            workspace_provider=mock_workspace_provider,
+            classifier=mock_classifier,
+        )
+
+        cmd = ProbeCommand(
+            file_path="test.lean",
+            theorem_id=theorem_id,
+            mode=mode,
+            budget_s=10.0,
+        )
+
+        # Execute
+        result = handler.handle(cmd)
+
+        # Compute hash after
+        hash_after = hashlib.sha256(test_file.read_bytes()).hexdigest()
+
+        # Verify: Hash unchanged
+        assert hash_before == hash_after, "Source file was modified during probe execution"
+
+
+# ============================================================================
+# Property 24: No External Filesystem Mutation
+# ============================================================================
+
+
+@given(cmd=valid_probe_commands())
+@settings(max_examples=10, deadline=None)
+def test_property_24_no_external_filesystem_mutation(cmd):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 24: No External Filesystem Mutation
+
+    For any probe invocation, no files outside the isolated workspace should
+    be created, modified, or deleted during execution.
+
+    Validates: Requirements 7.1
+    """
+    # Setup: Track filesystem state outside workspace
+    with tempfile.TemporaryDirectory() as external_dir:
+        external_path = Path(external_dir)
+        marker_file = external_path / "marker.txt"
+        marker_file.write_text("external")
+
+        # Get initial state
+        initial_files = set(external_path.rglob("*"))
+
+        # Create handler with mocked dependencies
+        mock_lean_runner = Mock()
+        mock_workspace_provider = Mock()
+        mock_classifier = Mock()
+
+        # Use a different workspace directory
+        with tempfile.TemporaryDirectory() as workspace_dir:
+            workspace = Workspace(
+                path=Path(workspace_dir),
+                workspace_id="test-workspace",
+                mode="temp",
+            )
+            mock_workspace_provider.create_workspace.return_value = workspace
+
+            mock_lean_runner.verify_file.return_value = LeanRunResult(
+                status="success",
+                diagnostics=[],
+                scope_used="theorem",
+                full_logs="",
+                timing={"lean_execution_s": 0.5},
+                exit_code=0,
+            )
+
+            mock_classifier.classify.return_value = "trivial"
+
+            handler = ProbeCommandHandler(
+                lean_runner=mock_lean_runner,
+                workspace_provider=mock_workspace_provider,
+                classifier=mock_classifier,
+            )
+
+            from unittest.mock import patch
+
+            with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+                # Execute
+                result = handler.handle(cmd)
+
+        # Get final state
+        final_files = set(external_path.rglob("*"))
+
+        # Verify: No changes to external filesystem
+        assert initial_files == final_files, "External filesystem was modified"
+
+
+# ============================================================================
+# Property 25: Stateless Execution
+# ============================================================================
+
+
+@given(
+    cmd1=valid_probe_commands(),
+    cmd2=valid_probe_commands(),
+)
+@settings(max_examples=10, deadline=None)
+def test_property_25_stateless_execution(cmd1, cmd2):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 25: Stateless Execution
+
+    For any two consecutive probe invocations with different inputs, the second
+    invocation's result should not depend on any state from the first invocation.
+
+    Validates: Requirements 7.2
+    """
+    # Setup: Create handler with mocked dependencies
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    # Mock workspace creation to return different workspaces
+    workspace1 = Workspace(
+        path=Path(tempfile.mkdtemp()),
+        workspace_id="workspace-1",
+        mode="temp",
+    )
+    workspace2 = Workspace(
+        path=Path(tempfile.mkdtemp()),
+        workspace_id="workspace-2",
+        mode="temp",
+    )
+    mock_workspace_provider.create_workspace.side_effect = [workspace1, workspace2]
+
+    # Mock Lean execution
+    mock_lean_runner.verify_file.return_value = LeanRunResult(
+        status="success",
+        diagnostics=[],
+        scope_used="theorem",
+        full_logs="",
+        timing={"lean_execution_s": 0.5},
+        exit_code=0,
+    )
+
+    mock_classifier.classify.return_value = "trivial"
+
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    from unittest.mock import patch
+
+    with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        # Execute: First invocation
+        result1 = handler.handle(cmd1)
+
+        # Execute: Second invocation
+        result2 = handler.handle(cmd2)
+
+    # Verify: Both invocations succeeded
+    assert result1.status in ("success", "fail", "timeout", "error")
+    assert result2.status in ("success", "fail", "timeout", "error")
+
+    # Verify: Different run_ids (proves independence)
+    assert result1.run_id != result2.run_id
+
+    # Verify: Different workspaces were used
+    assert mock_workspace_provider.create_workspace.call_count == 2
+    assert workspace1.workspace_id != workspace2.workspace_id

@@ -233,8 +233,8 @@ This plan implements the `verify` tool as the foundational Lean execution primit
 - [ ] 8. Checkpoint - All adapters complete
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Implement MCP tool entry point
-  - [ ] 9.1 Create verify() function in tools/verify.py
+- [x] 9. Implement MCP tool entry point
+  - [x] 9.1 Create verify() function in tools/verify.py
     - Accept args dict with file, theorem_id, budget_s, etc.
     - Coerce and validate arguments
     - Build VerifyCommand from args
@@ -243,7 +243,7 @@ This plan implements the `verify` tool as the foundational Lean execution primit
     - Return VerifyResult as dict
     - _Requirements: 1.1, 8.3_
 
-  - [ ] 9.2 Implement argument validation and coercion
+  - [x] 9.2 Implement argument validation and coercion
     - Validate file is non-empty string
     - Validate budget_s is positive number
     - Validate max_log_excerpt_chars is positive integer
@@ -251,27 +251,27 @@ This plan implements the `verify` tool as the foundational Lean execution primit
     - Return error response for invalid inputs
     - _Requirements: 1.1_
 
-  - [ ] 9.3 Write unit test for argument validation
+  - [x] 9.3 Write unit test for argument validation
     - Test with valid inputs
     - Test with invalid inputs (missing file, negative budget)
     - Verify error responses
     - _Requirements: 1.1_
 
-  - [ ] 9.4 Implement composition root
+  - [x] 9.4 Implement composition root
     - Create LeanInteractRunner instance
     - Create GitWorktreeProvider instance (with fallback to TempCopyProvider)
     - Create FilesystemArtifactStore instance
     - Wire dependencies into VerifyCommandHandler
     - _Requirements: 1.1_
 
-  - [ ] 9.5 Implement error handling wrapper
+  - [x] 9.5 Implement error handling wrapper
     - Catch all exceptions in try/except
     - Return error response with diagnostic
     - Include error code in notes
     - Ensure cleanup happens even on exception
     - _Requirements: 1.1_
 
-  - [ ] 9.6 Write unit test for error handling
+  - [x] 9.6 Write unit test for error handling
     - Test with various error conditions
     - Verify error responses have correct structure
     - Verify cleanup happens

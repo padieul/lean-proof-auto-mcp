@@ -95,7 +95,7 @@ class VerifyCommand:
 ```python
 class VerifyCommandHandler:
     """Orchestrates verification using injected ports."""
-    
+
     def __init__(
         self,
         lean_runner: LeanRunner,
@@ -105,15 +105,15 @@ class VerifyCommandHandler:
         self.lean_runner = lean_runner
         self.workspace_provider = workspace_provider
         self.artifact_store = artifact_store
-    
+
     def handle(self, cmd: VerifyCommand) -> VerifyResult:
         """Execute verification workflow."""
         # 1. Generate run_id
         run_id = self._generate_run_id(cmd)
-        
+
         # 2. Create isolated workspace
         workspace = self.workspace_provider.create_workspace(cmd.file_path)
-        
+
         try:
             # 3. Run Lean verification with timeout
             lean_result = self.lean_runner.verify_file(
@@ -122,13 +122,13 @@ class VerifyCommandHandler:
                 theorem_id=cmd.theorem_id,
                 budget_s=cmd.budget_s,
             )
-            
+
             # 4. Parse and normalize diagnostics
             diagnostics = self._normalize_diagnostics(lean_result.diagnostics)
-            
+
             # 5. Determine status
             status = self._determine_status(lean_result, diagnostics)
-            
+
             # 6. Build result
             result = VerifyResult(
                 api_version="0.2.0",
@@ -143,14 +143,14 @@ class VerifyCommandHandler:
                 metadata=self._build_metadata(workspace, lean_result),
                 timing=self._build_timing(lean_result),
             )
-            
+
             # 7. Store artifacts if requested
             if cmd.store_full_logs:
                 self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
-            
+
             # 8. Ensure deterministic output
             return self._ensure_deterministic(result)
-            
+
         finally:
             # 9. Cleanup workspace
             self.workspace_provider.cleanup_workspace(workspace)
@@ -163,7 +163,7 @@ class VerifyCommandHandler:
 ```python
 class LeanRunner(Protocol):
     """Abstract interface for running Lean verification."""
-    
+
     def verify_file(
         self,
         workspace_path: Path,
@@ -173,10 +173,10 @@ class LeanRunner(Protocol):
     ) -> LeanRunResult:
         """
         Run Lean verification on file or theorem.
-        
+
         Returns:
             LeanRunResult with status, diagnostics, logs, timing
-        
+
         Raises:
             TimeoutError: If verification exceeds budget
             LeanExecutionError: If Lean process fails
@@ -189,16 +189,16 @@ class LeanRunner(Protocol):
 ```python
 class WorkspaceProvider(Protocol):
     """Abstract interface for workspace isolation."""
-    
+
     def create_workspace(self, file_path: str) -> Workspace:
         """
         Create isolated workspace for verification.
-        
+
         Returns:
             Workspace with path and metadata
         """
         ...
-    
+
     def cleanup_workspace(self, workspace: Workspace) -> None:
         """Clean up workspace resources."""
         ...
@@ -209,7 +209,7 @@ class WorkspaceProvider(Protocol):
 ```python
 class ArtifactStore(Protocol):
     """Abstract interface for artifact storage."""
-    
+
     def store(
         self,
         run_id: str,
@@ -228,10 +228,10 @@ class ArtifactStore(Protocol):
 ```python
 class LeanInteractRunner:
     """Concrete implementation using LeanInteract library."""
-    
+
     def __init__(self, timeout_buffer_ms: int = 100):
         self.timeout_buffer_ms = timeout_buffer_ms
-    
+
     def verify_file(
         self,
         workspace_path: Path,
@@ -241,7 +241,7 @@ class LeanInteractRunner:
     ) -> LeanRunResult:
         """
         Execute Lean verification using LeanInteract.
-        
+
         Strategy:
         1. If theorem_id provided, create abridged file up to theorem end
         2. Initialize LeanServer in workspace context (lake env)
@@ -251,13 +251,13 @@ class LeanInteractRunner:
         6. Return structured result
         """
         start_time = time.time()
-        
+
         # Initialize LeanServer with project context
         server = LeanServer(
             project_path=str(workspace_path),
             timeout=budget_s,
         )
-        
+
         try:
             # Determine verification scope
             if theorem_id:
@@ -269,20 +269,20 @@ class LeanInteractRunner:
                 # File-level: verify entire file
                 target_file = file_path
                 scope_used = "file"
-            
+
             # Run file verification
             response = server.run_file(target_file)
-            
+
             # Parse diagnostics from response
             diagnostics = self._parse_diagnostics(response)
-            
+
             # Map diagnostics back to original file if theorem-level
             if theorem_id and target_file != file_path:
                 for diag in diagnostics:
                     diag["location"]["file"] = file_path
-            
+
             elapsed = time.time() - start_time
-            
+
             return LeanRunResult(
                 status="success" if not diagnostics else "fail",
                 diagnostics=diagnostics,
@@ -291,7 +291,7 @@ class LeanInteractRunner:
                 timing={"lean_execution_s": elapsed},
                 exit_code=0,
             )
-            
+
         except TimeoutError:
             elapsed = time.time() - start_time
             return LeanRunResult(
@@ -302,10 +302,10 @@ class LeanInteractRunner:
                 timing={"lean_execution_s": elapsed},
                 exit_code=-1,
             )
-        
+
         finally:
             server.close()
-    
+
     def _prepare_theorem_verification(
         self,
         workspace_path: Path,
@@ -314,29 +314,29 @@ class LeanInteractRunner:
     ) -> tuple[str, str]:
         """
         Prepare theorem-level verification by creating abridged file.
-        
+
         Returns:
             (target_file_path, scope_used)
         """
         from ..core.source import SourceText
         from ..core.indexer import build_index
-        
+
         # Parse file to find theorem
         source = SourceText(path=file_path, text=Path(file_path).read_text())
         index = build_index(source)
         theorem = index.find_theorem(theorem_id)
-        
+
         if not theorem:
             raise ValueError(f"Theorem not found: {theorem_id}")
-        
+
         # Extract content up to theorem end
         lines = source.text.splitlines(keepends=True)
         abridged_content = "".join(lines[:theorem.decl_span.end_line])
-        
+
         # Create temporary file in workspace
         temp_file = workspace_path / f"_verify_{theorem_id}.lean"
         temp_file.write_text(abridged_content)
-        
+
         return str(temp_file), "theorem"
 ```
 
@@ -345,14 +345,14 @@ class LeanInteractRunner:
 ```python
 class GitWorktreeProvider:
     """Concrete implementation using git worktree."""
-    
+
     def __init__(self, worktree_dir: Path):
         self.worktree_dir = worktree_dir
-    
+
     def create_workspace(self, file_path: str) -> Workspace:
         """
         Create git worktree for isolated verification.
-        
+
         Strategy:
         1. Generate unique worktree name
         2. Run: git worktree add <path> HEAD
@@ -360,20 +360,20 @@ class GitWorktreeProvider:
         """
         workspace_id = self._generate_workspace_id()
         worktree_path = self.worktree_dir / workspace_id
-        
+
         # Create worktree
         subprocess.run(
             ["git", "worktree", "add", str(worktree_path), "HEAD"],
             check=True,
             capture_output=True,
         )
-        
+
         return Workspace(
             path=worktree_path,
             workspace_id=workspace_id,
             mode="worktree",
         )
-    
+
     def cleanup_workspace(self, workspace: Workspace) -> None:
         """Remove git worktree."""
         subprocess.run(
@@ -388,10 +388,10 @@ class GitWorktreeProvider:
 ```python
 class FilesystemArtifactStore:
     """Concrete implementation using filesystem."""
-    
+
     def __init__(self, artifacts_dir: Path):
         self.artifacts_dir = artifacts_dir
-    
+
     def store(
         self,
         run_id: str,
@@ -401,7 +401,7 @@ class FilesystemArtifactStore:
     ) -> None:
         """
         Store artifacts under run_id directory.
-        
+
         Structure:
         artifacts/
           <run_id>/
@@ -411,15 +411,15 @@ class FilesystemArtifactStore:
         """
         run_dir = self.artifacts_dir / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Store request
         with open(run_dir / "request.json", "w") as f:
             json.dump(dataclasses.asdict(command), f, indent=2)
-        
+
         # Store result
         with open(run_dir / "result.json", "w") as f:
             json.dump(dataclasses.asdict(result), f, indent=2)
-        
+
         # Store full logs
         with open(run_dir / "lean_output.log", "w") as f:
             f.write(full_logs)
@@ -575,34 +575,34 @@ def verify_theorem(
     budget_s: float,
 ) -> LeanRunResult:
     """Verify a specific theorem by creating temporary abridged file."""
-    
+
     # 1. Parse original file to find theorem location
     source = SourceText(path=file_path, text=read_file(file_path))
     index = build_index(source)
     theorem = index.find_theorem(theorem_id)
-    
+
     if not theorem:
         raise ValueError(f"Theorem not found: {theorem_id}")
-    
+
     # 2. Extract content up to theorem end
     lines = source.text.splitlines(keepends=True)
     abridged_content = "".join(lines[:theorem.decl_span.end_line])
-    
+
     # 3. Create temporary file in workspace
     temp_file = workspace_path / f"_verify_{theorem_id}.lean"
     temp_file.write_text(abridged_content)
-    
+
     # 4. Verify temporary file with LeanInteract
     server = LeanServer(project_path=str(workspace_path), timeout=budget_s)
     try:
         response = server.run_file(str(temp_file))
         diagnostics = parse_diagnostics(response)
-        
+
         # 5. Map diagnostics back to original file
         # (line numbers already match since we preserved line structure)
         for diag in diagnostics:
             diag["location"]["file"] = file_path
-        
+
         return LeanRunResult(
             status="success" if not diagnostics else "fail",
             diagnostics=diagnostics,
@@ -668,7 +668,7 @@ Sort diagnostics by:
 ```python
 def sort_diagnostics(diagnostics: list[dict]) -> list[dict]:
     severity_order = {"error": 0, "warning": 1, "info": 2}
-    
+
     return sorted(
         diagnostics,
         key=lambda d: (
@@ -692,12 +692,12 @@ Deterministic truncation strategy:
 def truncate_log(log: str, max_chars: int) -> str:
     if len(log) <= max_chars:
         return log
-    
+
     # Find last newline before max_chars
     truncate_point = log.rfind("\n", 0, max_chars)
     if truncate_point == -1:
         truncate_point = max_chars
-    
+
     return log[:truncate_point] + "\n... (truncated)"
 ```
 
@@ -806,17 +806,17 @@ Ensure no leaked resources:
 def handle_with_cleanup(cmd: VerifyCommand) -> VerifyResult:
     workspace = None
     lean_server = None
-    
+
     try:
         workspace = workspace_provider.create_workspace(cmd.file_path)
         lean_server = lean_runner.create_server(workspace.path)
-        
+
         # ... verification logic ...
-        
+
     except Exception as e:
         # Log error, build error response
         return build_error_response(e)
-    
+
     finally:
         # Always cleanup, even on exception
         if lean_server:
@@ -1117,17 +1117,17 @@ tests/
     test_lean_interact_runner.py   # LeanInteract adapter
     test_workspace_provider.py      # Workspace isolation
     test_artifact_store.py          # Artifact storage
-  
+
   property/
     test_verify_properties.py       # All property-based tests
-  
+
   integration/
     test_verify_mathlib.py          # Integration with real Lean files
     test_verify_concurrent.py       # Concurrent execution
-  
+
   mcp_contract/
     test_verify_schema.py           # JSON schema validation
-  
+
   fixtures/
     lean/
       valid_theorem.lean

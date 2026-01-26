@@ -43,10 +43,10 @@ def verify_validator(schema_dir: Path) -> Draft202012Validator:
     # Check if schema files exist
     verify_schema_path = schema_dir / "verify_output.json"
     common_schema_path = schema_dir / "common.json"
-    
+
     if not verify_schema_path.exists() or not common_schema_path.exists():
         pytest.skip("Schema files not yet created (will be created in task 13.3)")
-    
+
     verify_schema = json.loads(verify_schema_path.read_text(encoding="utf-8"))
     common_schema = json.loads(common_schema_path.read_text(encoding="utf-8"))
 
@@ -122,22 +122,24 @@ def test_verify_tool_is_registered():
 def test_verify_accepts_valid_file_only_input():
     """Test that verify accepts minimal valid input (file only)."""
     resp = verify({"file": "test.lean"})
-    
+
     # Should return valid response (error is ok, we're testing input acceptance)
     _assert_contract_guarantees(resp)
 
 
 def test_verify_accepts_all_optional_parameters():
     """Test that verify accepts all optional parameters."""
-    resp = verify({
-        "file": "test.lean",
-        "theorem_id": "MyTheorem",
-        "budget_s": 60.0,
-        "max_log_excerpt_chars": 5000,
-        "store_full_logs": False,
-        "workspace_mode": "temp",
-    })
-    
+    resp = verify(
+        {
+            "file": "test.lean",
+            "theorem_id": "MyTheorem",
+            "budget_s": 60.0,
+            "max_log_excerpt_chars": 5000,
+            "store_full_logs": False,
+            "workspace_mode": "temp",
+        }
+    )
+
     # Should return valid response
     _assert_contract_guarantees(resp)
 
@@ -145,10 +147,10 @@ def test_verify_accepts_all_optional_parameters():
 def test_verify_rejects_missing_file():
     """Test that verify rejects input without file parameter."""
     resp = verify({})
-    
+
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
-    
+
     # Should have diagnostic explaining the error
     assert "diagnostics" in resp, "Error response should include diagnostics"
     assert len(resp["diagnostics"]) > 0, "Should have at least one diagnostic"
@@ -157,7 +159,7 @@ def test_verify_rejects_missing_file():
 def test_verify_rejects_empty_file():
     """Test that verify rejects empty file parameter."""
     resp = verify({"file": ""})
-    
+
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
 
@@ -165,7 +167,7 @@ def test_verify_rejects_empty_file():
 def test_verify_rejects_invalid_budget_s():
     """Test that verify rejects negative budget_s."""
     resp = verify({"file": "test.lean", "budget_s": -10.0})
-    
+
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
 
@@ -173,7 +175,7 @@ def test_verify_rejects_invalid_budget_s():
 def test_verify_rejects_zero_budget_s():
     """Test that verify rejects zero budget_s."""
     resp = verify({"file": "test.lean", "budget_s": 0.0})
-    
+
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
 
@@ -181,7 +183,7 @@ def test_verify_rejects_zero_budget_s():
 def test_verify_rejects_invalid_max_log_excerpt_chars():
     """Test that verify rejects negative max_log_excerpt_chars."""
     resp = verify({"file": "test.lean", "max_log_excerpt_chars": -100})
-    
+
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
 
@@ -189,7 +191,7 @@ def test_verify_rejects_invalid_max_log_excerpt_chars():
 def test_verify_rejects_invalid_workspace_mode():
     """Test that verify rejects invalid workspace_mode."""
     resp = verify({"file": "test.lean", "workspace_mode": "invalid"})
-    
+
     # Should return error status
     _assert_contract_guarantees(resp, expected_status="error")
 
@@ -260,7 +262,9 @@ def test_verify_field_types():
     assert resp["theorem_id"] is None or isinstance(resp["theorem_id"], str), (
         "theorem_id must be string or null"
     )
-    assert isinstance(resp["verification_scope_used"], str), "verification_scope_used must be string"
+    assert isinstance(resp["verification_scope_used"], str), (
+        "verification_scope_used must be string"
+    )
     assert isinstance(resp["diagnostics"], list), "diagnostics must be array"
     assert isinstance(resp["diagnostic_summary"], dict), "diagnostic_summary must be object"
     assert isinstance(resp["evidence"], dict), "evidence must be object"
@@ -269,7 +273,9 @@ def test_verify_field_types():
 
     # Type checks for diagnostic_summary
     assert isinstance(resp["diagnostic_summary"]["error_count"], int), "error_count must be integer"
-    assert isinstance(resp["diagnostic_summary"]["warning_count"], int), "warning_count must be integer"
+    assert isinstance(resp["diagnostic_summary"]["warning_count"], int), (
+        "warning_count must be integer"
+    )
     assert isinstance(resp["diagnostic_summary"]["info_count"], int), "info_count must be integer"
 
     # Type checks for evidence
@@ -311,17 +317,18 @@ def test_verify_diagnostics_structure():
 def test_verify_verification_scope_used_valid():
     """Test that verification_scope_used is one of valid values."""
     resp = verify({"file": "test.lean"})
-    
+
     valid_scopes = {"file", "theorem", "file_fallback", "none"}
     assert resp["verification_scope_used"] in valid_scopes, (
-        f"verification_scope_used '{resp['verification_scope_used']}' not in valid set {valid_scopes}"
+        f"verification_scope_used '{resp['verification_scope_used']}' "
+        f"not in valid set {valid_scopes}"
     )
 
 
 def test_verify_status_valid():
     """Test that status is one of the valid values."""
     resp = verify({"file": "test.lean"})
-    
+
     valid_statuses = {"success", "fail", "timeout", "error"}
     assert resp["status"] in valid_statuses, (
         f"status '{resp['status']}' not in valid set {valid_statuses}"
@@ -347,10 +354,10 @@ def test_verify_run_id_non_empty():
 def test_verify_run_id_format():
     """Test that run_id follows expected format (verify-timestamp-hash)."""
     resp = verify({"file": "test.lean"})
-    
+
     # run_id should start with "verify-"
     assert resp["run_id"].startswith("verify-"), "run_id should start with 'verify-'"
-    
+
     # run_id should have at least 3 parts separated by hyphens
     parts = resp["run_id"].split("-")
     assert len(parts) >= 3, "run_id should have format 'verify-timestamp-hash'"
@@ -440,7 +447,7 @@ def test_verify_determinism_with_different_files():
 def test_verify_diagnostic_counts_non_negative():
     """Test that diagnostic counts are non-negative."""
     resp = verify({"file": "test.lean"})
-    
+
     assert resp["diagnostic_summary"]["error_count"] >= 0, "error_count must be non-negative"
     assert resp["diagnostic_summary"]["warning_count"] >= 0, "warning_count must be non-negative"
     assert resp["diagnostic_summary"]["info_count"] >= 0, "info_count must be non-negative"
@@ -475,7 +482,7 @@ def test_verify_diagnostic_counts_match_diagnostics():
 def test_verify_notes_are_strings():
     """Test that all notes are strings."""
     resp = verify({"file": "test.lean"})
-    
+
     for note in resp["evidence"]["notes"]:
         assert isinstance(note, str), f"Note must be string, got {type(note)}"
 
@@ -483,6 +490,6 @@ def test_verify_notes_are_strings():
 def test_verify_notes_non_empty():
     """Test that notes are non-empty strings."""
     resp = verify({"file": "test.lean"})
-    
+
     for note in resp["evidence"]["notes"]:
         assert len(note) > 0, "Note must be non-empty string"

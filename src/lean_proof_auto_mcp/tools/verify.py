@@ -26,7 +26,7 @@ API_VERSION = "0.2.0"
 def verify(args: dict[str, Any]) -> dict[str, Any]:
     """
     Verify a Lean file or theorem with deterministic, sandboxed execution.
-    
+
     This is the main MCP tool entry point that:
     1. Validates and coerces arguments
     2. Builds VerifyCommand from args
@@ -34,7 +34,7 @@ def verify(args: dict[str, Any]) -> dict[str, Any]:
     4. Calls handler.handle(command)
     5. Returns VerifyResult as dict
     6. Handles all errors gracefully
-    
+
     Args:
         args: Dictionary with verification parameters:
             - file: Path to Lean file (required)
@@ -43,13 +43,13 @@ def verify(args: dict[str, Any]) -> dict[str, Any]:
             - max_log_excerpt_chars: Max chars for log excerpts (default: 2000)
             - store_full_logs: Whether to store full logs (default: True)
             - workspace_mode: Workspace mode ("worktree", "temp", or None for auto)
-    
+
     Returns:
         Dictionary conforming to verify output schema with fields:
         - api_version, status, run_id, file, theorem_id
         - verification_scope_used, diagnostics, diagnostic_summary
         - evidence, metadata, timing
-    
+
     Requirements: 1.1, 8.3
     """
     # Validate and coerce arguments
@@ -62,18 +62,18 @@ def verify(args: dict[str, Any]) -> dict[str, Any]:
             error_message=str(e),
             error_code="input_validation_error",
         )
-    
+
     # Execute verification with error handling wrapper
     try:
         # Create handler with real adapters (composition root)
         handler = _create_handler()
-        
+
         # Execute verification
         result = handler.handle(command)
-        
+
         # Convert result to dict
         return asdict(result)
-        
+
     except Exception as e:
         # Catch all exceptions and return error response
         logger.exception(f"Verification failed for {command.file_path}")
@@ -88,62 +88,62 @@ def verify(args: dict[str, Any]) -> dict[str, Any]:
 def _build_command(args: dict[str, Any]) -> VerifyCommand:
     """
     Build VerifyCommand from args dict with validation and coercion.
-    
+
     This function:
     - Validates file is non-empty string
     - Validates budget_s is positive number
     - Validates max_log_excerpt_chars is positive integer
     - Provides defaults for optional parameters
     - Raises ValueError for invalid inputs
-    
+
     Args:
         args: Raw arguments dict
-    
+
     Returns:
         Validated VerifyCommand
-    
+
     Raises:
         ValueError: If any argument is invalid
-    
+
     Requirements: 1.1
     """
     # Validate and extract file (required)
     file = args.get("file")
     if not isinstance(file, str) or not file.strip():
         raise ValueError("'file' must be a non-empty string")
-    
+
     # Extract theorem_id (optional)
     theorem_id = args.get("theorem_id")
     if theorem_id is not None and not isinstance(theorem_id, str):
         raise ValueError("'theorem_id' must be a string or null")
-    
+
     # Validate and extract budget_s (optional, default: 30.0)
     budget_s = args.get("budget_s", 30.0)
-    if not isinstance(budget_s, (int, float)):
+    if not isinstance(budget_s, int | float):
         raise ValueError("'budget_s' must be a number")
     budget_s = float(budget_s)
     if budget_s <= 0:
         raise ValueError("'budget_s' must be positive")
-    
+
     # Validate and extract max_log_excerpt_chars (optional, default: 2000)
     max_log_excerpt_chars = args.get("max_log_excerpt_chars", 2000)
     if not isinstance(max_log_excerpt_chars, int):
         raise ValueError("'max_log_excerpt_chars' must be an integer")
     if max_log_excerpt_chars <= 0:
         raise ValueError("'max_log_excerpt_chars' must be positive")
-    
+
     # Extract store_full_logs (optional, default: True)
     store_full_logs = args.get("store_full_logs", True)
     if not isinstance(store_full_logs, bool):
         raise ValueError("'store_full_logs' must be a boolean")
-    
+
     # Extract workspace_mode (optional, default: None for auto-detect)
     workspace_mode = args.get("workspace_mode")
     if workspace_mode is not None and not isinstance(workspace_mode, str):
         raise ValueError("'workspace_mode' must be a string or null")
     if workspace_mode is not None and workspace_mode not in ("worktree", "temp"):
         raise ValueError("'workspace_mode' must be 'worktree', 'temp', or null")
-    
+
     # Build and return command (validation happens in __post_init__)
     return VerifyCommand(
         file_path=file.strip(),
@@ -158,34 +158,34 @@ def _build_command(args: dict[str, Any]) -> VerifyCommand:
 def _create_handler() -> VerifyCommandHandler:
     """
     Create VerifyCommandHandler with real adapters (composition root).
-    
+
     This function wires together all dependencies:
     - LeanInteractRunner for Lean execution
     - GitWorktreeProvider or TempCopyProvider for workspace isolation
     - FilesystemArtifactStore for artifact storage
-    
+
     Returns:
         Configured VerifyCommandHandler
-    
+
     Requirements: 1.1
     """
     # Get project root (current working directory)
     project_root = Path.cwd()
-    
+
     # Create LeanInteractRunner
     lean_runner = LeanInteractRunner(timeout_buffer_ms=100)
-    
+
     # Create workspace provider (auto-detect mode)
     workspace_provider = create_workspace_provider(
         workspace_mode=None,  # Auto-detect
         project_root=project_root,
         worktree_dir=project_root / ".worktrees",
     )
-    
+
     # Create artifact store
     artifacts_dir = Path(os.getenv("LPAM_ARTIFACTS_DIR", ".artifacts"))
     artifact_store = FilesystemArtifactStore(artifacts_dir)
-    
+
     # Wire dependencies into handler
     return VerifyCommandHandler(
         lean_runner=lean_runner,
@@ -202,24 +202,24 @@ def _build_error_response(
 ) -> dict[str, Any]:
     """
     Build error response with consistent structure.
-    
+
     This function ensures all errors return valid JSON with the correct schema,
     including error diagnostics and notes with error codes.
-    
+
     Args:
         file: File path from request
         error_message: Human-readable error message
         error_code: Machine-readable error code
         theorem_id: Optional theorem_id from request
-    
+
     Returns:
         Error response dict conforming to verify output schema
-    
+
     Requirements: 1.1
     """
     import hashlib
     from datetime import datetime, timezone
-    
+
     # Generate run_id for error response
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     # Ensure file is a string for hashing
@@ -229,7 +229,7 @@ def _build_error_response(
         file_str = "<invalid>"
     file_hash = hashlib.md5(file_str.encode()).hexdigest()[:8]
     run_id = f"verify-{timestamp}-{file_hash}"
-    
+
     return {
         "api_version": API_VERSION,
         "status": "error",

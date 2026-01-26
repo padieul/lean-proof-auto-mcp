@@ -1,7 +1,7 @@
 # Tasks: scan-rank-shared-semantics
 
-**Feature:** scan-rank-shared-semantics  
-**Status:** not_started  
+**Feature:** scan-rank-shared-semantics
+**Status:** not_started
 **Created:** 2025-01-21
 
 ## 1. Configuration System (Foundation)

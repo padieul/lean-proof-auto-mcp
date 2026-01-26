@@ -28,18 +28,18 @@ Following the codebase's mandatory design patterns:
 **Implementation** (`core/scoring.py`):
 ```python
 def _generate_notes(
-    features: TheoremFeatures, 
-    structure: ProofStructure | None, 
+    features: TheoremFeatures,
+    structure: ProofStructure | None,
     scores: dict[str, float]
 ) -> list[str]:
     """Generate explanatory notes for the scoring."""
     notes = []
-    
+
     # CRITICAL: Add numeric confidence for downstream tools
     # This enables rank_targets to extract and use confidence values
     if features.confidence > 0.0:
         notes.append(f"confidence: {features.confidence:.2f}")
-    
+
     # Then add qualitative notes as before
     if features.confidence >= 0.8:
         notes.append("high confidence proof")
@@ -62,7 +62,7 @@ for note in notes:
             pass
 ```
 
-**Impact**: 
+**Impact**:
 - Minimal change (1 line added)
 - Fixes confidence for all tools (scan_file, scan_theorem, rank_targets)
 - Backward compatible (adds note, doesn't remove anything)
@@ -89,7 +89,7 @@ from typing import Protocol
 @dataclass(frozen=True)
 class AutomationStatus:
     """Result of automation detection.
-    
+
     Attributes:
         is_automated: Whether theorem uses automation
         automation_type: Type of automation detected
@@ -100,12 +100,12 @@ class AutomationStatus:
     automation_type: str  # "tactic" | "attribute" | "trivial" | "none"
     penalty: float
     detected_patterns: list[str]
-    
+
     def __post_init__(self) -> None:
         """Validate automation status invariants."""
         if not (0.0 <= self.penalty <= 1.0):
             raise ValueError(f"penalty must be in [0.0, 1.0], got {self.penalty}")
-        
+
         valid_types = {"tactic", "attribute", "trivial", "none"}
         if self.automation_type not in valid_types:
             raise ValueError(
@@ -116,7 +116,7 @@ class AutomationStatus:
 
 class AutomationDetector(Protocol):
     """Port for automation detection strategies."""
-    
+
     def detect(
         self,
         proof_text: str,
@@ -129,16 +129,16 @@ class AutomationDetector(Protocol):
 
 class PatternBasedDetector:
     """Conservative pattern-based automation detection.
-    
+
     Uses explicit pattern matching to detect automation tactics,
     attributes, and trivial proofs. Prefers false negatives over
     false positives.
     """
-    
+
     def __init__(self, config: "AutomationDetectionConfig"):
         """Initialize detector with configuration."""
         self.config = config
-    
+
     def detect(
         self,
         proof_text: str,
@@ -147,22 +147,22 @@ class PatternBasedDetector:
     ) -> AutomationStatus:
         """Detect automation with conservative pattern matching."""
         detected_patterns = []
-        
+
         # Check for trivial proofs first (highest penalty)
         trivial_status = self._check_trivial(proof_text)
         if trivial_status.is_automated:
             return trivial_status
-        
+
         # Check for automation attributes (high penalty)
         attribute_status = self._check_attributes(decl_text)
         if attribute_status.is_automated:
             return attribute_status
-        
+
         # Check for automation tactics (moderate penalty)
         tactic_status = self._check_tactics(proof_text, tactic_kinds)
         if tactic_status.is_automated:
             return tactic_status
-        
+
         # No automation detected
         return AutomationStatus(
             is_automated=False,
@@ -170,11 +170,11 @@ class PatternBasedDetector:
             penalty=0.0,
             detected_patterns=[]
         )
-    
+
     def _check_trivial(self, proof_text: str) -> AutomationStatus:
         """Check for trivial proofs (rfl, trivial)."""
         proof_lower = proof_text.lower().strip()
-        
+
         for pattern in self.config.trivial_patterns:
             if pattern in proof_lower:
                 return AutomationStatus(
@@ -183,18 +183,18 @@ class PatternBasedDetector:
                     penalty=self.config.trivial_penalty,
                     detected_patterns=[pattern]
                 )
-        
+
         return AutomationStatus(False, "none", 0.0, [])
-    
+
     def _check_attributes(self, decl_text: str) -> AutomationStatus:
         """Check for automation attributes (@[aesop], @[simp])."""
         decl_lower = decl_text.lower()
         detected = []
-        
+
         for pattern in self.config.attribute_patterns:
             if pattern in decl_lower:
                 detected.append(pattern)
-        
+
         if detected:
             return AutomationStatus(
                 is_automated=True,
@@ -202,31 +202,31 @@ class PatternBasedDetector:
                 penalty=self.config.attribute_penalty,
                 detected_patterns=detected
             )
-        
+
         return AutomationStatus(False, "none", 0.0, [])
-    
+
     def _check_tactics(
-        self, 
-        proof_text: str, 
+        self,
+        proof_text: str,
         tactic_kinds: set[str]
     ) -> AutomationStatus:
         """Check for automation tactics (aesop, grind, simp)."""
         proof_lower = proof_text.lower()
         detected = []
-        
+
         # Check tactic patterns in proof text
         for pattern in self.config.tactic_patterns:
             if pattern in proof_lower:
                 detected.append(pattern)
-        
+
         # Check detected tactic kinds
         automation_tactics = {
-            "aesop", "grind", "simp", "simp_all", 
+            "aesop", "grind", "simp", "simp_all",
             "omega", "decide", "tauto"
         }
         detected_tactics = tactic_kinds & automation_tactics
         detected.extend(detected_tactics)
-        
+
         if detected:
             return AutomationStatus(
                 is_automated=True,
@@ -234,14 +234,14 @@ class PatternBasedDetector:
                 penalty=self.config.tactic_penalty,
                 detected_patterns=detected
             )
-        
+
         return AutomationStatus(False, "none", 0.0, [])
 
 
 @dataclass(frozen=True)
 class AutomationDetectionConfig:
     """Configuration for automation detection.
-    
+
     Attributes:
         tactic_penalty: Penalty for theorems using automation tactics
         attribute_penalty: Penalty for theorems with automation attributes
@@ -256,7 +256,7 @@ class AutomationDetectionConfig:
     tactic_patterns: list[str]
     attribute_patterns: list[str]
     trivial_patterns: list[str]
-    
+
     def __post_init__(self) -> None:
         """Validate configuration invariants."""
         penalties = {
@@ -264,7 +264,7 @@ class AutomationDetectionConfig:
             "attribute_penalty": self.attribute_penalty,
             "trivial_penalty": self.trivial_penalty,
         }
-        
+
         for name, penalty in penalties.items():
             if not (0.0 <= penalty <= 1.0):
                 raise ValueError(f"{name} must be in [0.0, 1.0], got {penalty}")
@@ -279,10 +279,10 @@ for theorem in theorems:
     # Get proof text and declaration text
     proof_text = source.get_span_text(theorem.proof_span)
     decl_text = source.get_span_text(theorem.decl_span)
-    
+
     # Detect automation
     status = detector.detect(proof_text, decl_text, theorem.tactic_kinds)
-    
+
     # Add to signals
     theorem.signals["already_automated"] = status.is_automated
     theorem.signals["automation_penalty"] = status.penalty
@@ -300,29 +300,29 @@ for theorem in theorems:
 ```python
 def assign_tiers(ranked_theorems: list[RankedTheorem]) -> list[tuple[RankedTheorem, str]]:
     """Assign S/A/B/C/D tiers based on percentile rank.
-    
+
     Tiers are relative to the file, not absolute scores:
     - S-tier: Top 10% (exceptional candidates)
     - A-tier: 10-25% (strong candidates)
     - B-tier: 25-50% (good candidates)
     - C-tier: 50-75% (acceptable candidates)
     - D-tier: 75-100% (weak candidates)
-    
+
     Args:
         ranked_theorems: List of theorems already sorted by score (desc)
-    
+
     Returns:
         List of (theorem, tier) tuples
     """
     n = len(ranked_theorems)
     if n == 0:
         return []
-    
+
     result = []
     for i, theorem in enumerate(ranked_theorems):
         # Calculate percentile (0-100)
         percentile = (i / n) * 100
-        
+
         # Assign tier based on percentile
         if percentile < 10:
             tier = "S"
@@ -334,9 +334,9 @@ def assign_tiers(ranked_theorems: list[RankedTheorem]) -> list[tuple[RankedTheor
             tier = "C"
         else:
             tier = "D"
-        
+
         result.append((theorem, tier))
-    
+
     return result
 ```
 
@@ -345,10 +345,10 @@ def assign_tiers(ranked_theorems: list[RankedTheorem]) -> list[tuple[RankedTheor
 def _format_response(...) -> dict[str, Any]:
     # Rank theorems
     ranked_theorems = rank_theorems(...)
-    
+
     # Assign tiers
     theorems_with_tiers = assign_tiers(ranked_theorems)
-    
+
     # Build ranking array
     ranking = []
     for (ranked, tier) in theorems_with_tiers[:args.limit]:
@@ -360,7 +360,7 @@ def _format_response(...) -> dict[str, Any]:
             # ... rest of fields
         }
         ranking.append(theorem_obj)
-    
+
     # Add tier distribution to summary
     tier_counts = {
         "S": sum(1 for _, t in theorems_with_tiers if t == "S"),
@@ -369,7 +369,7 @@ def _format_response(...) -> dict[str, Any]:
         "C": sum(1 for _, t in theorems_with_tiers if t == "C"),
         "D": sum(1 for _, t in theorems_with_tiers if t == "D"),
     }
-    
+
     summary = {
         "total": total_theorems,
         "returned": len(ranking),
@@ -387,7 +387,7 @@ class TierConfig:
     a_tier_percentile: float  # default: 25.0
     b_tier_percentile: float  # default: 50.0
     c_tier_percentile: float  # default: 75.0
-    
+
     def __post_init__(self) -> None:
         """Validate tier thresholds are monotonic."""
         thresholds = [
@@ -396,11 +396,11 @@ class TierConfig:
             self.b_tier_percentile,
             self.c_tier_percentile,
         ]
-        
+
         for i in range(len(thresholds) - 1):
             if thresholds[i] >= thresholds[i + 1]:
                 raise ValueError("Tier thresholds must be strictly increasing")
-        
+
         if not (0 < self.s_tier_percentile < 100):
             raise ValueError("s_tier_percentile must be in (0, 100)")
 ```
@@ -471,7 +471,7 @@ OBJECTIVE_WEIGHTS = {
 
 def get_available_objectives() -> list[dict[str, Any]]:
     """Return objective metadata for client discovery.
-    
+
     Returns:
         List of objective metadata dictionaries with:
         - name: Objective identifier
@@ -494,7 +494,7 @@ def get_available_objectives() -> list[dict[str, Any]]:
 ```python
 def _format_response(...) -> dict[str, Any]:
     # ... existing response building
-    
+
     response = {
         "api_version": "0.2",  # Bump version
         "status": "success",
@@ -508,7 +508,7 @@ def _format_response(...) -> dict[str, Any]:
         "metadata": metadata,
         "available_objectives": get_available_objectives(),  # NEW FIELD
     }
-    
+
     return ensure_deterministic(response)
 ```
 
@@ -516,7 +516,7 @@ def _format_response(...) -> dict[str, Any]:
 ```python
 def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
     # ... existing validation
-    
+
     objective = args.get("objective", "balanced")
     if objective not in OBJECTIVE_METADATA:
         available = get_available_objectives()
@@ -525,7 +525,7 @@ def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
             f"  - {obj['name']}: {obj['description']}"
             for obj in available
         ])
-        
+
         raise ValueError(
             f"rank_targets: invalid objective '{objective}'\n"
             f"Available objectives:\n{objective_list}"
@@ -552,11 +552,11 @@ class RankTargetsArgs:
     use_deep_structure: bool
     min_confidence: float
     skip_already_automated: bool  # NEW PARAMETER
-    
+
     def __post_init__(self) -> None:
         """Validate argument invariants."""
         # ... existing validation
-        
+
         if not isinstance(self.skip_already_automated, bool):
             raise ValueError("skip_already_automated must be a boolean")
 
@@ -564,11 +564,11 @@ class RankTargetsArgs:
 def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
     """Parse and validate rank_targets arguments."""
     # ... existing parsing
-    
+
     skip_already_automated = args.get("skip_already_automated", False)
     if not isinstance(skip_already_automated, bool):
         raise ValueError("rank_targets: 'skip_already_automated' must be a boolean")
-    
+
     return RankTargetsArgs(
         # ... existing fields
         skip_already_automated=skip_already_automated,
@@ -578,13 +578,13 @@ def _coerce_args(args: dict[str, Any]) -> RankTargetsArgs:
 def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
     """Rank theorem automation targets in a Lean file."""
     # ... existing code
-    
+
     try:
         # Load theorem data
         theorem_data_list, diagnostics, scan_file_run_id = _load_theorem_data(
             parsed.file, parsed.use_deep_structure
         )
-        
+
         # Detect already-automated theorems
         detector = PatternBasedDetector(config.automation_detection)
         for theorem_data in theorem_data_list:
@@ -592,38 +592,38 @@ def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
             proof_text = source.get_span_text(theorem_data.proof_span)
             decl_text = source.get_span_text(theorem_data.decl_span)
             tactic_kinds = theorem_data.signals.get("tactic_kinds", set())
-            
+
             # Detect automation
             status = detector.detect(proof_text, decl_text, tactic_kinds)
-            
+
             # Add to signals
             theorem_data.signals["already_automated"] = status.is_automated
             theorem_data.signals["automation_penalty"] = status.penalty
             theorem_data.signals["automation_type"] = status.automation_type
-        
+
         # Filter if requested
         if parsed.skip_already_automated:
             filtered = [
-                t for t in theorem_data_list 
+                t for t in theorem_data_list
                 if not t.signals.get("already_automated", False)
             ]
             skipped_automated = len(theorem_data_list) - len(filtered)
             theorem_data_list = filtered
         else:
             skipped_automated = 0
-        
+
         total_theorems = len(theorem_data_list)
-        
+
         # Rank theorems with confidence filtering
         ranked_theorems = rank_theorems(
-            theorem_data_list, 
-            parsed.objective, 
+            theorem_data_list,
+            parsed.objective,
             parsed.min_confidence
         )
-        
+
         # Calculate skipped counts
         skipped_low_confidence = total_theorems - len(ranked_theorems)
-        
+
         # Format response with new summary fields
         summary = {
             "total": total_theorems,
@@ -651,7 +651,7 @@ class ComponentScores:
     subgoal_potential: float
     risk: float
     already_automated_penalty: float  # NEW COMPONENT
-    
+
     def __post_init__(self) -> None:
         """Validate component score invariants."""
         scores = {
@@ -662,20 +662,20 @@ class ComponentScores:
             "risk": self.risk,
             "already_automated_penalty": self.already_automated_penalty,  # NEW
         }
-        
+
         for name, score in scores.items():
             if not (0.0 <= score <= 1.0):
                 raise ValueError(f"{name} must be in [0.0, 1.0], got {score}")
 
 
 def rank_theorems(
-    theorems: list[TheoremData], 
-    objective: str, 
+    theorems: list[TheoremData],
+    objective: str,
     min_confidence: float = 0.0
 ) -> list[RankedTheorem]:
     """Rank theorems according to objective with stable sorting."""
     # ... existing filtering
-    
+
     # Compute scores for each theorem
     ranked = []
     for theorem in filtered_theorems:
@@ -688,17 +688,17 @@ def rank_theorems(
             risk=compute_risk(theorem.signals),
             already_automated_penalty=theorem.signals.get("automation_penalty", 0.0),  # NEW
         )
-        
+
         # Compute final score (penalty reduces score)
         final_score = compute_final_score(components, objective)
-        
+
         # Create ranked theorem
         ranked.append(RankedTheorem(
-            theorem_data=theorem, 
-            score=final_score, 
+            theorem_data=theorem,
+            score=final_score,
             components=components
         ))
-    
+
     # ... existing sorting
     return ranked
 
@@ -707,9 +707,9 @@ def compute_final_score(components: ComponentScores, objective: str) -> float:
     """Compute final score by applying objective weights to component scores."""
     if objective not in OBJECTIVE_WEIGHTS:
         raise ValueError(f"Unknown objective: {objective}")
-    
+
     weights = OBJECTIVE_WEIGHTS[objective]
-    
+
     # Apply weights to components
     score = (
         weights["success_likelihood"] * components.success_likelihood
@@ -719,7 +719,7 @@ def compute_final_score(components: ComponentScores, objective: str) -> float:
         + weights["risk"] * components.risk
         - 0.15 * components.already_automated_penalty  # NEW: Penalty reduces score
     )
-    
+
     # Clamp and round
     score = max(0.0, min(1.0, score))
     return round(score, 2)
@@ -756,40 +756,40 @@ import yaml
 
 class HeuristicsConfig(Protocol):
     """Port: Configuration interface for heuristic parameters.
-    
+
     Core scoring logic depends on this abstraction, not concrete implementations.
     """
-    
+
     @property
     def confidence(self) -> "ConfidenceConfig": ...
-    
+
     @property
     def aesop_scoring(self) -> "AesopScoringConfig": ...
-    
+
     @property
     def grind_scoring(self) -> "GrindScoringConfig": ...
-    
+
     @property
     def annotation_value_scoring(self) -> "AnnotationValueScoringConfig": ...
-    
+
     @property
     def subgoal_potential_scoring(self) -> "SubgoalPotentialScoringConfig": ...
-    
+
     @property
     def risk_scoring(self) -> "RiskScoringConfig": ...
-    
+
     @property
     def impact_scoring(self) -> "ImpactScoringConfig": ...
-    
+
     @property
     def success_likelihood_scoring(self) -> "SuccessLikelihoodScoringConfig": ...
-    
+
     @property
     def objectives(self) -> dict[str, "ObjectiveConfig"]: ...
-    
+
     @property
     def automation_detection(self) -> "AutomationDetectionConfig": ...
-    
+
     @property
     def tiers(self) -> "TierConfig": ...
 
@@ -809,7 +809,7 @@ class ConfidenceConfig:
     proof_length_min: int
     proof_length_max: int
     proof_length_max_bonus: float
-    
+
     def __post_init__(self) -> None:
         """Validate configuration invariants."""
         if not (0.0 <= self.base_score <= 1.0):
@@ -822,7 +822,7 @@ class ConfidenceBonusTier:
     """Confidence tier with threshold and bonus."""
     threshold: float
     bonus: float
-    
+
     def __post_init__(self) -> None:
         if not (0.0 <= self.threshold <= 1.0):
             raise ValueError(f"threshold must be in [0.0, 1.0], got {self.threshold}")
@@ -847,7 +847,7 @@ class AesopScoringConfig:
     simp_heavy_threshold: int
     simp_heavy_penalty: float
     tactic_mode_bonus: float
-    
+
     def __post_init__(self) -> None:
         """Validate configuration invariants."""
         if not (0.0 <= self.base_score <= 1.0):
@@ -873,11 +873,11 @@ class AesopScoringConfig:
 @dataclass(frozen=True)
 class YamlHeuristicsConfig:
     """Adapter: Load configuration from YAML file.
-    
+
     This is an infrastructure detail. Core logic depends on HeuristicsConfig
     protocol, not this concrete implementation.
     """
-    
+
     confidence: ConfidenceConfig
     aesop_scoring: AesopScoringConfig
     grind_scoring: GrindScoringConfig
@@ -890,18 +890,18 @@ class YamlHeuristicsConfig:
     automation_detection: AutomationDetectionConfig
     tiers: TierConfig
     version: str
-    
+
     @classmethod
     def load(cls, path: Path | None = None) -> "YamlHeuristicsConfig":
         """Load configuration from YAML file with validation.
-        
+
         Args:
             path: Path to YAML config file. If None, loads default config
                   from package (src/lean_proof_auto_mcp/heuristics.yaml)
-        
+
         Returns:
             Validated configuration object
-        
+
         Raises:
             ValueError: If configuration is invalid
             FileNotFoundError: If config file doesn't exist
@@ -909,13 +909,13 @@ class YamlHeuristicsConfig:
         if path is None:
             # Load default config from package
             path = Path(__file__).parent.parent / "heuristics.yaml"
-        
+
         if not path.exists():
             raise FileNotFoundError(f"Configuration file not found: {path}")
-        
+
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        
+
         # Validate version
         version = data.get("version")
         if version != "1.0":
@@ -923,10 +923,10 @@ class YamlHeuristicsConfig:
                 f"Unsupported configuration version: {version}. "
                 f"Expected version 1.0"
             )
-        
+
         # Build and validate configuration
         return cls._from_dict(data)
-    
+
     @classmethod
     def _from_dict(cls, data: dict) -> "YamlHeuristicsConfig":
         """Build configuration from dictionary with validation."""
@@ -937,7 +937,7 @@ class YamlHeuristicsConfig:
                 proof_structure_bonus=data["confidence"]["bonuses"]["proof_structure"],
                 # ... parse all fields
             )
-            
+
             # Parse aesop scoring config
             aesop_bonuses = [
                 ConfidenceBonusTier(
@@ -951,16 +951,16 @@ class YamlHeuristicsConfig:
                 confidence_bonuses=aesop_bonuses,
                 # ... parse all fields
             )
-            
+
             # Parse all other configs...
-            
+
             return cls(
                 confidence=confidence,
                 aesop_scoring=aesop_scoring,
                 # ... all configs
                 version=data["version"]
             )
-        
+
         except KeyError as e:
             raise ValueError(f"Missing required configuration field: {e}")
         except (TypeError, ValueError) as e:
@@ -969,7 +969,7 @@ class YamlHeuristicsConfig:
 
 def load_default_config() -> HeuristicsConfig:
     """Load default configuration from package.
-    
+
     This is the composition root for configuration.
     """
     return YamlHeuristicsConfig.load()
@@ -977,10 +977,10 @@ def load_default_config() -> HeuristicsConfig:
 
 def load_config(path: Path) -> HeuristicsConfig:
     """Load configuration from custom path.
-    
+
     Args:
         path: Path to custom YAML configuration file
-    
+
     Returns:
         Validated configuration object
     """
@@ -990,15 +990,15 @@ def load_config(path: Path) -> HeuristicsConfig:
 **Dependency Injection in Scoring Functions** (`core/scoring.py`):
 ```python
 def score_aesop_potential(
-    features: TheoremFeatures, 
+    features: TheoremFeatures,
     config: HeuristicsConfig  # Injected dependency
 ) -> float:
     """Heuristic: aesop works well on structural proofs.
-    
+
     Args:
         features: Theorem features to analyze
         config: Heuristic configuration (injected)
-    
+
     Returns:
         Score between 0.0 and 1.0 indicating aesop potential
     """
@@ -1007,16 +1007,16 @@ def score_aesop_potential(
 
     # Use config values instead of hardcoded numbers
     score = config.aesop_scoring.base_score
-    
+
     # Apply confidence bonuses from config
     for tier in config.aesop_scoring.confidence_bonuses:
         if features.confidence >= tier.threshold:
             score += tier.bonus
             break
-    
+
     # Structural tactics bonus from config
     structural_tactics = {
-        "intro", "intros", "constructor", "left", "right", 
+        "intro", "intros", "constructor", "left", "right",
         "split", "ext", "funext", "use", "exists", "apply",
     }
     structural_count = len(features.tactic_kinds & structural_tactics)
@@ -1026,30 +1026,30 @@ def score_aesop_potential(
             structural_count * config.aesop_scoring.structural_tactics_bonus_per_tactic
         )
         score += bonus
-    
+
     # ... rest of scoring using config values
-    
+
     return max(0.0, min(1.0, score))
 
 
 def compute_profile(
-    features: TheoremFeatures, 
+    features: TheoremFeatures,
     structure: ProofStructure | None = None,
     config: HeuristicsConfig | None = None  # Optional, defaults to package config
 ) -> AutomationProfile:
     """Compute automation scores from features.
-    
+
     Args:
         features: Extracted theorem features
         structure: Optional proof structure analysis
         config: Optional custom configuration (defaults to package config)
-    
+
     Returns:
         AutomationProfile with computed scores and explanatory notes
     """
     if config is None:
         config = load_default_config()
-    
+
     # Compute individual scores with config
     aesop_whole = score_aesop_potential(features, config)
     grind_whole = score_grind_potential(features, config)
@@ -1323,7 +1323,7 @@ def rank_targets(args: dict[str, Any]) -> dict[str, Any]:
         else:
             # Use package default (explicit, not implicit)
             config = load_default_config()
-    
+
     # Pass config to all scoring functions
     # ... rest of implementation
 ```
@@ -1502,9 +1502,9 @@ def test_generate_notes_includes_numeric_confidence():
         local_lemmas_count=0,
         confidence=0.85
     )
-    
+
     profile = compute_profile(features, structure=None)
-    
+
     # Check numeric confidence is in notes
     assert any("confidence: 0.85" in note for note in profile.notes)
     # Check qualitative note is also present
@@ -1523,9 +1523,9 @@ def test_generate_notes_no_confidence_when_zero():
         local_lemmas_count=0,
         confidence=0.0
     )
-    
+
     profile = compute_profile(features, structure=None)
-    
+
     # No numeric confidence note when zero
     assert not any("confidence:" in note for note in profile.notes)
 ```
@@ -1535,13 +1535,13 @@ def test_generate_notes_no_confidence_when_zero():
 def test_detect_automation_tactic():
     """Test detection of automation tactics."""
     detector = PatternBasedDetector(default_config())
-    
+
     status = detector.detect(
         proof_text="by aesop",
         decl_text="theorem foo : P := by aesop",
         tactic_kinds={"aesop"}
     )
-    
+
     assert status.is_automated
     assert status.automation_type == "tactic"
     assert status.penalty == 0.3
@@ -1551,13 +1551,13 @@ def test_detect_automation_tactic():
 def test_detect_automation_attribute():
     """Test detection of automation attributes."""
     detector = PatternBasedDetector(default_config())
-    
+
     status = detector.detect(
         proof_text="intro h\napply foo",
         decl_text="@[aesop safe] theorem foo : P := by ...",
         tactic_kinds={"intro", "apply"}
     )
-    
+
     assert status.is_automated
     assert status.automation_type == "attribute"
     assert status.penalty == 0.5
@@ -1566,13 +1566,13 @@ def test_detect_automation_attribute():
 def test_detect_trivial_proof():
     """Test detection of trivial proofs."""
     detector = PatternBasedDetector(default_config())
-    
+
     status = detector.detect(
         proof_text=":= rfl",
         decl_text="theorem foo : x = x := rfl",
         tactic_kinds={"rfl"}
     )
-    
+
     assert status.is_automated
     assert status.automation_type == "trivial"
     assert status.penalty == 0.8
@@ -1581,13 +1581,13 @@ def test_detect_trivial_proof():
 def test_no_false_positives():
     """Test that manual proofs are not detected as automated."""
     detector = PatternBasedDetector(default_config())
-    
+
     status = detector.detect(
         proof_text="intro h\napply foo\nexact bar",
         decl_text="theorem foo : P := by intro h; apply foo; exact bar",
         tactic_kinds={"intro", "apply", "exact"}
     )
-    
+
     assert not status.is_automated
     assert status.automation_type == "none"
     assert status.penalty == 0.0
@@ -1602,9 +1602,9 @@ def test_assign_tiers_percentiles():
         create_ranked_theorem(f"thm_{i}", score=1.0 - i/100)
         for i in range(100)
     ]
-    
+
     tiers_with_theorems = assign_tiers(theorems)
-    
+
     # Check tier distribution
     tiers = [tier for _, tier in tiers_with_theorems]
     assert tiers[:10] == ["S"] * 10  # Top 10%
@@ -1624,7 +1624,7 @@ def test_assign_tiers_single_theorem():
     """Test tier assignment with single theorem."""
     theorem = create_ranked_theorem("thm_1", score=0.5)
     result = assign_tiers([theorem])
-    
+
     assert len(result) == 1
     assert result[0][1] == "S"  # Single theorem is S-tier
 ```
@@ -1634,7 +1634,7 @@ def test_assign_tiers_single_theorem():
 def test_load_default_config():
     """Test loading default configuration."""
     config = load_default_config()
-    
+
     assert config.confidence.base_score == 0.3
     assert config.aesop_scoring.base_score == 0.2
     assert len(config.objectives) == 4
@@ -1649,7 +1649,7 @@ confidence:
   base_score: 0.5
 # ... rest of config
 """)
-    
+
     config = load_config(config_file)
     assert config.confidence.base_score == 0.5
 
@@ -1658,7 +1658,7 @@ def test_invalid_config_version(tmp_path):
     """Test that invalid version raises error."""
     config_file = tmp_path / "invalid.yaml"
     config_file.write_text("version: '2.0'")
-    
+
     with pytest.raises(ValueError, match="Unsupported configuration version"):
         load_config(config_file)
 
@@ -1671,7 +1671,7 @@ version: "1.0"
 confidence:
   base_score: 1.5  # Invalid: > 1.0
 """)
-    
+
     with pytest.raises(ValueError, match="base_score must be in"):
         load_config(config_file)
 ```
@@ -1685,18 +1685,18 @@ def test_confidence_flows_through_tools():
     # Scan file
     scan_result = scan_file({"file": "test.lean"})
     assert scan_result["status"] == "success"
-    
+
     # Check confidence in notes
     theorem = scan_result["theorems"][0]
     confidence_note = [n for n in theorem["notes"] if "confidence:" in n]
     assert len(confidence_note) == 1
-    
+
     # Rank targets
     rank_result = rank_targets({
         "file": "test.lean",
         "min_confidence": 0.5
     })
-    
+
     # Check confidence is extracted and used
     if rank_result["summary"]["returned"] > 0:
         ranked_theorem = rank_result["ranking"][0]
@@ -1776,7 +1776,7 @@ def test_config_validates_score_ranges(score):
 - All responses include `tier` and `available_objectives`
 - All responses include `already_automated_penalty` component
 
-**No Fallbacks**: 
+**No Fallbacks**:
 - No optional config (must be explicit)
 - No default for `skip_already_automated` (must be explicit)
 - All magic numbers removed from code

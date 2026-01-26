@@ -60,7 +60,7 @@ Receive identical JSON outputs for identical inputs, enabling:
 - **Description**: Identifier of specific theorem to verify. If provided, only verifies content up to the theorem's end line
 - **Example**: `"List.append_assoc"`
 - **Format**: Must match theorem name format from `scan_file` output
-- **Behavior**: 
+- **Behavior**:
   - If valid: Creates abridged file and verifies theorem scope
   - If invalid: Returns error with code `theorem_not_found`
 
@@ -84,7 +84,7 @@ Receive identical JSON outputs for identical inputs, enabling:
 - **Type**: `boolean`
 - **Default**: `true`
 - **Description**: Whether to store full logs and metadata in artifact directory
-- **Artifacts Created**: 
+- **Artifacts Created**:
   - `request.json`: Complete input parameters
   - `result.json`: Complete output response
   - `lean_output.log`: Full stdout/stderr from Lean process
@@ -93,7 +93,7 @@ Receive identical JSON outputs for identical inputs, enabling:
 #### `workspace_mode` (optional)
 - **Type**: `string | null`
 - **Default**: `null` (auto-detect)
-- **Values**: 
+- **Values**:
   - `"worktree"`: Use git worktree for isolation (fast, requires git repo)
   - `"temp"`: Copy project to temp directory (slower, works without git)
   - `null`: Auto-detect based on git repository presence

@@ -24,60 +24,60 @@ logger = logging.getLogger(__name__)
 class GitWorktreeProvider:
     """
     Concrete implementation using git worktree for workspace isolation.
-    
+
     This adapter creates isolated workspaces using git worktree, which provides
     fast, space-efficient isolation by sharing .git objects while maintaining
     separate working directories.
-    
+
     Requirements: 1.2, 6.1, 6.3
-    
+
     Attributes:
         worktree_dir: Base directory for creating worktrees
         project_root: Root directory of the git repository
     """
-    
+
     def __init__(self, worktree_dir: Path, project_root: Path | None = None):
         """
         Initialize GitWorktreeProvider with worktree base directory.
-        
+
         Args:
             worktree_dir: Base directory where worktrees will be created
             project_root: Root directory of the git repository (defaults to current directory)
-        
+
         Requirements: 1.2, 6.1
         """
         self.worktree_dir = Path(worktree_dir)
         self.project_root = Path(project_root) if project_root else Path.cwd()
         self.worktree_dir.mkdir(parents=True, exist_ok=True)
-    
+
     def create_workspace(self, file_path: str) -> Workspace:
         """
         Create git worktree for isolated verification.
-        
+
         Strategy:
         1. Generate unique workspace_id (timestamp + random suffix)
         2. Run: git worktree add <path> HEAD (in project_root context)
         3. Return Workspace with path, workspace_id, mode="worktree"
         4. Handle git command errors gracefully
-        
+
         Args:
             file_path: Path to file being verified (for context)
-        
+
         Returns:
             Workspace with path and metadata
-        
+
         Raises:
             RuntimeError: If git worktree creation fails
-        
+
         Requirements: 1.2, 6.1
         """
         # Generate unique workspace_id
         workspace_id = self._generate_workspace_id()
         worktree_path = self.worktree_dir / workspace_id
-        
+
         try:
             # Create worktree at HEAD (run command in project_root context)
-            result = subprocess.run(
+            subprocess.run(
                 ["git", "worktree", "add", str(worktree_path), "HEAD"],
                 cwd=self.project_root,  # Run in project root context
                 capture_output=True,
@@ -85,49 +85,49 @@ class GitWorktreeProvider:
                 timeout=10.0,
                 check=True,
             )
-            
+
             logger.info(f"Created git worktree: {workspace_id}")
-            
+
             return Workspace(
                 path=worktree_path,
                 workspace_id=workspace_id,
                 mode="worktree",
             )
-            
+
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to create git worktree: {e.stderr}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
-        
+
         except subprocess.TimeoutExpired as e:
             error_msg = "Git worktree creation timed out"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
-        
+
         except Exception as e:
             error_msg = f"Unexpected error creating git worktree: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
-    
+
     def cleanup_workspace(self, workspace: Workspace) -> None:
         """
         Remove git worktree.
-        
+
         Strategy:
         1. Run: git worktree remove <path> --force (in project_root context)
         2. Handle cleanup errors (log but don't fail)
-        
+
         Args:
             workspace: Workspace to clean up
-        
+
         Note:
             This method does not raise exceptions. Cleanup errors are logged
             but not propagated to ensure cleanup always completes.
-        
+
         Requirements: 6.3
         """
         try:
-            result = subprocess.run(
+            subprocess.run(
                 ["git", "worktree", "remove", str(workspace.path), "--force"],
                 cwd=self.project_root,  # Run in project root context
                 capture_output=True,
@@ -135,34 +135,28 @@ class GitWorktreeProvider:
                 timeout=10.0,
                 check=True,
             )
-            
+
             logger.info(f"Cleaned up git worktree: {workspace.workspace_id}")
-            
+
         except subprocess.CalledProcessError as e:
             # Log error but don't raise - cleanup should always complete
-            logger.warning(
-                f"Failed to remove git worktree {workspace.workspace_id}: {e.stderr}"
-            )
-        
+            logger.warning(f"Failed to remove git worktree {workspace.workspace_id}: {e.stderr}")
+
         except subprocess.TimeoutExpired:
-            logger.warning(
-                f"Git worktree removal timed out for {workspace.workspace_id}"
-            )
-        
+            logger.warning(f"Git worktree removal timed out for {workspace.workspace_id}")
+
         except Exception as e:
-            logger.warning(
-                f"Unexpected error removing git worktree {workspace.workspace_id}: {e}"
-            )
-    
+            logger.warning(f"Unexpected error removing git worktree {workspace.workspace_id}: {e}")
+
     def _generate_workspace_id(self) -> str:
         """
         Generate unique workspace_id with timestamp and random suffix.
-        
+
         Format: worktree-YYYYMMDD-HHMMSS-<random>
-        
+
         Returns:
             Unique workspace_id string
-        
+
         Requirements: 1.2, 6.1
         """
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -173,58 +167,58 @@ class GitWorktreeProvider:
 class TempCopyProvider:
     """
     Fallback implementation using temporary directory copy.
-    
+
     This adapter creates isolated workspaces by copying the entire project
     directory to a temporary location. It's slower than git worktree but
     works without requiring a git repository.
-    
+
     Requirements: 1.2, 6.1
-    
+
     Attributes:
         project_root: Root directory of the project to copy
         temp_base_dir: Base directory for temporary workspaces (optional)
     """
-    
+
     def __init__(self, project_root: Path, temp_base_dir: Path | None = None):
         """
         Initialize TempCopyProvider with project root.
-        
+
         Args:
             project_root: Root directory of the project to copy
             temp_base_dir: Optional base directory for temp workspaces
-        
+
         Requirements: 1.2, 6.1
         """
         self.project_root = Path(project_root)
         self.temp_base_dir = Path(temp_base_dir) if temp_base_dir else None
-        
+
         if not self.project_root.exists():
             raise ValueError(f"Project root does not exist: {project_root}")
-    
+
     def create_workspace(self, file_path: str) -> Workspace:
         """
         Copy project directory to temp location.
-        
+
         Strategy:
         1. Generate unique workspace_id
         2. Create temp directory
         3. Copy project files to temp directory
         4. Return Workspace with mode="temp"
-        
+
         Args:
             file_path: Path to file being verified (for context)
-        
+
         Returns:
             Workspace with path and metadata
-        
+
         Raises:
             RuntimeError: If workspace creation fails
-        
+
         Requirements: 1.2, 6.1
         """
         # Generate unique workspace_id
         workspace_id = self._generate_workspace_id()
-        
+
         try:
             # Create temp directory
             if self.temp_base_dir:
@@ -233,7 +227,7 @@ class TempCopyProvider:
                 temp_dir.mkdir(parents=True, exist_ok=True)
             else:
                 temp_dir = Path(tempfile.mkdtemp(prefix=f"{workspace_id}_"))
-            
+
             # Copy project files
             shutil.copytree(
                 self.project_root,
@@ -252,56 +246,54 @@ class TempCopyProvider:
                     "node_modules",
                 ),
             )
-            
+
             logger.info(f"Created temp workspace: {workspace_id}")
-            
+
             return Workspace(
                 path=temp_dir,
                 workspace_id=workspace_id,
                 mode="temp",
             )
-            
+
         except Exception as e:
             error_msg = f"Failed to create temp workspace: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
-    
+
     def cleanup_workspace(self, workspace: Workspace) -> None:
         """
         Clean up temp directory.
-        
+
         Strategy:
         1. Remove temp directory recursively
         2. Handle cleanup errors (log but don't fail)
-        
+
         Args:
             workspace: Workspace to clean up
-        
+
         Note:
             This method does not raise exceptions. Cleanup errors are logged
             but not propagated to ensure cleanup always completes.
-        
+
         Requirements: 6.3
         """
         try:
             if workspace.path.exists():
                 shutil.rmtree(workspace.path)
                 logger.info(f"Cleaned up temp workspace: {workspace.workspace_id}")
-        
+
         except Exception as e:
-            logger.warning(
-                f"Failed to remove temp workspace {workspace.workspace_id}: {e}"
-            )
-    
+            logger.warning(f"Failed to remove temp workspace {workspace.workspace_id}: {e}")
+
     def _generate_workspace_id(self) -> str:
         """
         Generate unique workspace_id with timestamp and random suffix.
-        
+
         Format: temp-YYYYMMDD-HHMMSS-<random>
-        
+
         Returns:
             Unique workspace_id string
-        
+
         Requirements: 1.2, 6.1
         """
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -312,24 +304,21 @@ class TempCopyProvider:
 def detect_workspace_mode(project_root: Path | None = None) -> str:
     """
     Auto-detect appropriate workspace mode based on project structure.
-    
+
     Strategy:
     1. Check if .git directory exists
     2. Return "worktree" if git repo, "temp" otherwise
-    
+
     Args:
         project_root: Optional project root to check (defaults to current directory)
-    
+
     Returns:
         Workspace mode string ("worktree" or "temp")
-    
+
     Requirements: 6.5
     """
-    if project_root is None:
-        project_root = Path.cwd()
-    else:
-        project_root = Path(project_root)
-    
+    project_root = Path.cwd() if project_root is None else Path(project_root)
+
     # Check if .git directory exists
     git_dir = project_root / ".git"
     if git_dir.exists() and git_dir.is_dir():
@@ -346,38 +335,35 @@ def create_workspace_provider(
 ) -> GitWorktreeProvider | TempCopyProvider:
     """
     Factory function to create appropriate workspace provider.
-    
+
     This function implements the strategy pattern by selecting the appropriate
     workspace provider based on the requested mode or auto-detection.
-    
+
     Args:
         workspace_mode: Explicit mode ("worktree" or "temp"), or None for auto-detect
         project_root: Project root directory (defaults to current directory)
         worktree_dir: Directory for git worktrees (defaults to .worktrees)
         temp_base_dir: Base directory for temp workspaces (optional)
-    
+
     Returns:
         Appropriate workspace provider instance
-    
+
     Requirements: 6.5
     """
-    if project_root is None:
-        project_root = Path.cwd()
-    else:
-        project_root = Path(project_root)
-    
+    project_root = Path.cwd() if project_root is None else Path(project_root)
+
     # Auto-detect mode if not specified
     if workspace_mode is None:
         workspace_mode = detect_workspace_mode(project_root)
-    
+
     # Create appropriate provider
     if workspace_mode == "worktree":
         if worktree_dir is None:
             worktree_dir = project_root / ".worktrees"
         return GitWorktreeProvider(worktree_dir, project_root)
-    
+
     elif workspace_mode == "temp":
         return TempCopyProvider(project_root, temp_base_dir)
-    
+
     else:
         raise ValueError(f"Invalid workspace_mode: {workspace_mode}")

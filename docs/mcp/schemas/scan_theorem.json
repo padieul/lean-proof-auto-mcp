@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["api_version", "status", "run_id", "tool", "file", "target"],
   "properties": {
-    "api_version": { 
+    "api_version": {
       "$ref": "common.json#/$defs/api_version",
       "const": "1.0",
       "description": "API version 1.0 - BREAKING CHANGES from 0.x (numeric confidence in notes)"
@@ -30,8 +30,8 @@
           "additionalProperties": false,
           "required": ["theorem_id"],
           "properties": {
-            "theorem_id": { 
-              "type": "string", 
+            "theorem_id": {
+              "type": "string",
               "minLength": 1,
               "description": "Unique identifier of the theorem"
             }
@@ -46,13 +46,13 @@
               "additionalProperties": false,
               "required": ["start_line", "end_line"],
               "properties": {
-                "start_line": { 
-                  "type": "integer", 
+                "start_line": {
+                  "type": "integer",
                   "minimum": 1,
                   "description": "Starting line number (1-indexed)"
                 },
-                "end_line": { 
-                  "type": "integer", 
+                "end_line": {
+                  "type": "integer",
                   "minimum": 1,
                   "description": "Ending line number (1-indexed)"
                 }
@@ -68,8 +68,8 @@
       "additionalProperties": false,
       "required": ["name", "kind", "location", "structure", "automation"],
       "properties": {
-        "name": { 
-          "type": "string", 
+        "name": {
+          "type": "string",
           "minLength": 1,
           "description": "Name of the theorem"
         },
@@ -83,23 +83,23 @@
           "additionalProperties": false,
           "required": ["decl_start", "decl_end"],
           "properties": {
-            "decl_start": { 
-              "type": "integer", 
+            "decl_start": {
+              "type": "integer",
               "minimum": 1,
               "description": "Starting line of declaration (1-indexed)"
             },
-            "decl_end": { 
-              "type": "integer", 
+            "decl_end": {
+              "type": "integer",
               "minimum": 1,
               "description": "Ending line of declaration (1-indexed)"
             },
-            "proof_start": { 
-              "type": "integer", 
+            "proof_start": {
+              "type": "integer",
               "minimum": 1,
               "description": "Starting line of proof (1-indexed, if present)"
             },
-            "proof_end": { 
-              "type": "integer", 
+            "proof_end": {
+              "type": "integer",
               "minimum": 1,
               "description": "Ending line of proof (1-indexed, if present)"
             }
@@ -128,13 +128,13 @@
                     "enum": ["skeleton", "rewrite_simp", "closing", "unknown"],
                     "description": "Type of proof block"
                   },
-                  "start_line": { 
-                    "type": "integer", 
+                  "start_line": {
+                    "type": "integer",
                     "minimum": 1,
                     "description": "Starting line of block (1-indexed)"
                   },
-                  "end_line": { 
-                    "type": "integer", 
+                  "end_line": {
+                    "type": "integer",
                     "minimum": 1,
                     "description": "Ending line of block (1-indexed)"
                   }
@@ -149,17 +149,17 @@
                 "additionalProperties": false,
                 "required": ["label", "start_line", "end_line"],
                 "properties": {
-                  "label": { 
+                  "label": {
                     "type": "string",
                     "description": "Label of the case"
                   },
-                  "start_line": { 
-                    "type": "integer", 
+                  "start_line": {
+                    "type": "integer",
                     "minimum": 1,
                     "description": "Starting line of case (1-indexed)"
                   },
-                  "end_line": { 
-                    "type": "integer", 
+                  "end_line": {
+                    "type": "integer",
                     "minimum": 1,
                     "description": "Ending line of case (1-indexed)"
                   }
@@ -178,15 +178,15 @@
               "additionalProperties": false,
               "required": ["aesop", "grind"],
               "properties": {
-                "aesop": { 
-                  "type": "number", 
-                  "minimum": 0.0, 
+                "aesop": {
+                  "type": "number",
+                  "minimum": 0.0,
                   "maximum": 1.0,
                   "description": "Potential for aesop to solve the whole goal"
                 },
-                "grind": { 
-                  "type": "number", 
-                  "minimum": 0.0, 
+                "grind": {
+                  "type": "number",
+                  "minimum": 0.0,
                   "maximum": 1.0,
                   "description": "Potential for grind to solve the whole goal"
                 }
@@ -197,23 +197,23 @@
               "additionalProperties": false,
               "required": ["aesop", "grind"],
               "properties": {
-                "aesop": { 
-                  "type": "number", 
-                  "minimum": 0.0, 
+                "aesop": {
+                  "type": "number",
+                  "minimum": 0.0,
                   "maximum": 1.0,
                   "description": "Potential for aesop to solve proof subgoals"
                 },
-                "grind": { 
-                  "type": "number", 
-                  "minimum": 0.0, 
+                "grind": {
+                  "type": "number",
+                  "minimum": 0.0,
                   "maximum": 1.0,
                   "description": "Potential for grind to solve proof subgoals"
                 }
               }
             },
-            "annotation_value": { 
-              "type": "number", 
-              "minimum": 0.0, 
+            "annotation_value": {
+              "type": "number",
+              "minimum": 0.0,
               "maximum": 1.0,
               "description": "Value of adding automation annotations"
             }

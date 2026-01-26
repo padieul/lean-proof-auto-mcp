@@ -9,8 +9,8 @@ This tool establishes the core Lean execution runtime that later tools (`probe`,
 ## User Stories
 
 ### US-1: File-Level Verification
-**As a** Lean developer or automated agent  
-**I want to** verify that a `.lean` file compiles successfully within a time budget  
+**As a** Lean developer or automated agent
+**I want to** verify that a `.lean` file compiles successfully within a time budget
 **So that** I can validate changes before applying patches or testing automation
 
 **Acceptance Criteria:**
@@ -22,8 +22,8 @@ This tool establishes the core Lean execution runtime that later tools (`probe`,
 - 1.6: Response contains only log excerpts to stay small (configurable max chars)
 
 ### US-2: Theorem-Level Verification (Optional)
-**As a** user testing targeted theorem changes  
-**I want to** verify a specific theorem without recompiling the entire file  
+**As a** user testing targeted theorem changes
+**I want to** verify a specific theorem without recompiling the entire file
 **So that** I can get faster feedback on localized changes
 
 **Acceptance Criteria:**
@@ -36,8 +36,8 @@ This tool establishes the core Lean execution runtime that later tools (`probe`,
 - 2.5: Tool integrates with scan_file theorem_id format
 
 ### US-3: Deterministic Outputs
-**As a** user or automated system  
-**I want to** receive identical JSON for identical inputs (same repo state)  
+**As a** user or automated system
+**I want to** receive identical JSON for identical inputs (same repo state)
 **So that** I can rely on reproducible results for testing and automation
 
 **Acceptance Criteria:**
@@ -48,8 +48,8 @@ This tool establishes the core Lean execution runtime that later tools (`probe`,
 - 3.5: JSON keys have stable ordering
 
 ### US-4: Budget Enforcement
-**As a** user with time constraints  
-**I want to** specify a time budget and have it strictly enforced  
+**As a** user with time constraints
+**I want to** specify a time budget and have it strictly enforced
 **So that** verification never hangs or blocks indefinitely
 
 **Acceptance Criteria:**
@@ -60,8 +60,8 @@ This tool establishes the core Lean execution runtime that later tools (`probe`,
 - 4.5: Tool overhead is < 500ms beyond Lean execution time
 
 ### US-5: Structured Diagnostics
-**As a** user debugging compilation failures  
-**I want to** receive normalized, structured diagnostics  
+**As a** user debugging compilation failures
+**I want to** receive normalized, structured diagnostics
 **So that** I can programmatically process errors and warnings
 
 **Acceptance Criteria:**
@@ -72,8 +72,8 @@ This tool establishes the core Lean execution runtime that later tools (`probe`,
 - 5.5: Evidence section includes stdout/stderr excerpts and notes
 
 ### US-6: Workspace Isolation
-**As a** user running multiple verifications  
-**I want to** ensure each verification runs in isolated workspace  
+**As a** user running multiple verifications
+**I want to** ensure each verification runs in isolated workspace
 **So that** verifications don't interfere with each other or modify my working tree
 
 **Acceptance Criteria:**
@@ -84,8 +84,8 @@ This tool establishes the core Lean execution runtime that later tools (`probe`,
 - 6.5: Tool reports workspace_mode and workspace_id in metadata
 
 ### US-7: Artifact Storage
-**As a** user investigating verification results  
-**I want to** access full logs and metadata via run_id  
+**As a** user investigating verification results
+**I want to** access full logs and metadata via run_id
 **So that** I can debug issues without cluttering the response JSON
 
 **Acceptance Criteria:**
@@ -96,8 +96,8 @@ This tool establishes the core Lean execution runtime that later tools (`probe`,
 - 7.5: Tool provides store_full_logs flag to control artifact creation
 
 ### US-8: Integration with Existing Tools
-**As a** user of scan_file and rank_targets  
-**I want to** verify files and theorems identified by those tools  
+**As a** user of scan_file and rank_targets
+**I want to** verify files and theorems identified by those tools
 **So that** I can validate automation recommendations
 
 **Acceptance Criteria:**

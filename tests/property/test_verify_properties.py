@@ -7,28 +7,22 @@ Each test runs a minimum of 100 iterations with randomized inputs.
 Requirements: All correctness properties from design document
 """
 
-import dataclasses
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-import pytest
-from hypothesis import given, settings
 import hypothesis.strategies as st
+from hypothesis import given, settings
 
 from lean_proof_auto_mcp.core.verify_domain import (
+    LeanRunResult,
     VerifyCommand,
     VerifyCommandHandler,
     VerifyResult,
-    LeanRunResult,
     Workspace,
-    LeanRunner,
-    WorkspaceProvider,
-    ArtifactStore,
 )
-
 
 # ============================================================================
 # Mock Adapters for Testing
@@ -37,7 +31,7 @@ from lean_proof_auto_mcp.core.verify_domain import (
 
 class MockLeanRunner:
     """Mock LeanRunner that returns predefined results without spawning Lean."""
-    
+
     def __init__(self, result: LeanRunResult | None = None):
         self.result = result or LeanRunResult(
             status="success",
@@ -48,7 +42,7 @@ class MockLeanRunner:
             exit_code=0,
         )
         self.calls: list[dict[str, Any]] = []
-    
+
     def verify_file(
         self,
         workspace_path: Path,
@@ -57,24 +51,26 @@ class MockLeanRunner:
         budget_s: float,
     ) -> LeanRunResult:
         """Record call and return mock result."""
-        self.calls.append({
-            "workspace_path": workspace_path,
-            "file_path": file_path,
-            "theorem_id": theorem_id,
-            "budget_s": budget_s,
-        })
+        self.calls.append(
+            {
+                "workspace_path": workspace_path,
+                "file_path": file_path,
+                "theorem_id": theorem_id,
+                "budget_s": budget_s,
+            }
+        )
         return self.result
 
 
 class MockWorkspaceProvider:
     """Mock WorkspaceProvider that creates in-memory workspaces."""
-    
+
     def __init__(self):
         self.workspaces_created: list[Workspace] = []
         self.workspaces_cleaned: list[Workspace] = []
         self._lock = threading.Lock()  # Thread-safe access to lists
         self._workspace_counter = 0
-    
+
     def create_workspace(self, file_path: str) -> Workspace:
         """Create mock workspace with unique ID."""
         with self._lock:
@@ -87,7 +83,7 @@ class MockWorkspaceProvider:
             )
             self.workspaces_created.append(workspace)
             return workspace
-    
+
     def cleanup_workspace(self, workspace: Workspace) -> None:
         """Record cleanup."""
         with self._lock:
@@ -96,11 +92,11 @@ class MockWorkspaceProvider:
 
 class MockArtifactStore:
     """Mock ArtifactStore that stores artifacts in memory."""
-    
+
     def __init__(self):
         self.stored_artifacts: list[dict[str, Any]] = []
         self._lock = threading.Lock()  # Thread-safe access to list
-    
+
     def store(
         self,
         run_id: str,
@@ -110,12 +106,14 @@ class MockArtifactStore:
     ) -> None:
         """Record stored artifacts."""
         with self._lock:
-            self.stored_artifacts.append({
-                "run_id": run_id,
-                "command": command,
-                "result": result,
-                "full_logs": full_logs,
-            })
+            self.stored_artifacts.append(
+                {
+                    "run_id": run_id,
+                    "command": command,
+                    "result": result,
+                    "full_logs": full_logs,
+                }
+            )
 
 
 # ============================================================================
@@ -126,15 +124,15 @@ class MockArtifactStore:
 class TestProperty1ResponseSchemaCompliance:
     """
     Property 1: Response Schema Compliance
-    
+
     For any verification request (valid or invalid), the response SHALL conform
     to the output JSON schema with required fields: api_version, status, run_id,
     file, diagnostics, diagnostic_summary, evidence, metadata, and timing.
-    
+
     Feature: lean-verify-tool, Property 1: Response schema compliance
     Validates: Requirements 1.1, 8.3
     """
-    
+
     @settings(max_examples=20, deadline=None)
     @given(
         file_path=st.text(min_size=1, max_size=100),
@@ -151,13 +149,13 @@ class TestProperty1ResponseSchemaCompliance:
     ):
         """Test that all responses have required fields."""
         # Feature: lean-verify-tool, Property 1: Response schema compliance
-        
+
         # Arrange
         lean_runner = MockLeanRunner()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(
                 file_path=file_path,
@@ -168,10 +166,10 @@ class TestProperty1ResponseSchemaCompliance:
         except ValueError:
             # Invalid command, skip this test case
             return
-        
+
         # Act
         result = handler.handle(cmd)
-        
+
         # Assert - Check all required fields exist
         assert hasattr(result, "api_version")
         assert hasattr(result, "status")
@@ -184,7 +182,7 @@ class TestProperty1ResponseSchemaCompliance:
         assert hasattr(result, "evidence")
         assert hasattr(result, "metadata")
         assert hasattr(result, "timing")
-        
+
         # Assert - Check field types
         assert isinstance(result.api_version, str)
         assert isinstance(result.status, str)
@@ -195,23 +193,23 @@ class TestProperty1ResponseSchemaCompliance:
         assert isinstance(result.evidence, dict)
         assert isinstance(result.metadata, dict)
         assert isinstance(result.timing, dict)
-        
+
         # Assert - Check nested structure
         assert "error_count" in result.diagnostic_summary
         assert "warning_count" in result.diagnostic_summary
         assert "info_count" in result.diagnostic_summary
-        
+
         assert "stdout_excerpt" in result.evidence
         assert "stderr_excerpt" in result.evidence
         assert "notes" in result.evidence
-        
+
         assert "workspace_mode" in result.metadata
         assert "workspace_id" in result.metadata
-        
+
         assert "total_s" in result.timing
         assert "lean_execution_s" in result.timing
         assert "overhead_s" in result.timing
-    
+
     @settings(max_examples=20, deadline=None)
     @given(
         file_path=st.text(min_size=1, max_size=100),
@@ -219,21 +217,21 @@ class TestProperty1ResponseSchemaCompliance:
     def test_status_is_valid_value(self, file_path: str):
         """Test that status is one of the valid values."""
         # Feature: lean-verify-tool, Property 1: Response schema compliance
-        
+
         # Arrange
         lean_runner = MockLeanRunner()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path)
         except ValueError:
             return
-        
+
         # Act
         result = handler.handle(cmd)
-        
+
         # Assert
         assert result.status in ["success", "fail", "timeout", "error"]
 
@@ -241,15 +239,15 @@ class TestProperty1ResponseSchemaCompliance:
 class TestProperty7DeterministicDiagnosticSorting:
     """
     Property 7: Deterministic Diagnostic Sorting
-    
+
     For any verification response with multiple diagnostics, the diagnostics
     array SHALL be sorted by (file, line, col, severity, message) in that order,
     with lexicographic tie-breaking for messages at the same location.
-    
+
     Feature: lean-verify-tool, Property 7: Deterministic diagnostic sorting
     Validates: Requirements 3.1, 3.2
     """
-    
+
     @settings(max_examples=20, deadline=None)
     @given(
         file_path=st.text(min_size=1, max_size=100),
@@ -257,7 +255,7 @@ class TestProperty7DeterministicDiagnosticSorting:
     def test_diagnostics_are_sorted(self, file_path: str):
         """Test that diagnostics are sorted deterministically."""
         # Feature: lean-verify-tool, Property 7: Deterministic diagnostic sorting
-        
+
         # Arrange - Create unsorted diagnostics
         unsorted_diagnostics = [
             {
@@ -276,7 +274,7 @@ class TestProperty7DeterministicDiagnosticSorting:
                 "location": {"file": "test.lean", "line": 5, "col": 1},
             },
         ]
-        
+
         lean_result = LeanRunResult(
             status="fail",
             diagnostics=unsorted_diagnostics,
@@ -285,27 +283,27 @@ class TestProperty7DeterministicDiagnosticSorting:
             timing={"lean_execution_s": 0.5},
             exit_code=1,
         )
-        
+
         lean_runner = MockLeanRunner(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path)
         except ValueError:
             return
-        
+
         # Act
         result = handler.handle(cmd)
-        
+
         # Assert - Check diagnostics are sorted
         diagnostics = result.diagnostics
         if len(diagnostics) > 1:
             for i in range(len(diagnostics) - 1):
                 curr = diagnostics[i]
                 next_diag = diagnostics[i + 1]
-                
+
                 # Compare by file, line, col, severity, message
                 curr_key = (
                     curr["location"]["file"],
@@ -321,22 +319,22 @@ class TestProperty7DeterministicDiagnosticSorting:
                     {"error": 0, "warning": 1, "info": 2}.get(next_diag["severity"], 3),
                     next_diag["message"],
                 )
-                
+
                 assert curr_key <= next_key, f"Diagnostics not sorted: {curr_key} > {next_key}"
 
 
 class TestProperty8DeterministicOutput:
     """
     Property 8: Deterministic Output
-    
+
     For any two verification requests with identical inputs (same file, same repo
     state, same parameters), the responses SHALL be identical except for run_id
     and timestamp fields.
-    
+
     Feature: lean-verify-tool, Property 8: Deterministic output
     Validates: Requirements 3.3, 3.4, 3.5, 8.5
     """
-    
+
     @settings(max_examples=15, deadline=None)
     @given(
         file_path=st.text(min_size=1, max_size=100),
@@ -349,7 +347,7 @@ class TestProperty8DeterministicOutput:
     ):
         """Test that identical inputs produce identical outputs (except run_id)."""
         # Feature: lean-verify-tool, Property 8: Deterministic output
-        
+
         # Arrange
         lean_result = LeanRunResult(
             status="success",
@@ -365,25 +363,25 @@ class TestProperty8DeterministicOutput:
             timing={"lean_execution_s": 0.5},
             exit_code=0,
         )
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path, budget_s=budget_s)
         except ValueError:
             return
-        
+
         # Act - Run verification twice with same inputs
         lean_runner1 = MockLeanRunner(result=lean_result)
         workspace_provider1 = MockWorkspaceProvider()
         artifact_store1 = MockArtifactStore()
         handler1 = VerifyCommandHandler(lean_runner1, workspace_provider1, artifact_store1)
         result1 = handler1.handle(cmd)
-        
+
         lean_runner2 = MockLeanRunner(result=lean_result)
         workspace_provider2 = MockWorkspaceProvider()
         artifact_store2 = MockArtifactStore()
         handler2 = VerifyCommandHandler(lean_runner2, workspace_provider2, artifact_store2)
         result2 = handler2.handle(cmd)
-        
+
         # Assert - Compare results (excluding run_id which should be unique)
         assert result1.api_version == result2.api_version
         assert result1.status == result2.status
@@ -400,15 +398,15 @@ class TestProperty8DeterministicOutput:
 class TestProperty4TimeoutEnforcement:
     """
     Property 4: Timeout Enforcement
-    
+
     For any verification request with budget_s=B, if Lean execution exceeds B
     seconds, the tool SHALL return status="timeout" and SHALL terminate all
     Lean processes within 100ms of the budget.
-    
+
     Feature: lean-verify-tool, Property 4: Timeout enforcement
     Validates: Requirements 1.3, 4.2, 4.3
     """
-    
+
     @settings(max_examples=20, deadline=None)
     @given(
         file_path=st.text(min_size=1, max_size=100),
@@ -421,7 +419,7 @@ class TestProperty4TimeoutEnforcement:
     ):
         """Test that timeout results in timeout status."""
         # Feature: lean-verify-tool, Property 4: Timeout enforcement
-        
+
         # Arrange - Create a timeout result
         lean_result = LeanRunResult(
             status="timeout",
@@ -431,24 +429,24 @@ class TestProperty4TimeoutEnforcement:
             timing={"lean_execution_s": budget_s + 0.05},  # Slightly over budget
             exit_code=-1,
         )
-        
+
         lean_runner = MockLeanRunner(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path, budget_s=budget_s)
         except ValueError:
             return
-        
+
         # Act
         result = handler.handle(cmd)
-        
+
         # Assert - Check timeout status
         assert result.status == "timeout"
         assert result.timing["lean_execution_s"] >= budget_s
-    
+
     @settings(max_examples=20, deadline=None)
     @given(
         file_path=st.text(min_size=1, max_size=100),
@@ -461,7 +459,7 @@ class TestProperty4TimeoutEnforcement:
     ):
         """Test that timeout is enforced within 100ms buffer."""
         # Feature: lean-verify-tool, Property 4: Timeout enforcement
-        
+
         # Arrange - Create a timeout result with timing
         timeout_buffer_ms = 100
         lean_result = LeanRunResult(
@@ -472,20 +470,20 @@ class TestProperty4TimeoutEnforcement:
             timing={"lean_execution_s": budget_s + (timeout_buffer_ms / 1000.0)},
             exit_code=-1,
         )
-        
+
         lean_runner = MockLeanRunner(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path, budget_s=budget_s)
         except ValueError:
             return
-        
+
         # Act
         result = handler.handle(cmd)
-        
+
         # Assert - Check timeout is within buffer
         if result.status == "timeout":
             # Timeout should be within 100ms of budget
@@ -495,15 +493,15 @@ class TestProperty4TimeoutEnforcement:
 class TestProperty5ProcessAndWorkspaceCleanup:
     """
     Property 5: Process and Workspace Cleanup
-    
+
     For any verification request (success, failure, or timeout), the tool SHALL
     clean up all Lean processes and workspace resources, leaving no orphaned
     processes or temporary directories.
-    
+
     Feature: lean-verify-tool, Property 5: Process and workspace cleanup
     Validates: Requirements 4.4, 6.3
     """
-    
+
     @settings(max_examples=20, deadline=None)
     @given(
         file_path=st.text(min_size=1, max_size=100),
@@ -516,7 +514,7 @@ class TestProperty5ProcessAndWorkspaceCleanup:
     ):
         """Test that workspace cleanup is always called regardless of status."""
         # Feature: lean-verify-tool, Property 5: Process and workspace cleanup
-        
+
         # Arrange - Create result with specified status
         lean_result = LeanRunResult(
             status=status,
@@ -526,25 +524,25 @@ class TestProperty5ProcessAndWorkspaceCleanup:
             timing={"lean_execution_s": 0.5},
             exit_code=0 if status == "success" else -1,
         )
-        
+
         lean_runner = MockLeanRunner(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path)
         except ValueError:
             return
-        
+
         # Act
-        result = handler.handle(cmd)
-        
+        _ = handler.handle(cmd)
+
         # Assert - Check workspace was created and cleaned up
         assert len(workspace_provider.workspaces_created) == 1
         assert len(workspace_provider.workspaces_cleaned) == 1
         assert workspace_provider.workspaces_created[0] == workspace_provider.workspaces_cleaned[0]
-    
+
     @settings(max_examples=20, deadline=None)
     @given(
         file_path=st.text(min_size=1, max_size=100),
@@ -555,28 +553,28 @@ class TestProperty5ProcessAndWorkspaceCleanup:
     ):
         """Test that cleanup happens even when verification raises exception."""
         # Feature: lean-verify-tool, Property 5: Process and workspace cleanup
-        
+
         # Arrange - Create a lean runner that raises exception
         class ExceptionLeanRunner:
             def verify_file(self, workspace_path, file_path, theorem_id, budget_s):
                 raise RuntimeError("Simulated error")
-        
+
         lean_runner = ExceptionLeanRunner()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path)
         except ValueError:
             return
-        
+
         # Act & Assert - Exception should be raised but cleanup should happen
-        try:
-            result = handler.handle(cmd)
-        except RuntimeError:
-            pass  # Expected exception
-        
+        from contextlib import suppress
+
+        with suppress(RuntimeError):
+            handler.handle(cmd)
+
         # Assert - Check workspace was still cleaned up
         assert len(workspace_provider.workspaces_created) == 1
         assert len(workspace_provider.workspaces_cleaned) == 1
@@ -585,15 +583,15 @@ class TestProperty5ProcessAndWorkspaceCleanup:
 class TestProperty16TheoremScopeSupport:
     """
     Property 16: Theorem Scope Support
-    
+
     For any verification request with valid theorem_id, the tool SHALL create
     an abridged file containing content up to the theorem's end line and verify
     only that scope, returning verification_scope_used="theorem".
-    
+
     Feature: lean-verify-tool, Property 16: Theorem scope support
     Validates: Requirements 2.1, 2.2
     """
-    
+
     @settings(max_examples=20, deadline=None)
     @given(
         file_path=st.text(min_size=1, max_size=100),
@@ -606,7 +604,7 @@ class TestProperty16TheoremScopeSupport:
     ):
         """Test that theorem-level verification returns scope_used='theorem'."""
         # Feature: lean-verify-tool, Property 16: Theorem scope support
-        
+
         # Arrange - Create a result with theorem scope
         lean_result = LeanRunResult(
             status="success",
@@ -616,24 +614,24 @@ class TestProperty16TheoremScopeSupport:
             timing={"lean_execution_s": 0.3},
             exit_code=0,
         )
-        
+
         lean_runner = MockLeanRunner(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path, theorem_id=theorem_id)
         except ValueError:
             return
-        
+
         # Act
         result = handler.handle(cmd)
-        
+
         # Assert - Check theorem scope is used
         assert result.verification_scope_used == "theorem"
         assert result.theorem_id == theorem_id
-        
+
         # Verify that lean_runner was called with theorem_id
         assert len(lean_runner.calls) == 1
         assert lean_runner.calls[0]["theorem_id"] == theorem_id
@@ -642,15 +640,15 @@ class TestProperty16TheoremScopeSupport:
 class TestProperty12DiagnosticSummaryConsistency:
     """
     Property 12: Diagnostic Summary Consistency
-    
+
     For any verification response, the diagnostic_summary counts (error_count,
     warning_count, info_count) SHALL exactly match the count of diagnostics
     with each severity level in the diagnostics array.
-    
+
     Feature: lean-verify-tool, Property 12: Diagnostic summary consistency
     Validates: Requirements 5.4
     """
-    
+
     @settings(max_examples=20, deadline=None)
     @given(
         file_path=st.text(min_size=1, max_size=100),
@@ -667,28 +665,34 @@ class TestProperty12DiagnosticSummaryConsistency:
     ):
         """Test that diagnostic summary counts match actual diagnostics."""
         # Feature: lean-verify-tool, Property 12: Diagnostic summary consistency
-        
+
         # Arrange - Create diagnostics with specific counts
         diagnostics = []
         for i in range(num_errors):
-            diagnostics.append({
-                "severity": "error",
-                "message": f"Error {i}",
-                "location": {"file": "test.lean", "line": i, "col": 0},
-            })
+            diagnostics.append(
+                {
+                    "severity": "error",
+                    "message": f"Error {i}",
+                    "location": {"file": "test.lean", "line": i, "col": 0},
+                }
+            )
         for i in range(num_warnings):
-            diagnostics.append({
-                "severity": "warning",
-                "message": f"Warning {i}",
-                "location": {"file": "test.lean", "line": i + 100, "col": 0},
-            })
+            diagnostics.append(
+                {
+                    "severity": "warning",
+                    "message": f"Warning {i}",
+                    "location": {"file": "test.lean", "line": i + 100, "col": 0},
+                }
+            )
         for i in range(num_infos):
-            diagnostics.append({
-                "severity": "info",
-                "message": f"Info {i}",
-                "location": {"file": "test.lean", "line": i + 200, "col": 0},
-            })
-        
+            diagnostics.append(
+                {
+                    "severity": "info",
+                    "message": f"Info {i}",
+                    "location": {"file": "test.lean", "line": i + 200, "col": 0},
+                }
+            )
+
         lean_result = LeanRunResult(
             status="success" if num_errors == 0 else "fail",
             diagnostics=diagnostics,
@@ -697,44 +701,43 @@ class TestProperty12DiagnosticSummaryConsistency:
             timing={"lean_execution_s": 0.5},
             exit_code=0 if num_errors == 0 else 1,
         )
-        
+
         lean_runner = MockLeanRunner(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path)
         except ValueError:
             return
-        
+
         # Act
         result = handler.handle(cmd)
-        
+
         # Assert - Check summary matches actual counts
         actual_error_count = sum(1 for d in result.diagnostics if d["severity"] == "error")
         actual_warning_count = sum(1 for d in result.diagnostics if d["severity"] == "warning")
         actual_info_count = sum(1 for d in result.diagnostics if d["severity"] == "info")
-        
+
         assert result.diagnostic_summary["error_count"] == actual_error_count
         assert result.diagnostic_summary["warning_count"] == actual_warning_count
         assert result.diagnostic_summary["info_count"] == actual_info_count
 
 
-
 class TestProperty15ConcurrentExecutionSafety:
     """
     Property 15: Concurrent Execution Safety
-    
+
     For any set of N concurrent verification requests (N=2-10), each SHALL
     complete successfully with isolated workspaces, and no verification SHALL
     interfere with another (no shared state, no race conditions, no workspace
     collisions).
-    
+
     Feature: lean-verify-tool, Property 15: Concurrent execution safety
     Validates: Requirements 6.4
     """
-    
+
     @settings(max_examples=5, deadline=None)
     @given(
         num_concurrent=st.integers(min_value=2, max_value=6),
@@ -747,22 +750,22 @@ class TestProperty15ConcurrentExecutionSafety:
     ):
         """Test that N concurrent verifications all complete successfully."""
         # Feature: lean-verify-tool, Property 15: Concurrent execution safety
-        
+
         # Arrange - Create shared adapters (thread-safe)
         lean_runner = MockLeanRunner()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path)
         except ValueError:
             return
-        
+
         # Act - Run N verifications concurrently using ThreadPoolExecutor
         results = []
         exceptions = []
-        
+
         def run_verification(index: int):
             """Run a single verification and return result."""
             try:
@@ -770,32 +773,34 @@ class TestProperty15ConcurrentExecutionSafety:
                 return (index, result, None)
             except Exception as e:
                 return (index, None, e)
-        
+
         with ThreadPoolExecutor(max_workers=num_concurrent) as executor:
             futures = [executor.submit(run_verification, i) for i in range(num_concurrent)]
-            
+
             for future in as_completed(futures):
                 index, result, exception = future.result()
                 if exception:
                     exceptions.append((index, exception))
                 else:
                     results.append((index, result))
-        
+
         # Assert - All verifications completed without exceptions
         assert len(exceptions) == 0, f"Some verifications raised exceptions: {exceptions}"
-        assert len(results) == num_concurrent, f"Expected {num_concurrent} results, got {len(results)}"
-        
+        assert len(results) == num_concurrent, (
+            f"Expected {num_concurrent} results, got {len(results)}"
+        )
+
         # Assert - All results are valid
-        for index, result in results:
+        for _index, result in results:
             assert isinstance(result, VerifyResult)
             assert result.status in ["success", "fail", "timeout", "error"]
             assert result.run_id is not None
             assert len(result.run_id) > 0
-        
+
         # Assert - All run_ids are unique (no collisions)
         run_ids = [result.run_id for _, result in results]
         assert len(run_ids) == len(set(run_ids)), "Run IDs are not unique - collision detected"
-    
+
     @settings(max_examples=5, deadline=None)
     @given(
         num_concurrent=st.integers(min_value=2, max_value=6),
@@ -808,18 +813,18 @@ class TestProperty15ConcurrentExecutionSafety:
     ):
         """Test that concurrent verifications use isolated workspaces."""
         # Feature: lean-verify-tool, Property 15: Concurrent execution safety
-        
+
         # Arrange - Create shared adapters (thread-safe)
         lean_runner = MockLeanRunner()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path)
         except ValueError:
             return
-        
+
         # Act - Run N verifications concurrently
         def run_verification(index: int):
             """Run a single verification."""
@@ -827,31 +832,31 @@ class TestProperty15ConcurrentExecutionSafety:
                 return handler.handle(cmd)
             except Exception:
                 return None
-        
+
         with ThreadPoolExecutor(max_workers=num_concurrent) as executor:
             futures = [executor.submit(run_verification, i) for i in range(num_concurrent)]
             results = [future.result() for future in as_completed(futures)]
-        
+
         # Filter out None results (from exceptions)
         results = [r for r in results if r is not None]
-        
+
         # Assert - Each verification created and cleaned up its own workspace
         assert len(workspace_provider.workspaces_created) == len(results)
         assert len(workspace_provider.workspaces_cleaned) == len(results)
-        
+
         # Assert - All workspace IDs are unique (no collisions)
         workspace_ids = [w.workspace_id for w in workspace_provider.workspaces_created]
         assert len(workspace_ids) == len(set(workspace_ids)), "Workspace IDs are not unique"
-        
+
         # Assert - All workspace paths are unique (no collisions)
         workspace_paths = [str(w.path) for w in workspace_provider.workspaces_created]
         assert len(workspace_paths) == len(set(workspace_paths)), "Workspace paths are not unique"
-        
+
         # Assert - All created workspaces were cleaned up
         created_ids = {w.workspace_id for w in workspace_provider.workspaces_created}
         cleaned_ids = {w.workspace_id for w in workspace_provider.workspaces_cleaned}
         assert created_ids == cleaned_ids, "Not all workspaces were cleaned up"
-    
+
     @settings(max_examples=5, deadline=None)
     @given(
         num_concurrent=st.integers(min_value=2, max_value=6),
@@ -864,26 +869,29 @@ class TestProperty15ConcurrentExecutionSafety:
     ):
         """Test that concurrent verifications don't have race conditions."""
         # Feature: lean-verify-tool, Property 15: Concurrent execution safety
-        
+
         # Arrange - Create shared adapters with simulated delay
         class SlowMockLeanRunner:
             """Mock runner with artificial delay to increase chance of race conditions."""
+
             def __init__(self):
                 self.calls = []
                 self._lock = threading.Lock()
-            
+
             def verify_file(self, workspace_path, file_path, theorem_id, budget_s):
                 # Simulate some processing time
                 time.sleep(0.01)
-                
+
                 with self._lock:
-                    self.calls.append({
-                        "workspace_path": workspace_path,
-                        "file_path": file_path,
-                        "theorem_id": theorem_id,
-                        "budget_s": budget_s,
-                    })
-                
+                    self.calls.append(
+                        {
+                            "workspace_path": workspace_path,
+                            "file_path": file_path,
+                            "theorem_id": theorem_id,
+                            "budget_s": budget_s,
+                        }
+                    )
+
                 return LeanRunResult(
                     status="success",
                     diagnostics=[],
@@ -892,44 +900,44 @@ class TestProperty15ConcurrentExecutionSafety:
                     timing={"lean_execution_s": 0.01},
                     exit_code=0,
                 )
-        
+
         lean_runner = SlowMockLeanRunner()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
         handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
-        
+
         try:
             cmd = VerifyCommand(file_path=file_path)
         except ValueError:
             return
-        
+
         # Act - Run N verifications concurrently with delays
         results = []
-        
+
         def run_verification(index: int):
             """Run a single verification."""
             try:
                 return handler.handle(cmd)
-            except Exception as e:
+            except Exception:
                 return None
-        
+
         with ThreadPoolExecutor(max_workers=num_concurrent) as executor:
             futures = [executor.submit(run_verification, i) for i in range(num_concurrent)]
             results = [future.result() for future in as_completed(futures)]
-        
+
         # Filter out None results
         results = [r for r in results if r is not None]
-        
+
         # Assert - All verifications completed
         assert len(results) == num_concurrent
-        
+
         # Assert - Lean runner was called exactly N times (no duplicate calls)
         assert len(lean_runner.calls) == num_concurrent
-        
+
         # Assert - All results have unique run_ids (no race in ID generation)
         run_ids = [r.run_id for r in results]
         assert len(run_ids) == len(set(run_ids)), "Race condition detected in run_id generation"
-        
+
         # Assert - Workspace creation/cleanup counts match
         assert len(workspace_provider.workspaces_created) == num_concurrent
         assert len(workspace_provider.workspaces_cleaned) == num_concurrent

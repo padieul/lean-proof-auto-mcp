@@ -161,7 +161,9 @@ class TestBuildCommand:
         """Test error when workspace_mode is invalid."""
         args = {"file": "test.lean", "workspace_mode": "invalid"}
 
-        with pytest.raises(ValueError, match="'workspace_mode' must be 'worktree', 'temp', or null"):
+        with pytest.raises(
+            ValueError, match="'workspace_mode' must be 'worktree', 'temp', or null"
+        ):
             _build_command(args)
 
 
@@ -387,7 +389,6 @@ class TestIntegrationScenarios:
         assert cmd.store_full_logs is True
 
 
-
 class TestErrorHandling:
     """Test cases for error handling in verify function."""
 
@@ -487,7 +488,6 @@ class TestErrorHandling:
 
     def test_error_response_preserves_theorem_id(self):
         """Test that error response preserves theorem_id if provided."""
-        from lean_proof_auto_mcp.tools.verify import verify
 
         # Note: This will fail validation before theorem_id is used,
         # but we can test the error response builder directly

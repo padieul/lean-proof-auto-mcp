@@ -272,7 +272,7 @@ def test_rank_targets_field_types():
     assert isinstance(resp["metadata"]["deep_structure_used"], bool), (
         "metadata.deep_structure_used must be boolean"
     )
-    assert isinstance(resp["metadata"]["computation_time_ms"], (int, float)), (
+    assert isinstance(resp["metadata"]["computation_time_ms"], int | float), (
         "metadata.computation_time_ms must be number"
     )
 
@@ -622,7 +622,7 @@ def test_rank_targets_available_objectives_structure():
         ]
         for key in required_weight_keys:
             assert key in weights, f"Missing objective.weights.{key}"
-            assert isinstance(weights[key], (int, float)), f"objective.weights.{key} must be number"
+            assert isinstance(weights[key], int | float), f"objective.weights.{key} must be number"
 
 
 def test_rank_targets_skip_already_automated_required():

@@ -332,16 +332,16 @@ This plan implements the `verify` tool as the foundational Lean execution primit
     - Verify diagnostics scoped to theorem
     - _Requirements: 2.1, 2.2_
 
-- [ ] 12. Concurrent execution testing
-  - [ ] 12.1 Write property test for concurrent execution safety
+- [x] 12. Concurrent execution testing
+  - [x] 12.1 Write property test for concurrent execution safety
     - **Property 15: Concurrent Execution Safety**
     - Run N verifications concurrently (N=2-10)
     - Verify all complete successfully
     - Verify no workspace collisions
     - **Validates: Requirements 6.4**
 
-- [ ] 13. Create API documentation
-  - [ ] 13.1 Create docs/mcp/tools/verify.md
+- [x] 13. Create API documentation
+  - [x] 13.1 Create docs/mcp/tools/verify.md
     - Document tool purpose and use cases
     - Document input schema with all parameters
     - Document output schema with all fields
@@ -350,18 +350,18 @@ This plan implements the `verify` tool as the foundational Lean execution primit
     - Document performance characteristics and timeouts
     - _Requirements: 8.3_
 
-  - [ ] 13.2 Add verify tool to docs/mcp/README.md
+  - [x] 13.2 Add verify tool to docs/mcp/README.md
     - Add verify to tool list with brief description
     - Link to detailed verify.md documentation
     - _Requirements: 8.3_
 
-  - [ ] 13.3 Create JSON schema files
+  - [x] 13.3 Create JSON schema files
     - Create docs/mcp/schemas/verify_input.json
     - Create docs/mcp/schemas/verify_output.json
     - Include all fields with types and descriptions
     - _Requirements: 8.3_
 
-- [ ] 14. Final checkpoint - All tests pass
+- [x] 14. Final checkpoint - All tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

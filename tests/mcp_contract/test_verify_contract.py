@@ -298,13 +298,14 @@ def test_verify_diagnostics_structure():
             assert isinstance(diag["message"], str), "diagnostic.message must be string"
             assert len(diag["message"]) > 0, "diagnostic.message must be non-empty"
 
-            # Location structure
+            # Location structure (can be null for error diagnostics)
             loc = diag["location"]
-            assert "file" in loc, "Missing diagnostic.location.file"
-            assert "line" in loc, "Missing diagnostic.location.line"
-            assert "col" in loc, "Missing diagnostic.location.col"
-            assert "end_line" in loc, "Missing diagnostic.location.end_line"
-            assert "end_col" in loc, "Missing diagnostic.location.end_col"
+            if loc is not None:
+                assert "file" in loc, "Missing diagnostic.location.file"
+                assert "line" in loc, "Missing diagnostic.location.line"
+                assert "col" in loc, "Missing diagnostic.location.col"
+                assert "end_line" in loc, "Missing diagnostic.location.end_line"
+                assert "end_col" in loc, "Missing diagnostic.location.end_col"
 
 
 def test_verify_verification_scope_used_valid():

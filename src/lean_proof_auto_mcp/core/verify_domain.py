@@ -11,6 +11,7 @@ import hashlib
 import json
 import subprocess
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -361,9 +362,12 @@ class VerifyCommandHandler:
     
     def _generate_run_id(self, cmd: VerifyCommand) -> str:
         """
-        Generate unique run_id with timestamp and file hash.
+        Generate unique run_id with timestamp, file hash, and random suffix.
         
-        Format: verify-YYYYMMDD-HHMMSS-<file_hash>
+        Format: verify-YYYYMMDD-HHMMSS-<file_hash>-<random_suffix>
+        
+        The random suffix ensures uniqueness even when multiple verifications
+        run concurrently on the same file within the same second.
         
         Args:
             cmd: Verification command
@@ -371,11 +375,13 @@ class VerifyCommandHandler:
         Returns:
             Unique run_id string
         
-        Requirements: 1.5, 7.3
+        Requirements: 1.5, 7.3, 6.4 (concurrent execution safety)
         """
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         file_hash = hashlib.md5(cmd.file_path.encode()).hexdigest()[:8]
-        return f"verify-{timestamp}-{file_hash}"
+        # Add random suffix for uniqueness in concurrent executions
+        random_suffix = uuid.uuid4().hex[:6]
+        return f"verify-{timestamp}-{file_hash}-{random_suffix}"
     
     def _normalize_diagnostics(self, diagnostics: list[dict]) -> list[dict]:
         """

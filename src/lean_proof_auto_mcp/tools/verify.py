@@ -224,6 +224,9 @@ def _build_error_response(
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     # Ensure file is a string for hashing
     file_str = str(file) if file is not None else "<invalid>"
+    # Ensure file is non-empty for schema compliance (minLength: 1)
+    if not file_str or not file_str.strip():
+        file_str = "<invalid>"
     file_hash = hashlib.md5(file_str.encode()).hexdigest()[:8]
     run_id = f"verify-{timestamp}-{file_hash}"
     
@@ -238,13 +241,7 @@ def _build_error_response(
             {
                 "severity": "error",
                 "message": error_message,
-                "location": {
-                    "file": "",
-                    "line": 0,
-                    "col": 0,
-                    "end_line": None,
-                    "end_col": None,
-                },
+                "location": None,
             }
         ],
         "diagnostic_summary": {

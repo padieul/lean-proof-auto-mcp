@@ -226,9 +226,8 @@ class TestBuildErrorResponse:
         assert len(diagnostics) == 1
         assert diagnostics[0]["severity"] == "error"
         assert diagnostics[0]["message"] == "Test error message"
-        assert diagnostics[0]["location"]["file"] == ""
-        assert diagnostics[0]["location"]["line"] == 0
-        assert diagnostics[0]["location"]["col"] == 0
+        # Location should be null for error diagnostics (per schema)
+        assert diagnostics[0]["location"] is None
 
     def test_error_response_diagnostic_summary(self):
         """Test that error response has correct diagnostic summary."""

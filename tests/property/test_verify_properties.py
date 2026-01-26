@@ -8,6 +8,9 @@ Requirements: All correctness properties from design document
 """
 
 import dataclasses
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -69,20 +72,26 @@ class MockWorkspaceProvider:
     def __init__(self):
         self.workspaces_created: list[Workspace] = []
         self.workspaces_cleaned: list[Workspace] = []
+        self._lock = threading.Lock()  # Thread-safe access to lists
+        self._workspace_counter = 0
     
     def create_workspace(self, file_path: str) -> Workspace:
-        """Create mock workspace."""
-        workspace = Workspace(
-            path=Path("/tmp/mock-workspace"),
-            workspace_id="mock-workspace-123",
-            mode="temp",
-        )
-        self.workspaces_created.append(workspace)
-        return workspace
+        """Create mock workspace with unique ID."""
+        with self._lock:
+            self._workspace_counter += 1
+            workspace_id = f"mock-workspace-{self._workspace_counter}"
+            workspace = Workspace(
+                path=Path(f"/tmp/mock-workspace-{self._workspace_counter}"),
+                workspace_id=workspace_id,
+                mode="temp",
+            )
+            self.workspaces_created.append(workspace)
+            return workspace
     
     def cleanup_workspace(self, workspace: Workspace) -> None:
         """Record cleanup."""
-        self.workspaces_cleaned.append(workspace)
+        with self._lock:
+            self.workspaces_cleaned.append(workspace)
 
 
 class MockArtifactStore:
@@ -90,6 +99,7 @@ class MockArtifactStore:
     
     def __init__(self):
         self.stored_artifacts: list[dict[str, Any]] = []
+        self._lock = threading.Lock()  # Thread-safe access to list
     
     def store(
         self,
@@ -99,12 +109,13 @@ class MockArtifactStore:
         full_logs: str,
     ) -> None:
         """Record stored artifacts."""
-        self.stored_artifacts.append({
-            "run_id": run_id,
-            "command": command,
-            "result": result,
-            "full_logs": full_logs,
-        })
+        with self._lock:
+            self.stored_artifacts.append({
+                "run_id": run_id,
+                "command": command,
+                "result": result,
+                "full_logs": full_logs,
+            })
 
 
 # ============================================================================
@@ -708,3 +719,217 @@ class TestProperty12DiagnosticSummaryConsistency:
         assert result.diagnostic_summary["error_count"] == actual_error_count
         assert result.diagnostic_summary["warning_count"] == actual_warning_count
         assert result.diagnostic_summary["info_count"] == actual_info_count
+
+
+
+class TestProperty15ConcurrentExecutionSafety:
+    """
+    Property 15: Concurrent Execution Safety
+    
+    For any set of N concurrent verification requests (N=2-10), each SHALL
+    complete successfully with isolated workspaces, and no verification SHALL
+    interfere with another (no shared state, no race conditions, no workspace
+    collisions).
+    
+    Feature: lean-verify-tool, Property 15: Concurrent execution safety
+    Validates: Requirements 6.4
+    """
+    
+    @settings(max_examples=5, deadline=None)
+    @given(
+        num_concurrent=st.integers(min_value=2, max_value=6),
+        file_path=st.text(min_size=1, max_size=50),
+    )
+    def test_concurrent_verifications_complete_successfully(
+        self,
+        num_concurrent: int,
+        file_path: str,
+    ):
+        """Test that N concurrent verifications all complete successfully."""
+        # Feature: lean-verify-tool, Property 15: Concurrent execution safety
+        
+        # Arrange - Create shared adapters (thread-safe)
+        lean_runner = MockLeanRunner()
+        workspace_provider = MockWorkspaceProvider()
+        artifact_store = MockArtifactStore()
+        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        
+        try:
+            cmd = VerifyCommand(file_path=file_path)
+        except ValueError:
+            return
+        
+        # Act - Run N verifications concurrently using ThreadPoolExecutor
+        results = []
+        exceptions = []
+        
+        def run_verification(index: int):
+            """Run a single verification and return result."""
+            try:
+                result = handler.handle(cmd)
+                return (index, result, None)
+            except Exception as e:
+                return (index, None, e)
+        
+        with ThreadPoolExecutor(max_workers=num_concurrent) as executor:
+            futures = [executor.submit(run_verification, i) for i in range(num_concurrent)]
+            
+            for future in as_completed(futures):
+                index, result, exception = future.result()
+                if exception:
+                    exceptions.append((index, exception))
+                else:
+                    results.append((index, result))
+        
+        # Assert - All verifications completed without exceptions
+        assert len(exceptions) == 0, f"Some verifications raised exceptions: {exceptions}"
+        assert len(results) == num_concurrent, f"Expected {num_concurrent} results, got {len(results)}"
+        
+        # Assert - All results are valid
+        for index, result in results:
+            assert isinstance(result, VerifyResult)
+            assert result.status in ["success", "fail", "timeout", "error"]
+            assert result.run_id is not None
+            assert len(result.run_id) > 0
+        
+        # Assert - All run_ids are unique (no collisions)
+        run_ids = [result.run_id for _, result in results]
+        assert len(run_ids) == len(set(run_ids)), "Run IDs are not unique - collision detected"
+    
+    @settings(max_examples=5, deadline=None)
+    @given(
+        num_concurrent=st.integers(min_value=2, max_value=6),
+        file_path=st.text(min_size=1, max_size=50),
+    )
+    def test_concurrent_verifications_have_isolated_workspaces(
+        self,
+        num_concurrent: int,
+        file_path: str,
+    ):
+        """Test that concurrent verifications use isolated workspaces."""
+        # Feature: lean-verify-tool, Property 15: Concurrent execution safety
+        
+        # Arrange - Create shared adapters (thread-safe)
+        lean_runner = MockLeanRunner()
+        workspace_provider = MockWorkspaceProvider()
+        artifact_store = MockArtifactStore()
+        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        
+        try:
+            cmd = VerifyCommand(file_path=file_path)
+        except ValueError:
+            return
+        
+        # Act - Run N verifications concurrently
+        def run_verification(index: int):
+            """Run a single verification."""
+            try:
+                return handler.handle(cmd)
+            except Exception:
+                return None
+        
+        with ThreadPoolExecutor(max_workers=num_concurrent) as executor:
+            futures = [executor.submit(run_verification, i) for i in range(num_concurrent)]
+            results = [future.result() for future in as_completed(futures)]
+        
+        # Filter out None results (from exceptions)
+        results = [r for r in results if r is not None]
+        
+        # Assert - Each verification created and cleaned up its own workspace
+        assert len(workspace_provider.workspaces_created) == len(results)
+        assert len(workspace_provider.workspaces_cleaned) == len(results)
+        
+        # Assert - All workspace IDs are unique (no collisions)
+        workspace_ids = [w.workspace_id for w in workspace_provider.workspaces_created]
+        assert len(workspace_ids) == len(set(workspace_ids)), "Workspace IDs are not unique"
+        
+        # Assert - All workspace paths are unique (no collisions)
+        workspace_paths = [str(w.path) for w in workspace_provider.workspaces_created]
+        assert len(workspace_paths) == len(set(workspace_paths)), "Workspace paths are not unique"
+        
+        # Assert - All created workspaces were cleaned up
+        created_ids = {w.workspace_id for w in workspace_provider.workspaces_created}
+        cleaned_ids = {w.workspace_id for w in workspace_provider.workspaces_cleaned}
+        assert created_ids == cleaned_ids, "Not all workspaces were cleaned up"
+    
+    @settings(max_examples=5, deadline=None)
+    @given(
+        num_concurrent=st.integers(min_value=2, max_value=6),
+        file_path=st.text(min_size=1, max_size=50),
+    )
+    def test_concurrent_verifications_no_race_conditions(
+        self,
+        num_concurrent: int,
+        file_path: str,
+    ):
+        """Test that concurrent verifications don't have race conditions."""
+        # Feature: lean-verify-tool, Property 15: Concurrent execution safety
+        
+        # Arrange - Create shared adapters with simulated delay
+        class SlowMockLeanRunner:
+            """Mock runner with artificial delay to increase chance of race conditions."""
+            def __init__(self):
+                self.calls = []
+                self._lock = threading.Lock()
+            
+            def verify_file(self, workspace_path, file_path, theorem_id, budget_s):
+                # Simulate some processing time
+                time.sleep(0.01)
+                
+                with self._lock:
+                    self.calls.append({
+                        "workspace_path": workspace_path,
+                        "file_path": file_path,
+                        "theorem_id": theorem_id,
+                        "budget_s": budget_s,
+                    })
+                
+                return LeanRunResult(
+                    status="success",
+                    diagnostics=[],
+                    scope_used="file",
+                    full_logs="Mock output",
+                    timing={"lean_execution_s": 0.01},
+                    exit_code=0,
+                )
+        
+        lean_runner = SlowMockLeanRunner()
+        workspace_provider = MockWorkspaceProvider()
+        artifact_store = MockArtifactStore()
+        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        
+        try:
+            cmd = VerifyCommand(file_path=file_path)
+        except ValueError:
+            return
+        
+        # Act - Run N verifications concurrently with delays
+        results = []
+        
+        def run_verification(index: int):
+            """Run a single verification."""
+            try:
+                return handler.handle(cmd)
+            except Exception as e:
+                return None
+        
+        with ThreadPoolExecutor(max_workers=num_concurrent) as executor:
+            futures = [executor.submit(run_verification, i) for i in range(num_concurrent)]
+            results = [future.result() for future in as_completed(futures)]
+        
+        # Filter out None results
+        results = [r for r in results if r is not None]
+        
+        # Assert - All verifications completed
+        assert len(results) == num_concurrent
+        
+        # Assert - Lean runner was called exactly N times (no duplicate calls)
+        assert len(lean_runner.calls) == num_concurrent
+        
+        # Assert - All results have unique run_ids (no race in ID generation)
+        run_ids = [r.run_id for r in results]
+        assert len(run_ids) == len(set(run_ids)), "Race condition detected in run_id generation"
+        
+        # Assert - Workspace creation/cleanup counts match
+        assert len(workspace_provider.workspaces_created) == num_concurrent
+        assert len(workspace_provider.workspaces_cleaned) == num_concurrent

@@ -66,7 +66,7 @@ def verify(args: dict[str, Any]) -> dict[str, Any]:
     # Execute verification with error handling wrapper
     try:
         # Create handler with real adapters (composition root)
-        handler = _create_handler()
+        handler = _create_handler(command.file_path)
 
         # Execute verification
         result = handler.handle(command)
@@ -155,7 +155,7 @@ def _build_command(args: dict[str, Any]) -> VerifyCommand:
     )
 
 
-def _create_handler() -> VerifyCommandHandler:
+def _create_handler(file_path: str) -> VerifyCommandHandler:
     """
     Create VerifyCommandHandler with real adapters (composition root).
 
@@ -164,13 +164,22 @@ def _create_handler() -> VerifyCommandHandler:
     - GitWorktreeProvider or TempCopyProvider for workspace isolation
     - FilesystemArtifactStore for artifact storage
 
+    Args:
+        file_path: Path to the file being verified (used to detect project root)
+
     Returns:
         Configured VerifyCommandHandler
 
     Requirements: 1.1
     """
-    # Get project root (current working directory)
-    project_root = Path.cwd()
+    # Detect project root from file path
+    # Look for lakefile.toml or lakefile.lean in parent directories
+    file_path_obj = Path(file_path).resolve()
+    project_root = _find_lean_project_root(file_path_obj)
+    
+    # If no Lean project found, use the file's directory
+    if project_root is None:
+        project_root = file_path_obj.parent
 
     # Create LeanInteractRunner
     lean_runner = LeanInteractRunner(timeout_buffer_ms=100)
@@ -192,6 +201,31 @@ def _create_handler() -> VerifyCommandHandler:
         workspace_provider=workspace_provider,
         artifact_store=artifact_store,
     )
+
+
+def _find_lean_project_root(file_path: Path) -> Path | None:
+    """
+    Find the Lean project root by looking for lakefile.toml or lakefile.lean.
+    
+    Args:
+        file_path: Path to a file in the project
+        
+    Returns:
+        Path to project root, or None if not found
+    """
+    current = file_path if file_path.is_dir() else file_path.parent
+    
+    # Search up to 10 levels
+    for _ in range(10):
+        if (current / "lakefile.toml").exists() or (current / "lakefile.lean").exists():
+            return current
+        
+        parent = current.parent
+        if parent == current:  # Reached filesystem root
+            break
+        current = parent
+    
+    return None
 
 
 def _build_error_response(

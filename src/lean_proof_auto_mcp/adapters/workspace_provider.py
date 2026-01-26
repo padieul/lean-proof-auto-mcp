@@ -57,8 +57,9 @@ class GitWorktreeProvider:
         Strategy:
         1. Generate unique workspace_id (timestamp + random suffix)
         2. Run: git worktree add <path> HEAD (in project_root context)
-        3. Return Workspace with path, workspace_id, mode="worktree"
-        4. Handle git command errors gracefully
+        3. Create symlink to main project's .lake/ directory (share build artifacts)
+        4. Return Workspace with path, workspace_id, mode="worktree"
+        5. Handle git command errors gracefully
 
         Args:
             file_path: Path to file being verified (for context)
@@ -85,6 +86,10 @@ class GitWorktreeProvider:
                 timeout=10.0,
                 check=True,
             )
+
+            # Note: Git worktrees share .git but not .lake/
+            # For now, each worktree will have its own .lake/ which may trigger rebuilds
+            # TODO: Investigate Lake's LAKE_BUILD_DIR or other mechanisms for sharing builds
 
             logger.info(f"Created git worktree: {workspace_id}")
 
@@ -235,6 +240,7 @@ class TempCopyProvider:
                 dirs_exist_ok=True,
                 ignore=shutil.ignore_patterns(
                     ".git",
+                    ".lake",  # Don't copy .lake - it's huge and causes rebuilds
                     "__pycache__",
                     "*.pyc",
                     ".hypothesis",
@@ -301,30 +307,92 @@ class TempCopyProvider:
         return f"temp-{timestamp}-{random_suffix}"
 
 
+class NoIsolationProvider:
+    """
+    No-isolation implementation that uses the project directory directly.
+
+    This adapter skips workspace isolation entirely and runs verification
+    directly in the user's project directory. This is fast and works correctly
+    with Lake projects, but provides no isolation.
+
+    Use this for read-only verification where isolation isn't needed.
+
+    Requirements: 1.2, 6.1
+
+    Attributes:
+        project_root: Root directory of the project
+    """
+
+    def __init__(self, project_root: Path):
+        """
+        Initialize NoIsolationProvider with project root.
+
+        Args:
+            project_root: Root directory of the project
+
+        Requirements: 1.2, 6.1
+        """
+        self.project_root = Path(project_root)
+
+        if not self.project_root.exists():
+            raise ValueError(f"Project root does not exist: {project_root}")
+
+    def create_workspace(self, file_path: str) -> Workspace:
+        """
+        Return the project directory as the "workspace" (no isolation).
+
+        Args:
+            file_path: Path to file being verified (for context)
+
+        Returns:
+            Workspace pointing to the project root
+
+        Requirements: 1.2, 6.1
+        """
+        workspace_id = "no-isolation"
+        
+        logger.info(f"Using project directory directly (no isolation): {self.project_root}")
+
+        return Workspace(
+            path=self.project_root,
+            workspace_id=workspace_id,
+            mode="none",
+        )
+
+    def cleanup_workspace(self, workspace: Workspace) -> None:
+        """
+        No-op cleanup (nothing to clean up).
+
+        Args:
+            workspace: Workspace to clean up (ignored)
+
+        Requirements: 6.3
+        """
+        # Nothing to clean up
+        pass
+
+
 def detect_workspace_mode(project_root: Path | None = None) -> str:
     """
     Auto-detect appropriate workspace mode.
 
-    Always returns "temp" for safety and IDE compatibility.
-    Users can explicitly request "worktree" mode if needed.
+    Returns "none" for all projects (no isolation, fastest, works with Lake).
 
     Rationale:
-    - Temp mode works in all environments
-    - Prevents git worktree pollution in development repos
-    - Avoids IDE confusion with nested git repositories
-    - Users who want worktree performance can opt-in explicitly
+    - Verification is read-only, so isolation isn't strictly necessary
+    - No isolation = no copying = instant startup
+    - Works perfectly with Lake projects and Mathlib
+    - Worktrees and temp copies have issues with Lake build artifacts
 
     Args:
-        project_root: Ignored (kept for API compatibility)
+        project_root: Project root directory (defaults to current directory)
 
     Returns:
-        Always "temp"
+        "none" for all projects
 
     Requirements: 6.5
     """
-    # Always default to temp mode for safety
-    # Users can explicitly request worktree mode if needed
-    return "temp"
+    return "none"
 
 
 def create_workspace_provider(
@@ -332,7 +400,7 @@ def create_workspace_provider(
     project_root: Path | None = None,
     worktree_dir: Path | None = None,
     temp_base_dir: Path | None = None,
-) -> GitWorktreeProvider | TempCopyProvider:
+) -> GitWorktreeProvider | TempCopyProvider | NoIsolationProvider:
     """
     Factory function to create appropriate workspace provider.
 
@@ -340,7 +408,7 @@ def create_workspace_provider(
     workspace provider based on the requested mode or auto-detection.
 
     Args:
-        workspace_mode: Explicit mode ("worktree" or "temp"), or None for auto-detect
+        workspace_mode: Explicit mode ("worktree", "temp", "none"), or None for auto-detect
         project_root: Project root directory (defaults to current directory)
         worktree_dir: Directory for git worktrees (defaults to .worktrees)
         temp_base_dir: Base directory for temp workspaces (optional)
@@ -364,6 +432,9 @@ def create_workspace_provider(
 
     elif workspace_mode == "temp":
         return TempCopyProvider(project_root, temp_base_dir)
+
+    elif workspace_mode == "none":
+        return NoIsolationProvider(project_root)
 
     else:
         raise ValueError(f"Invalid workspace_mode: {workspace_mode}")

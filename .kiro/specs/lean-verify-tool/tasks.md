@@ -6,7 +6,7 @@ This plan implements the `verify` tool as the foundational Lean execution primit
 
 ## Tasks
 
-- [ ] 1. Set up core domain structures and ports
+- [x] 1. Set up core domain structures and ports
   - Create `VerifyCommand` immutable data class with validation
   - Create `VerifyResult` immutable data class
   - Define `LeanRunner` port (Protocol)
@@ -15,13 +15,13 @@ This plan implements the `verify` tool as the foundational Lean execution primit
   - Create internal data structures: `LeanRunResult`, `Workspace`
   - _Requirements: 1.1, 1.2, 1.5, 6.1, 7.1_
 
-- [ ] 2. Implement VerifyCommandHandler (core orchestrator)
-  - [ ] 2.1 Implement handler initialization with dependency injection
+- [x] 2. Implement VerifyCommandHandler (core orchestrator)
+  - [x] 2.1 Implement handler initialization with dependency injection
     - Accept LeanRunner, WorkspaceProvider, ArtifactStore as constructor parameters
     - Store dependencies as instance variables
     - _Requirements: 1.1_
 
-  - [ ] 2.2 Implement main handle() method orchestration
+  - [x] 2.2 Implement main handle() method orchestration
     - Generate run_id with timestamp and file hash
     - Create isolated workspace via WorkspaceProvider
     - Call LeanRunner.verify_file() with timeout
@@ -32,52 +32,52 @@ This plan implements the `verify` tool as the foundational Lean execution primit
     - Ensure workspace cleanup in finally block
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 4.1, 4.2, 6.3_
 
-  - [ ] 2.3 Write property test for handler orchestration
+  - [x] 2.3 Write property test for handler orchestration
     - **Property 1: Response Schema Compliance**
     - **Validates: Requirements 1.1, 8.3**
 
-  - [ ] 2.4 Implement diagnostic normalization
+  - [x] 2.4 Implement diagnostic normalization
     - Sort diagnostics by (file, line, col, severity, message)
     - Ensure all diagnostics have required fields
     - Map severity strings to standard values
     - _Requirements: 1.4, 3.1, 3.2, 5.1, 5.2_
 
-  - [ ] 2.5 Write property test for diagnostic sorting
+  - [x] 2.5 Write property test for diagnostic sorting
     - **Property 7: Deterministic Diagnostic Sorting**
     - **Validates: Requirements 3.1, 3.2**
 
-  - [ ] 2.6 Implement deterministic output formatting
+  - [x] 2.6 Implement deterministic output formatting
     - Apply deterministic truncation to log excerpts
     - Ensure JSON key ordering (sort_keys=True)
     - Round floating point values consistently
     - Reuse core.format.ensure_deterministic()
     - _Requirements: 3.3, 3.4, 3.5_
 
-  - [ ] 2.7 Write property test for deterministic output
+  - [x] 2.7 Write property test for deterministic output
     - **Property 8: Deterministic Output**
     - **Validates: Requirements 3.3, 3.4, 3.5, 8.5**
 
-  - [ ] 2.8 Implement diagnostic summary builder
+  - [x] 2.8 Implement diagnostic summary builder
     - Count diagnostics by severity
     - Return dict with error_count, warning_count, info_count
     - _Requirements: 5.4_
 
-  - [ ] 2.9 Write property test for diagnostic summary consistency
+  - [x] 2.9 Write property test for diagnostic summary consistency
     - **Property 12: Diagnostic Summary Consistency**
     - **Validates: Requirements 5.4**
 
-  - [ ] 2.10 Implement evidence section builder
+  - [x] 2.10 Implement evidence section builder
     - Truncate stdout/stderr to max_log_excerpt_chars
     - Add notes array with error codes and context
     - _Requirements: 5.5_
 
-  - [ ] 2.11 Implement metadata section builder
+  - [x] 2.11 Implement metadata section builder
     - Include workspace_mode and workspace_id
     - Detect repo_commit via git rev-parse HEAD
     - Detect lean_version and lake_version
     - _Requirements: 6.5, 8.4_
 
-  - [ ] 2.12 Implement timing section builder
+  - [x] 2.12 Implement timing section builder
     - Calculate total_s, lean_execution_s, overhead_s
     - Ensure overhead < 500ms for performance requirement
     - _Requirements: 4.5_

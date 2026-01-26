@@ -7,11 +7,14 @@ which provides programmatic access to Lean 4 through the Lean REPL.
 Requirements: 1.1, 1.3, 2.1, 2.2, 4.2, 4.3, 4.4
 """
 
+import logging
 import time
 from pathlib import Path
 from typing import Any
 
 from ..core.verify_domain import LeanRunResult
+
+logger = logging.getLogger(__name__)
 
 # Try to import LeanInteract, but allow module to load even if not installed
 try:
@@ -62,11 +65,12 @@ class LeanInteractRunner:
         Run Lean verification on file or theorem using LeanInteract.
 
         This method implements the core verification logic:
-        1. If theorem_id provided, create abridged file up to theorem end
+        1. If theorem_id provided, find theorem's line range for filtering
         2. Initialize LeanServer in workspace context (lake env)
-        3. Use FileCommand to check file (full or abridged)
-        4. Parse response for errors, warnings, sorries
-        5. Enforce timeout with process tree kill
+        3. Use FileCommand to check full file
+        4. Filter diagnostics to theorem's line range if theorem-level
+        5. Parse response for errors, warnings, sorries
+        6. Enforce timeout with process tree kill
         6. Return structured result
 
         Args:
@@ -86,12 +90,14 @@ class LeanInteractRunner:
         """
         start_time = time.time()
 
-        # Determine verification scope
+        # Determine verification scope and theorem line range
+        theorem_line_range = None
         if theorem_id:
-            # Theorem-level: create abridged file
-            target_file, scope_used = self._prepare_theorem_verification(
+            # Theorem-level: get theorem's line range for filtering
+            target_file, theorem_line_range = self._prepare_theorem_verification(
                 workspace_path, file_path, theorem_id
             )
+            scope_used = "theorem"
         else:
             # File-level: verify entire file
             target_file = file_path
@@ -106,9 +112,32 @@ class LeanInteractRunner:
         # Initialize LeanServer with project context
         server = None
         try:
-            # Create config without project, just specify lean_version
-            # This allows LeanInteract to work without a full Lean project structure
-            config = LeanREPLConfig(lean_version="v4.15.0")
+            # For workspace isolation, we need to decide:
+            # - If workspace has a Lake project (lakefile.toml), use it for import resolution
+            # - But DON'T let LocalProject rebuild - it should use existing .lake/
+            #
+            # Strategy: Check if workspace has lakefile, if so try to use project context
+            lakefile_path = workspace_path / "lakefile.toml"
+            lakefile_lean_path = workspace_path / "lakefile.lean"
+
+            if lakefile_path.exists() or lakefile_lean_path.exists():
+                # Has Lake project - try to use it
+                try:
+                    # CRITICAL: auto_build=False prevents rebuilding
+                    # But LocalProject still validates and may trigger builds
+                    # if .lake/ is incomplete. Ensure .lake/ is complete first.
+                    project = LocalProject(directory=str(workspace_path), auto_build=False)
+                    config = LeanREPLConfig(project=project)
+                    logger.info(f"Using Lake project context from {workspace_path}")
+                except Exception as e:
+                    # If project initialization fails, fall back to standalone
+                    logger.warning(f"Failed to initialize Lake project, using standalone mode: {e}")
+                    config = LeanREPLConfig(lean_version="v4.15.0")
+            else:
+                # No Lake project - use standalone mode
+                logger.info("No lakefile found, using standalone mode")
+                config = LeanREPLConfig(lean_version="v4.15.0")
+
             server = LeanServer(config)
 
             # Run file verification with timeout
@@ -145,10 +174,10 @@ class LeanInteractRunner:
             # Parse diagnostics from response
             diagnostics = self._parse_diagnostics(response)
 
-            # Map diagnostics back to original file if theorem-level
-            if theorem_id and target_file != file_path:
-                for diag in diagnostics:
-                    diag["location"]["file"] = file_path
+            # Filter diagnostics to theorem's line range if theorem-level verification
+            if theorem_id and theorem_line_range:
+                start_line, end_line = theorem_line_range
+                diagnostics = self._filter_diagnostics_by_range(diagnostics, start_line, end_line)
 
             elapsed = time.time() - start_time
 
@@ -189,15 +218,19 @@ class LeanInteractRunner:
         workspace_path: Path,
         file_path: str,
         theorem_id: str,
-    ) -> tuple[str, str]:
+    ) -> tuple[str, tuple[int, int]]:
         """
-        Prepare theorem-level verification by creating abridged file.
+        Prepare theorem-level verification by finding theorem's line range.
 
-        This method:
-        1. Parses the file to find the theorem by theorem_id
-        2. Extracts content up to the theorem's end line
-        3. Creates a temporary abridged file in the workspace
-        4. Returns the path to the abridged file
+        Instead of extracting the theorem into a separate file (which breaks
+        context and dependencies), this method finds the theorem's line range
+        so we can filter diagnostics after verifying the full file.
+
+        Strategy:
+        1. Parse the file to find the theorem by theorem_id
+        2. Get the theorem's line range (start_line, end_line)
+        3. Return the original file path and line range
+        4. Caller will verify full file and filter diagnostics
 
         Args:
             workspace_path: Path to isolated workspace
@@ -205,7 +238,7 @@ class LeanInteractRunner:
             theorem_id: Theorem identifier to verify
 
         Returns:
-            Tuple of (target_file_path, scope_used)
+            Tuple of (target_file_path, (start_line, end_line))
 
         Raises:
             ValueError: If theorem_id not found in file
@@ -230,16 +263,50 @@ class LeanInteractRunner:
         if not theorem:
             raise ValueError(f"Theorem not found: {theorem_id}")
 
-        # Extract content up to theorem end
-        lines = file_content.splitlines(keepends=True)
-        abridged_content = "".join(lines[: theorem.decl_span.end_line])
+        # Get theorem's line range for filtering diagnostics
+        start_line = theorem.decl_span.start_line
+        end_line = theorem.decl_span.end_line
 
-        # Create temporary file in workspace
-        temp_file = workspace_path / f"_verify_{theorem_id.replace('.', '_')}.lean"
-        temp_file.write_text(abridged_content)
+        # Return relative file path (consistent with file-level verification)
+        # and line range for filtering
+        return file_path, (start_line, end_line)
 
-        # Return relative path from workspace
-        return str(temp_file.relative_to(workspace_path)), "theorem"
+    def _filter_diagnostics_by_range(
+        self,
+        diagnostics: list[dict],
+        start_line: int,
+        end_line: int,
+    ) -> list[dict]:
+        """
+        Filter diagnostics to only those within the specified line range.
+
+        This enables theorem-specific verification by filtering full-file
+        diagnostics to only those relevant to the target theorem.
+
+        Args:
+            diagnostics: List of diagnostic dicts from full-file verification
+            start_line: Start line of theorem (inclusive)
+            end_line: End line of theorem (inclusive)
+
+        Returns:
+            Filtered list of diagnostics within the line range
+
+        Requirements: 2.1, 2.2
+        """
+        filtered = []
+        for diag in diagnostics:
+            location = diag.get("location")
+            if location is None:
+                # Diagnostics without location are file-level, exclude them
+                continue
+
+            line = location.get("line", 0)
+
+            # Include diagnostic if its line is within the theorem's range
+            if start_line <= line <= end_line:
+                filtered.append(diag)
+
+        return filtered
 
     def _parse_diagnostics(self, response: Any) -> list[dict]:
         """
@@ -264,15 +331,19 @@ class LeanInteractRunner:
             for msg in response.messages:
                 severity = self._normalize_severity(msg.severity)
 
+                # Safely extract position info - check both hasattr and not None
+                start_pos = getattr(msg, "start_pos", None)
+                end_pos = getattr(msg, "end_pos", None)
+
                 diagnostic = {
                     "severity": severity,
                     "message": msg.data,
                     "location": {
                         "file": "",  # Will be set by caller
-                        "line": msg.start_pos.line if hasattr(msg, "start_pos") else 0,
-                        "col": msg.start_pos.column if hasattr(msg, "start_pos") else 0,
-                        "end_line": msg.end_pos.line if hasattr(msg, "end_pos") else None,
-                        "end_col": msg.end_pos.column if hasattr(msg, "end_pos") else None,
+                        "line": start_pos.line if start_pos is not None else 0,
+                        "col": start_pos.column if start_pos is not None else 0,
+                        "end_line": end_pos.line if end_pos is not None else None,
+                        "end_col": end_pos.column if end_pos is not None else None,
                     },
                 }
                 diagnostics.append(diagnostic)
@@ -280,15 +351,19 @@ class LeanInteractRunner:
         # Parse sorries array for incomplete proofs
         if hasattr(response, "sorries"):
             for sorry in response.sorries:
+                # Safely extract position info - check both hasattr and not None
+                start_pos = getattr(sorry, "start_pos", None)
+                end_pos = getattr(sorry, "end_pos", None)
+
                 diagnostic = {
                     "severity": "warning",
                     "message": "Incomplete proof (sorry)",
                     "location": {
                         "file": "",  # Will be set by caller
-                        "line": sorry.start_pos.line if hasattr(sorry, "start_pos") else 0,
-                        "col": sorry.start_pos.column if hasattr(sorry, "start_pos") else 0,
-                        "end_line": sorry.end_pos.line if hasattr(sorry, "end_pos") else None,
-                        "end_col": sorry.end_pos.column if hasattr(sorry, "end_pos") else None,
+                        "line": start_pos.line if start_pos is not None else 0,
+                        "col": start_pos.column if start_pos is not None else 0,
+                        "end_line": end_pos.line if end_pos is not None else None,
+                        "end_col": end_pos.column if end_pos is not None else None,
                     },
                 }
                 diagnostics.append(diagnostic)

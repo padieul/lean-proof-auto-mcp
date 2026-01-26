@@ -19,7 +19,7 @@ class TestTheoremNotFoundHandling:
     Test theorem not found error handling.
 
     Requirements: 2.3
-    
+
     NOTE: These tests require Lean 4 as they call verify_file() without mocking.
     """
 

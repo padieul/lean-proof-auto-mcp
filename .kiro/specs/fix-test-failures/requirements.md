@@ -40,8 +40,8 @@ Hypothesis detects timing variability (264ms vs 171ms) as flaky behavior.
 ## User Stories
 
 ### Story 1: All Tests Pass Reliably
-**As a** developer running the test suite  
-**I want** all tests to pass without failures  
+**As a** developer running the test suite
+**I want** all tests to pass without failures
 **So that** I can verify code correctness and merge changes confidently
 
 **Acceptance Criteria**:
@@ -51,8 +51,8 @@ Hypothesis detects timing variability (264ms vs 171ms) as flaky behavior.
 - [ ] Tests complete in reasonable time (<5 minutes total)
 
 ### Story 2: Tests Never Pollute Development Repository
-**As a** developer working on the codebase  
-**I want** tests to never create git worktrees in my development repository  
+**As a** developer working on the codebase
+**I want** tests to never create git worktrees in my development repository
 **So that** my IDE doesn't show confusing nested repos and my workspace stays clean
 
 **Acceptance Criteria**:
@@ -62,8 +62,8 @@ Hypothesis detects timing variability (264ms vs 171ms) as flaky behavior.
 - [ ] `git worktree list` shows only main worktree after test runs
 
 ### Story 3: Consistent Test Isolation Policy
-**As a** developer or CI system running tests  
-**I want** all test suites to use the same isolation strategy  
+**As a** developer or CI system running tests
+**I want** all test suites to use the same isolation strategy
 **So that** behavior is predictable and consistent across environments
 
 **Acceptance Criteria**:
@@ -74,8 +74,8 @@ Hypothesis detects timing variability (264ms vs 171ms) as flaky behavior.
 - [ ] Documentation explains why temp mode is used for tests
 
 ### Story 4: Production Users Can Choose Workspace Mode
-**As a** user of the MCP server in production  
-**I want** to choose between temp and worktree modes based on my needs  
+**As a** user of the MCP server in production
+**I want** to choose between temp and worktree modes based on my needs
 **So that** I can optimize for performance (worktree) or safety (temp)
 
 **Acceptance Criteria**:
@@ -86,8 +86,8 @@ Hypothesis detects timing variability (264ms vs 171ms) as flaky behavior.
 - [ ] Auto-detection defaults to "temp" instead of detecting git repos
 
 ### Story 5: Clean Repository State
-**As a** developer  
-**I want** leftover test artifacts cleaned up  
+**As a** developer
+**I want** leftover test artifacts cleaned up
 **So that** my repository is in a clean state
 
 **Acceptance Criteria**:

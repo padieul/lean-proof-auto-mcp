@@ -173,19 +173,19 @@ def detect_workspace_mode(project_root: Path | None = None) -> str:
 def detect_workspace_mode(project_root: Path | None = None) -> str:
     """
     Auto-detect appropriate workspace mode.
-    
+
     Always returns "temp" for safety and IDE compatibility.
     Users can explicitly request "worktree" mode if needed.
-    
+
     Rationale:
     - Temp mode works in all environments
     - Prevents git worktree pollution in development repos
     - Avoids IDE confusion with nested git repositories
     - Users who want worktree performance can opt-in explicitly
-    
+
     Args:
         project_root: Ignored (kept for API compatibility)
-    
+
     Returns:
         Always "temp"
     """
@@ -245,7 +245,7 @@ response = server.run(command, timeout=budget_s)
 
 if isinstance(response, LeanError):
     error_msg = str(response)
-    
+
     # Detect timeout
     if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
         return LeanRunResult(
@@ -256,7 +256,7 @@ if isinstance(response, LeanError):
             timing={"lean_execution_s": elapsed},
             exit_code=-1,
         )
-    
+
     # Other errors
     return LeanRunResult(
         status="error",

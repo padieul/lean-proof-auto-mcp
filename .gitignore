@@ -33,6 +33,9 @@ logs/
 # Temporary files
 tmp/
 
+# Test worktrees (should use temp mode instead)
+.worktrees/
+
 # Kiro - exclude user-specific settings but keep shared hooks/steering
 .kiro/settings/
 .kiro/cache/
@@ -40,3 +43,5 @@ tmp/
 
 # Claude Code - exclude user-specific settings
 .claude/settings.local.json
+
+.artifacts

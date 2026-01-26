@@ -4,6 +4,8 @@ from mcp.server.fastmcp import FastMCP
 
 from .adapters.router import ToolRouter
 from .config import Config
+from .tools.probe import probe
+from .tools.probe_file import probe_file
 from .tools.rank_targets import rank_targets
 from .tools.scan_file import scan_file
 from .tools.scan_theorem import scan_theorem
@@ -18,6 +20,8 @@ def create_app(cfg: Config) -> FastMCP:
     router.register("scan_theorem", scan_theorem)
     router.register("rank_targets", rank_targets)
     router.register("verify", verify)
+    router.register("probe", probe)
+    router.register("probe_file", probe_file)
 
     app = FastMCP(cfg.server_name)
 
@@ -74,6 +78,76 @@ def create_app(cfg: Config) -> FastMCP:
                 "max_log_excerpt_chars": max_log_excerpt_chars,
                 "store_full_logs": store_full_logs,
                 "workspace_mode": workspace_mode,
+            },
+        )
+
+    @app.tool(name="probe")
+    def probe_tool(
+        file: str,
+        theorem_id: str,
+        mode: str,
+        budget_s: float = 10.0,
+        trace_config: dict | None = None,
+    ) -> dict:
+        """Run single-theorem automation probe with deterministic classification.
+        
+        Measures what happens when automation (aesop, aesop?, or grind) is applied
+        to a single theorem under controlled conditions. Returns structured outcome
+        with classification (trivial, promising, failed, timed_out).
+        
+        Args:
+            file: Path to Lean file
+            theorem_id: Theorem identifier to probe
+            mode: Automation mode - "aesop", "aesop?", or "grind"
+            budget_s: Time budget in seconds (default: 10.0)
+            trace_config: Optional trace configuration dict
+        
+        Returns:
+            Probe result with status, classification, diagnostics, timing, and metadata
+        """
+        return router.dispatch(
+            "probe",
+            {
+                "file": file,
+                "theorem_id": theorem_id,
+                "mode": mode,
+                "budget_s": budget_s,
+                "trace_config": trace_config,
+            },
+        )
+
+    @app.tool(name="probe_file")
+    def probe_file_tool(
+        file: str,
+        mode: str,
+        budget_s_per: float = 5.0,
+        limit: int = 50,
+        ordering: str = "file_order",
+    ) -> dict:
+        """Run batch automation probing across multiple theorems in a file.
+        
+        Produces a heatmap of automation behavior for triage and prioritization.
+        Runs probe on each theorem with fixed parameters and aggregates results
+        into summary statistics.
+        
+        Args:
+            file: Path to Lean file
+            mode: Automation mode - "aesop", "aesop?", or "grind"
+            budget_s_per: Time budget per theorem in seconds (default: 5.0)
+            limit: Maximum number of theorems to probe (default: 50)
+            ordering: Ordering mode - "file_order" or "rank_targets" (default: "file_order")
+        
+        Returns:
+            Batch probe result with summary statistics and per-theorem results
+        """
+        return router.dispatch(
+            "probe_file",
+            {
+                "file": file,
+                "mode": mode,
+                "budget_s_per": budget_s_per,
+                "limit": limit,
+                "ordering": ordering,
             },
         )
 

@@ -156,8 +156,8 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
 - [ ] 8. Checkpoint - Ensure probe_file handler tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Implement MCP tool entry point for probe_file
-  - [ ] 9.1 Create `src/lean_proof_auto_mcp/tools/probe_file.py`
+- [x] 9. Implement MCP tool entry point for probe_file
+  - [x] 9.1 Create `src/lean_proof_auto_mcp/tools/probe_file.py`
     - Implement `probe_file(args: dict) -> dict` function
     - Add `_coerce_args` for argument validation and coercion
     - Add `_build_command` to construct ProbeFileCommand from args
@@ -166,7 +166,7 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Handle all exceptions and return error responses
     - _Requirements: 5.1-5.6, 10.4-10.5_
 
-  - [ ] 9.2 Write unit tests for probe_file tool entry point
+  - [x] 9.2 Write unit tests for probe_file tool entry point
     - Test valid inputs are accepted
     - Test invalid inputs return error responses
     - Test scan_file failures are handled
@@ -174,38 +174,38 @@ The implementation reuses verify's infrastructure (LeanInteractRunner, Workspace
     - Test no unhandled exceptions escape
     - _Requirements: 10.4-10.5_
 
-- [ ] 10. Implement diagnostic normalization and sorting
-  - [ ] 10.1 Add diagnostic utilities to probe_domain.py
+- [x] 10. Implement diagnostic normalization and sorting
+  - [x] 10.1 Add diagnostic utilities to probe_domain.py
     - Implement `_normalize_diagnostics` method (reuse from verify)
     - Implement `_sort_diagnostics` method (reuse from verify)
     - Implement `_normalize_severity` method (reuse from verify)
     - _Requirements: 9.1-9.3_
 
-  - [ ] 10.2 Write property tests for diagnostic handling
+  - [x] 10.2 Write property tests for diagnostic handling
     - **Property 26: Diagnostic Ordering** - Test diagnostics sorted correctly
     - **Property 27: Severity Normalization** - Test severity values normalized
     - **Validates: Requirements 9.1, 9.3**
 
-- [ ] 11. Implement aesop? suggested script extraction
-  - [ ] 11.1 Add script extraction logic to ProbeCommandHandler
+- [x] 11. Implement aesop? suggested script extraction
+  - [x] 11.1 Add script extraction logic to ProbeCommandHandler
     - Parse aesop? output for suggested script
     - Extract script from LeanInteract response
     - Include in ProbeOutcome when mode="aesop?" and successful
     - _Requirements: 3.5_
 
-  - [ ] 11.2 Write property tests for suggested script
+  - [x] 11.2 Write property tests for suggested script
     - **Property 14: Aesop? Suggested Script** - Test aesop? success includes script
     - **Validates: Requirements 3.5**
 
-- [ ] 12. Register probe tools with MCP server
-  - [ ] 12.1 Update `src/lean_proof_auto_mcp/server.py`
+- [x] 12. Register probe tools with MCP server
+  - [x] 12.1 Update `src/lean_proof_auto_mcp/server.py`
     - Import probe and probe_file functions
     - Register probe tool with MCP server
     - Register probe_file tool with MCP server
     - Add tool descriptions and schemas
     - _Requirements: 1.1, 4.1_
 
-  - [ ] 12.2 Write integration tests for MCP registration
+  - [x] 12.2 Write integration tests for MCP registration
     - Test probe tool is registered and callable
     - Test probe_file tool is registered and callable
     - Test tools return valid JSON responses

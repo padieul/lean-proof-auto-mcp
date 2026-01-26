@@ -1306,3 +1306,452 @@ def test_property_25_stateless_execution(cmd1, cmd2):
     # Verify: Different workspaces were used
     assert mock_workspace_provider.create_workspace.call_count == 2
     assert workspace1.workspace_id != workspace2.workspace_id
+
+
+# ============================================================================
+# Property 26: Diagnostic Ordering
+# ============================================================================
+
+
+@given(
+    diagnostics=st.lists(
+        st.fixed_dictionaries({
+            "severity": st.sampled_from(["error", "warning", "info", "ERROR", "WARNING", "INFO"]),
+            "message": st.text(min_size=1, max_size=100),
+            "location": st.one_of(
+                st.none(),
+                st.fixed_dictionaries({
+                    "file": st.text(min_size=1, max_size=50),
+                    "line": st.integers(min_value=1, max_value=1000),
+                    "col": st.integers(min_value=0, max_value=100),
+                    "end_line": st.none() | st.integers(min_value=1, max_value=1000),
+                    "end_col": st.none() | st.integers(min_value=0, max_value=100),
+                })
+            )
+        }),
+        min_size=2,
+        max_size=20,
+    )
+)
+@settings(max_examples=100)
+def test_property_26_diagnostic_ordering(diagnostics):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 26: Diagnostic Ordering
+
+    For any probe invocation, diagnostics should be sorted deterministically by
+    (file, line, column, severity_order, message) where severity_order maps
+    error→0, warning→1, info→2.
+
+    Validates: Requirements 9.1
+    """
+    # Setup: Create handler with mocked dependencies
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    # Execute: Normalize diagnostics (which includes sorting)
+    sorted_diagnostics = handler._normalize_diagnostics(diagnostics)
+
+    # Verify: Diagnostics are sorted correctly
+    severity_order = {"error": 0, "warning": 1, "info": 2}
+
+    # Build sort keys for all diagnostics (matching the implementation)
+    def make_sort_key(d: dict) -> tuple:
+        location = d["location"]
+        if location is None:
+            # None locations use high values to sort last
+            return ("~" * 100, 999999, 999999, severity_order.get(d["severity"], 3), d["message"])
+        else:
+            return (
+                location["file"],
+                location["line"],
+                location["col"],
+                severity_order.get(d["severity"], 3),
+                d["message"],
+            )
+
+    # Verify each diagnostic is in correct order relative to the next
+    for i in range(len(sorted_diagnostics) - 1):
+        curr = sorted_diagnostics[i]
+        next_diag = sorted_diagnostics[i + 1]
+
+        curr_key = make_sort_key(curr)
+        next_key = make_sort_key(next_diag)
+
+        assert curr_key <= next_key, \
+            f"Diagnostics not sorted correctly: {curr_key} > {next_key}"
+
+    # Verify: Running twice produces same order (determinism)
+    sorted_again = handler._normalize_diagnostics(diagnostics)
+    assert sorted_diagnostics == sorted_again, "Diagnostic sorting should be deterministic"
+
+
+# ============================================================================
+# Property 27: Severity Normalization
+# ============================================================================
+
+
+@given(
+    severity=st.sampled_from([
+        "error", "ERROR", "Error",
+        "warning", "WARNING", "Warning", "warn", "WARN",
+        "info", "INFO", "Info",
+        "unknown", "debug", "trace", "hint"
+    ])
+)
+@settings(max_examples=100)
+def test_property_27_severity_normalization(severity):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 27: Severity Normalization
+
+    For any probe invocation, all diagnostic severity values should be one of
+    "error", "warning", or "info", with raw severity strings normalized to
+    these standard values.
+
+    Validates: Requirements 9.3
+    """
+    # Setup: Create handler with mocked dependencies
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    # Execute: Normalize severity
+    normalized = handler._normalize_severity(severity)
+
+    # Verify: Normalized severity is one of the standard values
+    assert normalized in ("error", "warning", "info"), \
+        f"Severity '{severity}' normalized to '{normalized}', expected one of (error, warning, info)"
+
+    # Verify: Normalization follows expected rules
+    severity_lower = severity.lower()
+    if "error" in severity_lower:
+        assert normalized == "error", f"Severity containing 'error' should normalize to 'error', got '{normalized}'"
+    elif "warn" in severity_lower:
+        assert normalized == "warning", f"Severity containing 'warn' should normalize to 'warning', got '{normalized}'"
+    else:
+        assert normalized == "info", f"Unknown severity should normalize to 'info', got '{normalized}'"
+
+
+@given(
+    diagnostics=st.lists(
+        st.fixed_dictionaries({
+            "severity": st.text(min_size=1, max_size=20),
+            "message": st.text(min_size=0, max_size=100),
+            "location": st.one_of(
+                st.none(),
+                st.fixed_dictionaries({
+                    "file": st.text(min_size=0, max_size=50),
+                    "line": st.integers(min_value=0, max_value=1000),
+                    "col": st.integers(min_value=0, max_value=100),
+                })
+            )
+        }),
+        min_size=0,
+        max_size=10,
+    )
+)
+@settings(max_examples=100)
+def test_property_27_all_diagnostics_have_normalized_severity(diagnostics):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 27: Severity Normalization (All Diagnostics)
+
+    For any list of diagnostics, after normalization, all diagnostics should
+    have severity values in the set {"error", "warning", "info"}.
+
+    Validates: Requirements 9.3
+    """
+    # Setup: Create handler with mocked dependencies
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    # Execute: Normalize diagnostics
+    normalized = handler._normalize_diagnostics(diagnostics)
+
+    # Verify: All severities are normalized
+    for diag in normalized:
+        assert diag["severity"] in ("error", "warning", "info"), \
+            f"Diagnostic has non-normalized severity: {diag['severity']}"
+
+
+# ============================================================================
+# Property 14: Aesop? Suggested Script
+# ============================================================================
+
+
+@given(
+    file_path=st.text(min_size=1, max_size=20),
+    theorem_id=st.text(min_size=1, max_size=20),
+    budget_s=st.floats(min_value=0.1, max_value=60.0),
+    suggested_script=st.text(
+        alphabet=st.characters(min_codepoint=ord('a'), max_codepoint=ord('z')),
+        min_size=1,
+        max_size=50
+    ).filter(lambda x: x.strip()),  # Ensure non-empty after strip
+)
+@settings(max_examples=10, deadline=None)
+def test_property_14_aesop_suggested_script_success(
+    file_path, theorem_id, budget_s, suggested_script
+):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 14: Aesop? Suggested Script
+
+    For any probe invocation with mode="aesop?" where the automation succeeds,
+    the probe_result should contain a non-empty suggested_script field.
+
+    Validates: Requirements 3.5
+    """
+    # Setup: Create handler with mocked dependencies
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    workspace = Workspace(
+        path=Path(tempfile.mkdtemp()),
+        workspace_id="test-workspace",
+        mode="temp",
+    )
+    mock_workspace_provider.create_workspace.return_value = workspace
+
+    # Mock successful Lean execution with aesop? output
+    # Note: The regex pattern stops at newline, so we only include the first line
+    full_logs = f"Try this: {suggested_script}"
+    mock_lean_runner.verify_file.return_value = LeanRunResult(
+        status="success",
+        diagnostics=[],
+        scope_used="theorem",
+        full_logs=full_logs,
+        timing={"lean_execution_s": 0.5},
+        exit_code=0,
+    )
+
+    mock_classifier.classify.return_value = "trivial"
+
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    cmd = ProbeCommand(
+        file_path=file_path,
+        theorem_id=theorem_id,
+        mode="aesop?",
+        budget_s=budget_s,
+    )
+
+    from unittest.mock import patch
+
+    with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        # Execute
+        result = handler.handle(cmd)
+
+    # Verify: Result contains suggested_script
+    assert result.probe_result.suggested_script is not None, \
+        "aesop? success should include suggested_script"
+    assert len(result.probe_result.suggested_script) > 0, \
+        "suggested_script should be non-empty"
+    assert result.probe_result.suggested_script == suggested_script.strip(), \
+        f"Expected '{suggested_script.strip()}', got '{result.probe_result.suggested_script}'"
+
+
+@given(
+    file_path=st.text(min_size=1, max_size=20),
+    theorem_id=st.text(min_size=1, max_size=20),
+    mode=st.sampled_from(["aesop", "grind"]),
+    budget_s=st.floats(min_value=0.1, max_value=60.0),
+)
+@settings(max_examples=10, deadline=None)
+def test_property_14_non_aesop_no_suggested_script(
+    file_path, theorem_id, mode, budget_s
+):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 14: Aesop? Suggested Script (Non-aesop? modes)
+
+    For any probe invocation with mode other than "aesop?", the probe_result
+    should not contain a suggested_script (should be None).
+
+    Validates: Requirements 3.5
+    """
+    # Setup: Create handler with mocked dependencies
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    workspace = Workspace(
+        path=Path(tempfile.mkdtemp()),
+        workspace_id="test-workspace",
+        mode="temp",
+    )
+    mock_workspace_provider.create_workspace.return_value = workspace
+
+    # Mock successful Lean execution
+    mock_lean_runner.verify_file.return_value = LeanRunResult(
+        status="success",
+        diagnostics=[],
+        scope_used="theorem",
+        full_logs="Some logs",
+        timing={"lean_execution_s": 0.5},
+        exit_code=0,
+    )
+
+    mock_classifier.classify.return_value = "trivial"
+
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    cmd = ProbeCommand(
+        file_path=file_path,
+        theorem_id=theorem_id,
+        mode=mode,
+        budget_s=budget_s,
+    )
+
+    from unittest.mock import patch
+
+    with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        # Execute
+        result = handler.handle(cmd)
+
+    # Verify: Result does not contain suggested_script for non-aesop? modes
+    assert result.probe_result.suggested_script is None, \
+        f"Mode '{mode}' should not include suggested_script"
+
+
+@given(
+    file_path=st.text(min_size=1, max_size=20),
+    theorem_id=st.text(min_size=1, max_size=20),
+    budget_s=st.floats(min_value=0.1, max_value=60.0),
+)
+@settings(max_examples=10, deadline=None)
+def test_property_14_aesop_failure_no_suggested_script(
+    file_path, theorem_id, budget_s
+):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 14: Aesop? Suggested Script (Failure case)
+
+    For any probe invocation with mode="aesop?" where the automation fails,
+    the probe_result should not contain a suggested_script (should be None).
+
+    Validates: Requirements 3.5
+    """
+    # Setup: Create handler with mocked dependencies
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    workspace = Workspace(
+        path=Path(tempfile.mkdtemp()),
+        workspace_id="test-workspace",
+        mode="temp",
+    )
+    mock_workspace_provider.create_workspace.return_value = workspace
+
+    # Mock failed Lean execution (not_closed)
+    mock_lean_runner.verify_file.return_value = LeanRunResult(
+        status="fail",
+        diagnostics=[{"message": "unsolved goals", "severity": "error", "location": None}],
+        scope_used="theorem",
+        full_logs="Some logs without Try this",
+        timing={"lean_execution_s": 0.5},
+        exit_code=1,
+    )
+
+    mock_classifier.classify.return_value = "promising"
+
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    cmd = ProbeCommand(
+        file_path=file_path,
+        theorem_id=theorem_id,
+        mode="aesop?",
+        budget_s=budget_s,
+    )
+
+    from unittest.mock import patch
+
+    with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        # Execute
+        result = handler.handle(cmd)
+
+    # Verify: Result does not contain suggested_script for failed aesop?
+    assert result.probe_result.suggested_script is None, \
+        "Failed aesop? should not include suggested_script"
+
+
+@given(
+    file_path=st.text(min_size=1, max_size=20),
+    theorem_id=st.text(min_size=1, max_size=20),
+    budget_s=st.floats(min_value=0.1, max_value=60.0),
+)
+@settings(max_examples=10, deadline=None)
+def test_property_14_extract_suggested_script_parsing(
+    file_path, theorem_id, budget_s
+):
+    """
+    Feature: probe-and-probe-file-tools
+    Property 14: Aesop? Suggested Script (Parsing)
+
+    Test that the script extraction correctly parses "Try this: <script>"
+    pattern from logs.
+
+    Validates: Requirements 3.5
+    """
+    # Setup: Create handler
+    mock_lean_runner = Mock()
+    mock_workspace_provider = Mock()
+    mock_classifier = Mock()
+
+    handler = ProbeCommandHandler(
+        lean_runner=mock_lean_runner,
+        workspace_provider=mock_workspace_provider,
+        classifier=mock_classifier,
+    )
+
+    # Test various log formats
+    test_cases = [
+        ("Try this: exact rfl", "exact rfl"),
+        ("Try this: simp [foo, bar]", "simp [foo, bar]"),
+        ("Try this: aesop\n", "aesop"),
+        ("Some text\nTry this: apply h\nMore text", "apply h"),
+        ("No suggestion here", None),
+        ("", None),
+    ]
+
+    for logs, expected in test_cases:
+        result = handler._extract_suggested_script(logs)
+        if expected is None:
+            assert result is None, f"Expected None for logs '{logs}', got '{result}'"
+        else:
+            assert result == expected, f"Expected '{expected}' for logs '{logs}', got '{result}'"

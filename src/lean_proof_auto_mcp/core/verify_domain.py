@@ -52,7 +52,8 @@ class VerifyCommand:
             raise ValueError("budget_s must be positive")
         if self.max_log_excerpt_chars <= 0:
             raise ValueError("max_log_excerpt_chars must be positive")
-        if self.workspace_mode is not None and self.workspace_mode not in ("worktree", "temp", "none"):
+        valid_modes = ("worktree", "temp", "none")
+        if self.workspace_mode is not None and self.workspace_mode not in valid_modes:
             raise ValueError("workspace_mode must be 'worktree', 'temp', 'none', or None")
 
 
@@ -327,7 +328,7 @@ class VerifyCommandHandler:
 
             # 4. Parse and normalize diagnostics
             diagnostics = self._normalize_diagnostics(lean_result.diagnostics)
-            
+
             # 4b. Check for errors in logs (e.g., LeanError messages)
             if lean_result.status == "error" and not diagnostics:
                 # Parse error from logs
@@ -415,7 +416,7 @@ class VerifyCommandHandler:
         for diag in diagnostics:
             # Safely extract location, handling None case
             location = diag.get("location")
-            
+
             # If location is explicitly None, keep it as None (for errors without location)
             if location is None:
                 normalized_location = None
@@ -431,7 +432,7 @@ class VerifyCommandHandler:
             else:
                 # Invalid location type, treat as None
                 normalized_location = None
-            
+
             normalized_diag = {
                 "severity": self._normalize_severity(diag.get("severity", "error")),
                 "message": diag.get("message", ""),
@@ -445,38 +446,39 @@ class VerifyCommandHandler:
     def _parse_error_from_logs(self, logs: str) -> dict | None:
         """
         Parse error messages from logs when no structured diagnostics available.
-        
+
         This handles cases where LeanError or other errors appear in logs but
         weren't captured as structured diagnostics.
-        
+
         Args:
             logs: Full log output
-            
+
         Returns:
             Diagnostic dict or None if no error found
-            
+
         Requirements: 5.1, 5.2
         """
         if not logs:
             return None
-            
+
         # Check for LeanError pattern
         if "LeanError" in logs or "error" in logs.lower():
             # Extract the error message
             message = logs.strip()
-            
+
             # Try to extract just the message part from LeanError(message='...')
             import re
+
             match = re.search(r"LeanError\(message='([^']+)'\)", message)
             if match:
                 message = match.group(1)
-            
+
             return {
                 "severity": "error",
                 "message": message,
                 "location": None,  # No location info available for log-based errors
             }
-        
+
         return None
 
     def _normalize_severity(self, severity: str) -> str:
@@ -502,7 +504,7 @@ class VerifyCommandHandler:
     def _sort_diagnostics(self, diagnostics: list[dict]) -> list[dict]:
         """
         Sort diagnostics by (file, line, col, severity, message).
-        
+
         Diagnostics with None locations are sorted last.
 
         Args:
@@ -609,7 +611,7 @@ class VerifyCommandHandler:
         notes = []
         if lean_result.exit_code != 0:
             notes.append(f"exit_code: {lean_result.exit_code}")
-        
+
         # Add note if status is error or timeout
         if lean_result.status in ("error", "timeout"):
             notes.append(f"lean_status: {lean_result.status}")

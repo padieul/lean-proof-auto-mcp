@@ -247,8 +247,8 @@
         "workspace_mode": {
           "type": "string",
           "description": "Isolation strategy used",
-          "enum": ["worktree", "temp"],
-          "examples": ["worktree", "temp"]
+          "enum": ["worktree", "temp", "none"],
+          "examples": ["worktree", "temp", "none"]
         },
         "workspace_id": {
           "type": "string",

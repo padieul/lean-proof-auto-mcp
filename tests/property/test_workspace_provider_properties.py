@@ -14,6 +14,7 @@ from pathlib import Path
 
 from lean_proof_auto_mcp.adapters.workspace_provider import (
     GitWorktreeProvider,
+    NoIsolationProvider,
     TempCopyProvider,
     create_workspace_provider,
     detect_workspace_mode,
@@ -424,21 +425,21 @@ class TestWorkspaceModeDetection:
     """
 
     def test_detect_workspace_mode_with_git_repo(self):
-        """Test that detect_workspace_mode always returns temp for safety."""
+        """Test that detect_workspace_mode always returns none (no isolation)."""
         temp_git_repo = create_temp_git_repo()
 
         try:
             # Act
             mode = detect_workspace_mode(temp_git_repo)
 
-            # Assert - always returns temp for safety, even with git repo
-            assert mode == "temp"
+            # Assert - always returns none for performance
+            assert mode == "none"
 
         finally:
             cleanup_temp_dir(temp_git_repo)
 
     def test_detect_workspace_mode_without_git_repo(self):
-        """Test that non-git directories return temp mode."""
+        """Test that non-git directories return none mode."""
         temp_project_dir = create_temp_project_dir()
 
         try:
@@ -446,13 +447,13 @@ class TestWorkspaceModeDetection:
             mode = detect_workspace_mode(temp_project_dir)
 
             # Assert
-            assert mode == "temp"
+            assert mode == "none"
 
         finally:
             cleanup_temp_dir(temp_project_dir)
 
-    def test_create_workspace_provider_auto_detects_temp(self):
-        """Test that factory auto-detects temp mode (default behavior)."""
+    def test_create_workspace_provider_auto_detects_none(self):
+        """Test that factory auto-detects none mode (default behavior)."""
         temp_git_repo = create_temp_git_repo()
 
         try:
@@ -462,13 +463,13 @@ class TestWorkspaceModeDetection:
                 project_root=temp_git_repo,
             )
 
-            # Assert - auto-detection now defaults to temp mode
-            assert isinstance(provider, TempCopyProvider)
+            # Assert - auto-detection now defaults to none mode
+            assert isinstance(provider, NoIsolationProvider)
 
         finally:
             cleanup_temp_dir(temp_git_repo)
 
-    def test_create_workspace_provider_auto_detects_temp_non_git(self):
+    def test_create_workspace_provider_auto_detects_none_non_git(self):
         """Test that factory auto-detects non-git directory."""
         temp_project_dir = create_temp_project_dir()
 
@@ -480,7 +481,7 @@ class TestWorkspaceModeDetection:
             )
 
             # Assert
-            assert isinstance(provider, TempCopyProvider)
+            assert isinstance(provider, NoIsolationProvider)
 
         finally:
             cleanup_temp_dir(temp_project_dir)

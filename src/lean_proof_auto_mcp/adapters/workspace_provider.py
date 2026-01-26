@@ -350,7 +350,7 @@ class NoIsolationProvider:
         Requirements: 1.2, 6.1
         """
         workspace_id = "no-isolation"
-        
+
         logger.info(f"Using project directory directly (no isolation): {self.project_root}")
 
         return Workspace(

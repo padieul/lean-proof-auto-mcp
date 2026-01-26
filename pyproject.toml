@@ -69,7 +69,10 @@ markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
   "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
   "requires_lean: marks tests that require Lean 4 installation (deselect with '-m \"not requires_lean\"')",
+  "xfail: marks tests as expected to fail (known issues or limitations)",
 ]
+# Run xfail tests but don't fail the build if they fail
+xfail_strict = false
 
 [tool.mypy]
 python_version = "3.10"

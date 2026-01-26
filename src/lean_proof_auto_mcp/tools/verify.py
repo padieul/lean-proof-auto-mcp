@@ -176,7 +176,7 @@ def _create_handler(file_path: str) -> VerifyCommandHandler:
     # Look for lakefile.toml or lakefile.lean in parent directories
     file_path_obj = Path(file_path).resolve()
     project_root = _find_lean_project_root(file_path_obj)
-    
+
     # If no Lean project found, use the file's directory
     if project_root is None:
         project_root = file_path_obj.parent
@@ -206,25 +206,25 @@ def _create_handler(file_path: str) -> VerifyCommandHandler:
 def _find_lean_project_root(file_path: Path) -> Path | None:
     """
     Find the Lean project root by looking for lakefile.toml or lakefile.lean.
-    
+
     Args:
         file_path: Path to a file in the project
-        
+
     Returns:
         Path to project root, or None if not found
     """
     current = file_path if file_path.is_dir() else file_path.parent
-    
+
     # Search up to 10 levels
     for _ in range(10):
         if (current / "lakefile.toml").exists() or (current / "lakefile.lean").exists():
             return current
-        
+
         parent = current.parent
         if parent == current:  # Reached filesystem root
             break
         current = parent
-    
+
     return None
 
 

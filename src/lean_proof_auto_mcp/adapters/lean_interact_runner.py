@@ -115,17 +115,17 @@ class LeanInteractRunner:
             # For workspace isolation, we need to decide:
             # - If workspace has a Lake project (lakefile.toml), use it for import resolution
             # - But DON'T let LocalProject rebuild - it should use existing .lake/
-            # 
+            #
             # Strategy: Check if workspace has lakefile, if so try to use project context
             lakefile_path = workspace_path / "lakefile.toml"
             lakefile_lean_path = workspace_path / "lakefile.lean"
-            
+
             if lakefile_path.exists() or lakefile_lean_path.exists():
                 # Has Lake project - try to use it
                 try:
                     # CRITICAL: auto_build=False prevents rebuilding
-                    # But LocalProject still validates and may trigger builds if .lake/ is incomplete
-                    # So we need to ensure .lake/ is complete before creating LocalProject
+                    # But LocalProject still validates and may trigger builds
+                    # if .lake/ is incomplete. Ensure .lake/ is complete first.
                     project = LocalProject(directory=str(workspace_path), auto_build=False)
                     config = LeanREPLConfig(project=project)
                     logger.info(f"Using Lake project context from {workspace_path}")
@@ -137,7 +137,7 @@ class LeanInteractRunner:
                 # No Lake project - use standalone mode
                 logger.info("No lakefile found, using standalone mode")
                 config = LeanREPLConfig(lean_version="v4.15.0")
-            
+
             server = LeanServer(config)
 
             # Run file verification with timeout
@@ -177,9 +177,7 @@ class LeanInteractRunner:
             # Filter diagnostics to theorem's line range if theorem-level verification
             if theorem_id and theorem_line_range:
                 start_line, end_line = theorem_line_range
-                diagnostics = self._filter_diagnostics_by_range(
-                    diagnostics, start_line, end_line
-                )
+                diagnostics = self._filter_diagnostics_by_range(diagnostics, start_line, end_line)
 
             elapsed = time.time() - start_time
 
@@ -301,13 +299,13 @@ class LeanInteractRunner:
             if location is None:
                 # Diagnostics without location are file-level, exclude them
                 continue
-            
+
             line = location.get("line", 0)
-            
+
             # Include diagnostic if its line is within the theorem's range
             if start_line <= line <= end_line:
                 filtered.append(diag)
-        
+
         return filtered
 
     def _parse_diagnostics(self, response: Any) -> list[dict]:

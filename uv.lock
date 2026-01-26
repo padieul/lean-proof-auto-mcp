@@ -603,12 +603,8 @@ name = "lean-proof-auto-mcp"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "mcp" },
-]
-
-[package.optional-dependencies]
-verify = [
     { name = "lean-interact" },
+    { name = "mcp" },
 ]
 
 [package.dev-dependencies]
@@ -626,7 +622,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "lean-interact", marker = "extra == 'verify'", specifier = ">=0.1.0" },
+    { name = "lean-interact", specifier = ">=0.1.0" },
     { name = "mcp", specifier = ">=0.4.0" },
 ]
 provides-extras = ["verify"]

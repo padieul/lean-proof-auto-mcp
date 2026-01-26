@@ -11,13 +11,12 @@ authors = [
 ]
 
 dependencies = [
-  "mcp>=0.4.0"
+  "mcp>=0.4.0",
+  "lean-interact>=0.1.0"
 ]
 
 [project.optional-dependencies]
-verify = [
-  "lean-interact>=0.1.0"
-]
+verify = []
 
 [project.scripts]
 lean-proof-auto-mcp = "lean_proof_auto_mcp.server:main"

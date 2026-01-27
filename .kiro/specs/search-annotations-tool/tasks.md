@@ -46,7 +46,7 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - **Property 12: Candidate Ranking Priority**
   - **Validates: Requirements 3.10**
 
-- [ ] 3. Implement SearchStrategy interface and concrete strategies
+- [x] 3. Implement SearchStrategy interface and concrete strategies
   - Create SearchStrategy protocol with search method signature
   - Implement GreedySearch: start empty, add best candidate each step
   - Implement BeamSearch: maintain beam_width sets, expand and prune
@@ -54,23 +54,23 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - Both strategies use probe_fn callback (receives HintSet, returns ProbeResult)
   - _Requirements: 4.1, 4.2, 4.5, 4.6, 4.7_
 
-- [ ] 3.1 Write property test for greedy search incremental growth
+- [x] 3.1 Write property test for greedy search incremental growth
   - **Property 13: Greedy Search Incremental Growth**
   - **Validates: Requirements 4.1**
 
-- [ ] 3.2 Write property test for beam search width invariant
+- [x] 3.2 Write property test for beam search width invariant
   - **Property 14: Beam Search Width Invariant**
   - **Validates: Requirements 4.2**
 
-- [ ] 3.3 Write property test for hint set size limit
+- [x] 3.3 Write property test for hint set size limit
   - **Property 17: Hint Set Size Limit**
   - **Validates: Requirements 4.7**
 
-- [ ] 3.4 Write property test for search termination control
+- [x] 3.4 Write property test for search termination control
   - **Property 16: Search Termination Control**
   - **Validates: Requirements 4.5, 4.6**
 
-- [ ] 3.5 Write property test for hint set scoring consistency
+- [x] 3.5 Write property test for hint set scoring consistency
   - **Property 18: Hint Set Scoring Consistency**
   - **Validates: Requirements 4.9**
 

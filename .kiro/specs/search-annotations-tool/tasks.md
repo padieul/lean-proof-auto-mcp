@@ -188,7 +188,7 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - **Property 8: Baseline Attempt Recording**
   - **Validates: Requirements 2.6**
 
-- [ ] 9. Implement MCP tool entry point (search_annotations function)
+- [x] 9. Implement MCP tool entry point (search_annotations function)
   - Create search_annotations(args: dict) function in tools/search_annotations.py
   - Implement _build_command(args) for argument validation and coercion
   - Implement _create_handler(file_path) composition root
@@ -200,14 +200,14 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - Follow exact pattern from probe.py and verify.py
   - _Requirements: 1.1, 1.2, 1.3, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8_
 
-- [ ] 9.1 Write unit tests for argument validation
+- [x] 9.1 Write unit tests for argument validation
   - Test invalid file paths
   - Test invalid theorem_ids
   - Test invalid budget values
   - Test invalid configuration values
   - _Requirements: 1.1, 1.3_
 
-- [ ] 9.2 Write integration test for complete workflow
+- [x] 9.2 Write integration test for complete workflow
   - Test end-to-end search with mock Lean execution
   - Verify all phases execute in order
   - Verify artifacts are stored

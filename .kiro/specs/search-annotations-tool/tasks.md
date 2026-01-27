@@ -21,7 +21,7 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - **Property: HintSet operations preserve immutability**
   - **Validates: Requirements 5.2**
 
-- [ ] 2. Implement CandidateGenerator service
+- [x] 2. Implement CandidateGenerator service
   - Create CandidateGenerator class with __init__(source: SourceText, index: TheoremIndex)
   - Implement generate(theorem_decl, sources, config) method
   - Implement _extract_from_goal: parse goal expression, collect constant names
@@ -34,15 +34,15 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - Respect max_candidates_per_source limit
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
 
-- [ ] 2.1 Write property test for candidate source extraction completeness
+- [x] 2.1 Write property test for candidate source extraction completeness
   - **Property 9: Candidate Source Extraction Completeness**
   - **Validates: Requirements 3.1**
 
-- [ ] 2.2 Write property test for candidate limit enforcement
+- [x] 2.2 Write property test for candidate limit enforcement
   - **Property 11: Candidate Limit Enforcement**
   - **Validates: Requirements 3.9**
 
-- [ ] 2.3 Write property test for candidate ranking priority
+- [x] 2.3 Write property test for candidate ranking priority
   - **Property 12: Candidate Ranking Priority**
   - **Validates: Requirements 3.10**
 

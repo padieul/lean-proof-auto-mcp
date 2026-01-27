@@ -7,14 +7,22 @@ Each test runs a minimum of 100 iterations with randomized inputs.
 Requirements: 1.8, 3.1, 10.3, 10.5
 """
 
+import hashlib
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock
+
 import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
+from lean_proof_auto_mcp.core.probe_classifier import HeuristicClassifier
 from lean_proof_auto_mcp.core.probe_domain import (
     ProbeCommand,
+    ProbeCommandHandler,
     ProbeFileCommand,
 )
+from lean_proof_auto_mcp.core.verify_domain import LeanRunResult, Workspace
 
 # ============================================================================
 # Hypothesis Strategies
@@ -69,9 +77,7 @@ def valid_probe_file_commands(draw):
     budget_s=st.floats(min_value=0.1, max_value=60.0),
 )
 @settings(max_examples=100)
-def test_property_7_mode_validation_accepts_valid_modes(
-    file_path, theorem_id, mode, budget_s
-):
+def test_property_7_mode_validation_accepts_valid_modes(file_path, theorem_id, mode, budget_s):
     """
     Feature: probe-and-probe-file-tools
     Property 7: Mode Validation (Valid Modes)
@@ -189,9 +195,7 @@ def test_property_28_invalid_input_empty_theorem_id(file_path, mode, budget_s):
     invalid_budget=st.floats(max_value=0.0) | st.just(0.0),
 )
 @settings(max_examples=100)
-def test_property_28_invalid_input_non_positive_budget(
-    file_path, theorem_id, mode, invalid_budget
-):
+def test_property_28_invalid_input_non_positive_budget(file_path, theorem_id, mode, invalid_budget):
     """
     Feature: probe-and-probe-file-tools
     Property 28: Invalid Input Handling (Non-positive budget)
@@ -218,9 +222,7 @@ def test_property_28_invalid_input_non_positive_budget(
     budget_s=st.floats(min_value=0.1, max_value=60.0),
 )
 @settings(max_examples=100)
-def test_property_28_invalid_input_invalid_mode(
-    file_path, theorem_id, invalid_mode, budget_s
-):
+def test_property_28_invalid_input_invalid_mode(file_path, theorem_id, invalid_mode, budget_s):
     """
     Feature: probe-and-probe-file-tools
     Property 28: Invalid Input Handling (Invalid mode)
@@ -252,9 +254,7 @@ def test_property_28_invalid_input_invalid_mode(
     ordering=st.sampled_from(["file_order", "rank_targets"]),
 )
 @settings(max_examples=100)
-def test_property_28_probe_file_invalid_input_empty_file_path(
-    mode, budget_s_per, limit, ordering
-):
+def test_property_28_probe_file_invalid_input_empty_file_path(mode, budget_s_per, limit, ordering):
     """
     Feature: probe-and-probe-file-tools
     Property 28: Invalid Input Handling (ProbeFileCommand empty file_path)
@@ -447,8 +447,6 @@ def test_valid_probe_file_commands_are_accepted(cmd):
 # Classifier Property Tests (Requirements 2.1-2.6)
 # ============================================================================
 
-from lean_proof_auto_mcp.core.probe_classifier import HeuristicClassifier
-
 
 # ============================================================================
 # Property 8: Trivial Classification
@@ -536,9 +534,7 @@ def test_property_9_promising_classification_shallow_subgoals(budget_s, num_goal
     # Setup: Create diagnostics with shallow subgoals
     classifier = HeuristicClassifier()
     outcome = "not_closed"
-    diagnostics = [
-        {"message": f"unsolved goals\n⊢ Goal_{i}"} for i in range(num_goals)
-    ]
+    diagnostics = [{"message": f"unsolved goals\n⊢ Goal_{i}"} for i in range(num_goals)]
     timing = {"elapsed_ms": budget_s * 500.0}
 
     # Execute
@@ -571,9 +567,7 @@ def test_property_10_failed_classification_deep_subgoals(budget_s, num_goals):
     # Setup: Create diagnostics with many subgoals (> 3)
     classifier = HeuristicClassifier()
     outcome = "not_closed"
-    diagnostics = [
-        {"message": f"unsolved goals\n⊢ Goal_{i}"} for i in range(num_goals)
-    ]
+    diagnostics = [{"message": f"unsolved goals\n⊢ Goal_{i}"} for i in range(num_goals)]
     timing = {"elapsed_ms": budget_s * 500.0}
 
     # Execute
@@ -686,9 +680,7 @@ def test_property_12_error_classification(budget_s, num_diagnostics):
     num_goals=st.integers(min_value=0, max_value=10),
 )
 @settings(max_examples=100)
-def test_property_13_deterministic_classification(
-    outcome, budget_s, elapsed_ms, num_goals
-):
+def test_property_13_deterministic_classification(outcome, budget_s, elapsed_ms, num_goals):
     """
     Feature: probe-and-probe-file-tools
     Property 13: Deterministic Classification
@@ -717,14 +709,6 @@ def test_property_13_deterministic_classification(
 # ============================================================================
 # ProbeCommandHandler Property Tests (Requirements 1.1-1.6, 3.2-3.8, 6.1-6.4, 7.1-7.4, 8.1-8.2)
 # ============================================================================
-
-import hashlib
-import tempfile
-from pathlib import Path
-from unittest.mock import Mock
-
-from lean_proof_auto_mcp.core.probe_domain import ProbeCommandHandler
-from lean_proof_auto_mcp.core.verify_domain import LeanRunResult, Workspace
 
 
 # ============================================================================
@@ -783,7 +767,7 @@ def test_property_1_workspace_isolation(cmd):
 
     with patch.object(handler, "_construct_harness", return_value="mocked harness"):
         # Execute
-        result = handler.handle(cmd)
+        handler.handle(cmd)
 
     # Verify: Workspace was created
     mock_workspace_provider.create_workspace.assert_called_once_with(cmd.file_path)
@@ -799,14 +783,14 @@ def test_property_1_workspace_isolation(cmd):
 
 @given(
     file_path=st.text(
-        alphabet=st.characters(min_codepoint=ord('a'), max_codepoint=ord('z')),
+        alphabet=st.characters(min_codepoint=ord("a"), max_codepoint=ord("z")),
         min_size=1,
-        max_size=50
+        max_size=50,
     ),
     theorem_id=st.text(
-        alphabet=st.characters(min_codepoint=ord('a'), max_codepoint=ord('z')),
+        alphabet=st.characters(min_codepoint=ord("a"), max_codepoint=ord("z")),
         min_size=1,
-        max_size=50
+        max_size=50,
     ),
     mode=st.sampled_from(["aesop", "aesop?", "grind"]),
 )
@@ -1083,12 +1067,12 @@ def test_property_5_result_completeness(cmd):
     file_content=st.text(
         alphabet=st.characters(min_codepoint=32, max_codepoint=126),  # ASCII printable
         min_size=10,
-        max_size=500
+        max_size=500,
     ),
     theorem_id=st.text(
-        alphabet=st.characters(min_codepoint=ord('a'), max_codepoint=ord('z')),
+        alphabet=st.characters(min_codepoint=ord("a"), max_codepoint=ord("z")),
         min_size=1,
-        max_size=50
+        max_size=50,
     ),
     mode=st.sampled_from(["aesop", "aesop?", "grind"]),
 )
@@ -1152,7 +1136,7 @@ def test_property_6_no_source_modification(file_content, theorem_id, mode):
         )
 
         # Execute
-        result = handler.handle(cmd)
+        handler.handle(cmd)
 
         # Compute hash after
         hash_after = hashlib.sha256(test_file.read_bytes()).hexdigest()
@@ -1222,7 +1206,7 @@ def test_property_24_no_external_filesystem_mutation(cmd):
 
             with patch.object(handler, "_construct_harness", return_value="mocked harness"):
                 # Execute
-                result = handler.handle(cmd)
+                handler.handle(cmd)
 
         # Get final state
         final_files = set(external_path.rglob("*"))
@@ -1315,20 +1299,26 @@ def test_property_25_stateless_execution(cmd1, cmd2):
 
 @given(
     diagnostics=st.lists(
-        st.fixed_dictionaries({
-            "severity": st.sampled_from(["error", "warning", "info", "ERROR", "WARNING", "INFO"]),
-            "message": st.text(min_size=1, max_size=100),
-            "location": st.one_of(
-                st.none(),
-                st.fixed_dictionaries({
-                    "file": st.text(min_size=1, max_size=50),
-                    "line": st.integers(min_value=1, max_value=1000),
-                    "col": st.integers(min_value=0, max_value=100),
-                    "end_line": st.none() | st.integers(min_value=1, max_value=1000),
-                    "end_col": st.none() | st.integers(min_value=0, max_value=100),
-                })
-            )
-        }),
+        st.fixed_dictionaries(
+            {
+                "severity": st.sampled_from(
+                    ["error", "warning", "info", "ERROR", "WARNING", "INFO"]
+                ),
+                "message": st.text(min_size=1, max_size=100),
+                "location": st.one_of(
+                    st.none(),
+                    st.fixed_dictionaries(
+                        {
+                            "file": st.text(min_size=1, max_size=50),
+                            "line": st.integers(min_value=1, max_value=1000),
+                            "col": st.integers(min_value=0, max_value=100),
+                            "end_line": st.none() | st.integers(min_value=1, max_value=1000),
+                            "end_col": st.none() | st.integers(min_value=0, max_value=100),
+                        }
+                    ),
+                ),
+            }
+        ),
         min_size=2,
         max_size=20,
     )
@@ -1385,8 +1375,7 @@ def test_property_26_diagnostic_ordering(diagnostics):
         curr_key = make_sort_key(curr)
         next_key = make_sort_key(next_diag)
 
-        assert curr_key <= next_key, \
-            f"Diagnostics not sorted correctly: {curr_key} > {next_key}"
+        assert curr_key <= next_key, f"Diagnostics not sorted correctly: {curr_key} > {next_key}"
 
     # Verify: Running twice produces same order (determinism)
     sorted_again = handler._normalize_diagnostics(diagnostics)
@@ -1399,12 +1388,25 @@ def test_property_26_diagnostic_ordering(diagnostics):
 
 
 @given(
-    severity=st.sampled_from([
-        "error", "ERROR", "Error",
-        "warning", "WARNING", "Warning", "warn", "WARN",
-        "info", "INFO", "Info",
-        "unknown", "debug", "trace", "hint"
-    ])
+    severity=st.sampled_from(
+        [
+            "error",
+            "ERROR",
+            "Error",
+            "warning",
+            "WARNING",
+            "Warning",
+            "warn",
+            "WARN",
+            "info",
+            "INFO",
+            "Info",
+            "unknown",
+            "debug",
+            "trace",
+            "hint",
+        ]
+    )
 )
 @settings(max_examples=100)
 def test_property_27_severity_normalization(severity):
@@ -1433,33 +1435,45 @@ def test_property_27_severity_normalization(severity):
     normalized = handler._normalize_severity(severity)
 
     # Verify: Normalized severity is one of the standard values
-    assert normalized in ("error", "warning", "info"), \
-        f"Severity '{severity}' normalized to '{normalized}', expected one of (error, warning, info)"
+    expected_values = ("error", "warning", "info")
+    assert normalized in expected_values, (
+        f"Severity '{severity}' normalized to '{normalized}', expected one of {expected_values}"
+    )
 
     # Verify: Normalization follows expected rules
     severity_lower = severity.lower()
     if "error" in severity_lower:
-        assert normalized == "error", f"Severity containing 'error' should normalize to 'error', got '{normalized}'"
+        assert normalized == "error", (
+            f"Severity containing 'error' should normalize to 'error', got '{normalized}'"
+        )
     elif "warn" in severity_lower:
-        assert normalized == "warning", f"Severity containing 'warn' should normalize to 'warning', got '{normalized}'"
+        assert normalized == "warning", (
+            f"Severity containing 'warn' should normalize to 'warning', got '{normalized}'"
+        )
     else:
-        assert normalized == "info", f"Unknown severity should normalize to 'info', got '{normalized}'"
+        assert normalized == "info", (
+            f"Unknown severity should normalize to 'info', got '{normalized}'"
+        )
 
 
 @given(
     diagnostics=st.lists(
-        st.fixed_dictionaries({
-            "severity": st.text(min_size=1, max_size=20),
-            "message": st.text(min_size=0, max_size=100),
-            "location": st.one_of(
-                st.none(),
-                st.fixed_dictionaries({
-                    "file": st.text(min_size=0, max_size=50),
-                    "line": st.integers(min_value=0, max_value=1000),
-                    "col": st.integers(min_value=0, max_value=100),
-                })
-            )
-        }),
+        st.fixed_dictionaries(
+            {
+                "severity": st.text(min_size=1, max_size=20),
+                "message": st.text(min_size=0, max_size=100),
+                "location": st.one_of(
+                    st.none(),
+                    st.fixed_dictionaries(
+                        {
+                            "file": st.text(min_size=0, max_size=50),
+                            "line": st.integers(min_value=0, max_value=1000),
+                            "col": st.integers(min_value=0, max_value=100),
+                        }
+                    ),
+                ),
+            }
+        ),
         min_size=0,
         max_size=10,
     )
@@ -1491,8 +1505,9 @@ def test_property_27_all_diagnostics_have_normalized_severity(diagnostics):
 
     # Verify: All severities are normalized
     for diag in normalized:
-        assert diag["severity"] in ("error", "warning", "info"), \
+        assert diag["severity"] in ("error", "warning", "info"), (
             f"Diagnostic has non-normalized severity: {diag['severity']}"
+        )
 
 
 # ============================================================================
@@ -1505,9 +1520,9 @@ def test_property_27_all_diagnostics_have_normalized_severity(diagnostics):
     theorem_id=st.text(min_size=1, max_size=20),
     budget_s=st.floats(min_value=0.1, max_value=60.0),
     suggested_script=st.text(
-        alphabet=st.characters(min_codepoint=ord('a'), max_codepoint=ord('z')),
+        alphabet=st.characters(min_codepoint=ord("a"), max_codepoint=ord("z")),
         min_size=1,
-        max_size=50
+        max_size=50,
     ).filter(lambda x: x.strip()),  # Ensure non-empty after strip
 )
 @settings(max_examples=10, deadline=None)
@@ -1569,12 +1584,13 @@ def test_property_14_aesop_suggested_script_success(
         result = handler.handle(cmd)
 
     # Verify: Result contains suggested_script
-    assert result.probe_result.suggested_script is not None, \
+    assert result.probe_result.suggested_script is not None, (
         "aesop? success should include suggested_script"
-    assert len(result.probe_result.suggested_script) > 0, \
-        "suggested_script should be non-empty"
-    assert result.probe_result.suggested_script == suggested_script.strip(), \
+    )
+    assert len(result.probe_result.suggested_script) > 0, "suggested_script should be non-empty"
+    assert result.probe_result.suggested_script == suggested_script.strip(), (
         f"Expected '{suggested_script.strip()}', got '{result.probe_result.suggested_script}'"
+    )
 
 
 @given(
@@ -1584,9 +1600,7 @@ def test_property_14_aesop_suggested_script_success(
     budget_s=st.floats(min_value=0.1, max_value=60.0),
 )
 @settings(max_examples=10, deadline=None)
-def test_property_14_non_aesop_no_suggested_script(
-    file_path, theorem_id, mode, budget_s
-):
+def test_property_14_non_aesop_no_suggested_script(file_path, theorem_id, mode, budget_s):
     """
     Feature: probe-and-probe-file-tools
     Property 14: Aesop? Suggested Script (Non-aesop? modes)
@@ -1640,8 +1654,9 @@ def test_property_14_non_aesop_no_suggested_script(
         result = handler.handle(cmd)
 
     # Verify: Result does not contain suggested_script for non-aesop? modes
-    assert result.probe_result.suggested_script is None, \
+    assert result.probe_result.suggested_script is None, (
         f"Mode '{mode}' should not include suggested_script"
+    )
 
 
 @given(
@@ -1650,9 +1665,7 @@ def test_property_14_non_aesop_no_suggested_script(
     budget_s=st.floats(min_value=0.1, max_value=60.0),
 )
 @settings(max_examples=10, deadline=None)
-def test_property_14_aesop_failure_no_suggested_script(
-    file_path, theorem_id, budget_s
-):
+def test_property_14_aesop_failure_no_suggested_script(file_path, theorem_id, budget_s):
     """
     Feature: probe-and-probe-file-tools
     Property 14: Aesop? Suggested Script (Failure case)
@@ -1706,8 +1719,9 @@ def test_property_14_aesop_failure_no_suggested_script(
         result = handler.handle(cmd)
 
     # Verify: Result does not contain suggested_script for failed aesop?
-    assert result.probe_result.suggested_script is None, \
+    assert result.probe_result.suggested_script is None, (
         "Failed aesop? should not include suggested_script"
+    )
 
 
 @given(
@@ -1716,9 +1730,7 @@ def test_property_14_aesop_failure_no_suggested_script(
     budget_s=st.floats(min_value=0.1, max_value=60.0),
 )
 @settings(max_examples=10, deadline=None)
-def test_property_14_extract_suggested_script_parsing(
-    file_path, theorem_id, budget_s
-):
+def test_property_14_extract_suggested_script_parsing(file_path, theorem_id, budget_s):
     """
     Feature: probe-and-probe-file-tools
     Property 14: Aesop? Suggested Script (Parsing)

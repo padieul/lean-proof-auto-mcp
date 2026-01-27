@@ -7,11 +7,18 @@ of the probe_file tool. Each test runs a minimum of 100 iterations with randomiz
 Requirements: 5.1, 5.5, 5.6
 """
 
+from unittest.mock import Mock
+
 import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
-from lean_proof_auto_mcp.core.probe_domain import ProbeFileCommand
+from lean_proof_auto_mcp.core.probe_domain import (
+    ProbeFileCommand,
+    ProbeFileCommandHandler,
+    ProbeOutcome,
+    ProbeResult,
+)
 
 # ============================================================================
 # Hypothesis Strategies
@@ -289,13 +296,6 @@ def test_default_limit_is_50(file_path, mode, budget_s_per, ordering):
 # Handler-Level Property Tests (Properties 15-21)
 # ============================================================================
 
-from unittest.mock import Mock
-from lean_proof_auto_mcp.core.probe_domain import (
-    ProbeFileCommandHandler,
-    ProbeResult,
-    ProbeOutcome,
-)
-
 
 # ============================================================================
 # Property 15: Scan_File Integration
@@ -436,7 +436,7 @@ def test_property_16_batch_probe_invocation(file_path, mode, num_theorems, budge
     )
 
     # Execute
-    result = handler.handle(cmd)
+    handler.handle(cmd)
 
     # Verify: probe was called exactly N times
     assert probe_handler.handle.call_count == num_theorems
@@ -530,7 +530,7 @@ def test_property_17_per_theorem_budget_isolation(file_path, mode, num_theorems,
     )
 
     # Execute
-    result = handler.handle(cmd)
+    handler.handle(cmd)
 
     # Verify: All theorems were probed despite first one timing out
     assert probe_handler.handle.call_count == num_theorems
@@ -918,10 +918,10 @@ def test_property_21_deterministic_result_ordering(file_path, mode, num_theorems
 
     # Execute twice
     result1 = handler.handle(cmd)
-    
+
     # Reset mock call counts
     probe_handler.handle.reset_mock()
-    
+
     result2 = handler.handle(cmd)
 
     # Verify: Results are in same order

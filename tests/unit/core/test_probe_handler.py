@@ -14,7 +14,6 @@ import pytest
 from lean_proof_auto_mcp.core.probe_domain import (
     ProbeCommand,
     ProbeCommandHandler,
-    ProbeOutcome,
     ProbeResult,
 )
 from lean_proof_auto_mcp.core.verify_domain import LeanRunResult, Workspace
@@ -55,7 +54,9 @@ class TestProbeCommandHandler:
             classifier=mock_classifier,
         )
 
-    def test_successful_probe_execution(self, handler, mock_lean_runner, mock_workspace_provider, mock_classifier):
+    def test_successful_probe_execution(
+        self, handler, mock_lean_runner, mock_workspace_provider, mock_classifier
+    ):
         """Test successful probe execution with mocked dependencies."""
         # Setup
         cmd = ProbeCommand(
@@ -76,7 +77,7 @@ class TestProbeCommandHandler:
         )
 
         # Mock harness construction to avoid file I/O
-        with patch.object(handler, '_construct_harness', return_value="mocked harness"):
+        with patch.object(handler, "_construct_harness", return_value="mocked harness"):
             # Execute
             result = handler.handle(cmd)
 
@@ -103,7 +104,9 @@ class TestProbeCommandHandler:
         )
 
         # Mock workspace creation failure
-        mock_workspace_provider.create_workspace.side_effect = RuntimeError("Workspace creation failed")
+        mock_workspace_provider.create_workspace.side_effect = RuntimeError(
+            "Workspace creation failed"
+        )
 
         # Execute
         result = handler.handle(cmd)
@@ -128,7 +131,9 @@ class TestProbeCommandHandler:
         )
 
         # Mock Lean execution raising ValueError for theorem not found
-        mock_lean_runner.verify_file.side_effect = ValueError("Theorem 'NonExistentTheorem' not found")
+        mock_lean_runner.verify_file.side_effect = ValueError(
+            "Theorem 'NonExistentTheorem' not found"
+        )
 
         # Execute
         result = handler.handle(cmd)
@@ -153,7 +158,7 @@ class TestProbeCommandHandler:
         )
 
         # Mock harness construction to avoid file I/O
-        with patch.object(handler, '_construct_harness', return_value="mocked harness"):
+        with patch.object(handler, "_construct_harness", return_value="mocked harness"):
             # Mock Lean execution raising RuntimeError for toolchain failure
             mock_lean_runner.verify_file.side_effect = RuntimeError("Lean process failed")
 
@@ -180,7 +185,7 @@ class TestProbeCommandHandler:
         )
 
         # Mock harness construction to avoid file I/O
-        with patch.object(handler, '_construct_harness', return_value="mocked harness"):
+        with patch.object(handler, "_construct_harness", return_value="mocked harness"):
             # Mock Lean execution raising TimeoutError
             mock_lean_runner.verify_file.side_effect = TimeoutError("Execution timed out")
 
@@ -195,7 +200,9 @@ class TestProbeCommandHandler:
         # Verify cleanup was called
         mock_workspace_provider.cleanup_workspace.assert_called_once()
 
-    def test_workspace_cleanup_always_runs(self, handler, mock_lean_runner, mock_workspace_provider):
+    def test_workspace_cleanup_always_runs(
+        self, handler, mock_lean_runner, mock_workspace_provider
+    ):
         """Test that workspace cleanup always runs even on errors."""
         # Setup
         cmd = ProbeCommand(
@@ -209,12 +216,14 @@ class TestProbeCommandHandler:
         mock_lean_runner.verify_file.side_effect = RuntimeError("Unexpected error")
 
         # Execute
-        result = handler.handle(cmd)
+        handler.handle(cmd)
 
         # Verify cleanup was called despite error
         mock_workspace_provider.cleanup_workspace.assert_called_once()
 
-    def test_workspace_cleanup_error_logged_not_propagated(self, handler, mock_lean_runner, mock_workspace_provider):
+    def test_workspace_cleanup_error_logged_not_propagated(
+        self, handler, mock_lean_runner, mock_workspace_provider
+    ):
         """Test that workspace cleanup errors are logged but not propagated."""
         # Setup
         cmd = ProbeCommand(
@@ -238,7 +247,7 @@ class TestProbeCommandHandler:
         mock_workspace_provider.cleanup_workspace.side_effect = RuntimeError("Cleanup failed")
 
         # Mock harness construction to avoid file I/O
-        with patch.object(handler, '_construct_harness', return_value="mocked harness"):
+        with patch.object(handler, "_construct_harness", return_value="mocked harness"):
             # Execute - should not raise exception
             result = handler.handle(cmd)
 
@@ -429,7 +438,9 @@ theorem other_theorem : True := by
         assert normalized[2]["severity"] == "info"
         assert normalized[2]["location"] is None
 
-    def test_classification_integration(self, handler, mock_lean_runner, mock_workspace_provider, mock_classifier):
+    def test_classification_integration(
+        self, handler, mock_lean_runner, mock_workspace_provider, mock_classifier
+    ):
         """Test that classification is called with correct parameters."""
         # Setup
         cmd = ProbeCommand(
@@ -452,7 +463,7 @@ theorem other_theorem : True := by
         mock_classifier.classify.return_value = "promising"
 
         # Mock harness construction to avoid file I/O
-        with patch.object(handler, '_construct_harness', return_value="mocked harness"):
+        with patch.object(handler, "_construct_harness", return_value="mocked harness"):
             # Execute
             result = handler.handle(cmd)
 

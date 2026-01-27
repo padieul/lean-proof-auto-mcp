@@ -222,7 +222,7 @@ class TestProbeIntegration:
         Note: Type errors in Lean may be caught at different stages:
         - During file compilation (before proof attempt) → error status
         - During proof attempt (aesop tries and fails) → fail/success status
-        
+
         Requirements: 2.5, 10.2
         """
         result = probe(
@@ -438,6 +438,8 @@ class TestProbeIntegration:
         assert result2["status"] == "success"
 
         # Verify identical classifications
-        assert result1["probe_result"]["classification"] == result2["probe_result"]["classification"]
+        assert (
+            result1["probe_result"]["classification"] == result2["probe_result"]["classification"]
+        )
         assert result1["probe_result"]["outcome"] == result2["probe_result"]["outcome"]
         assert result1["probe_result"]["mode"] == result2["probe_result"]["mode"]

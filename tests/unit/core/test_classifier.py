@@ -6,8 +6,6 @@ These tests verify specific examples and edge cases for the HeuristicClassifier.
 Requirements: 2.1-2.6
 """
 
-import pytest
-
 from lean_proof_auto_mcp.core.probe_classifier import HeuristicClassifier
 
 

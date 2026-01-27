@@ -38,6 +38,7 @@ class TestScanTheoremProperties:
         )
 
     @given(args=scan_theorem_args())
+    @settings(deadline=None)
     def test_required_fields_always_present(self, args: dict[str, Any]) -> None:
         """Property: All required fields are always present regardless of input."""
         result = scan_theorem(args)
@@ -48,6 +49,7 @@ class TestScanTheoremProperties:
             assert field in result, f"Missing required field: {field}"
 
     @given(args=scan_theorem_args())
+    @settings(deadline=None)
     def test_target_echo(self, args: dict[str, Any]) -> None:
         """Property: Input target is echoed in response."""
         result = scan_theorem(args)
@@ -61,6 +63,7 @@ class TestScanTheoremProperties:
         )
 
     @given(args=scan_theorem_args())
+    @settings(deadline=None)
     def test_score_bounds(self, args: dict[str, Any]) -> None:
         """Property: All automation scores are in [0.0, 1.0] range when theorem is found."""
         result = scan_theorem(args)

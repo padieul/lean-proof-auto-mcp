@@ -210,9 +210,7 @@ class TestBuildCommand:
             "mode": "invalid",
         }
 
-        with pytest.raises(
-            ValueError, match="'mode' must be 'aesop', 'aesop\\?', or 'grind'"
-        ):
+        with pytest.raises(ValueError, match="'mode' must be 'aesop', 'aesop\\?', or 'grind'"):
             _build_command(args)
 
     def test_non_numeric_budget_s(self):
@@ -570,7 +568,7 @@ class TestIntegrationScenarios:
 
 class TestErrorHandling:
     """Test cases for error handling in probe function.
-    
+
     Requirements: 10.1-10.3, 10.5
     """
 
@@ -611,11 +609,13 @@ class TestErrorHandling:
         """Test that invalid mode returns error response."""
         from lean_proof_auto_mcp.tools.probe import probe
 
-        result = probe({
-            "file": "test.lean",
-            "theorem_id": "MyTheorem",
-            "mode": "invalid",
-        })
+        result = probe(
+            {
+                "file": "test.lean",
+                "theorem_id": "MyTheorem",
+                "mode": "invalid",
+            }
+        )
 
         assert result["status"] == "error"
         assert result["metadata"]["error_code"] == "input_validation_error"
@@ -625,12 +625,14 @@ class TestErrorHandling:
         """Test that negative budget returns error response."""
         from lean_proof_auto_mcp.tools.probe import probe
 
-        result = probe({
-            "file": "test.lean",
-            "theorem_id": "MyTheorem",
-            "mode": "aesop",
-            "budget_s": -10.0,
-        })
+        result = probe(
+            {
+                "file": "test.lean",
+                "theorem_id": "MyTheorem",
+                "mode": "aesop",
+                "budget_s": -10.0,
+            }
+        )
 
         assert result["status"] == "error"
         assert result["metadata"]["error_code"] == "input_validation_error"
@@ -675,12 +677,14 @@ class TestErrorHandling:
         from lean_proof_auto_mcp.tools.probe import probe
 
         # Multiple invalid arguments - should catch first one
-        result = probe({
-            "file": "",
-            "theorem_id": "",
-            "mode": "invalid",
-            "budget_s": -10.0,
-        })
+        result = probe(
+            {
+                "file": "",
+                "theorem_id": "",
+                "mode": "invalid",
+                "budget_s": -10.0,
+            }
+        )
 
         assert result["status"] == "error"
         # Should catch the file validation error first
@@ -697,7 +701,7 @@ class TestErrorHandling:
 
     def test_no_unhandled_exceptions_escape(self):
         """Test that no unhandled exceptions escape from probe function.
-        
+
         Requirements: 10.5
         """
         from lean_proof_auto_mcp.tools.probe import probe

@@ -145,4 +145,3 @@ class TestProbeMCPRegistration:
 
         # Verify results is a list
         assert isinstance(result["results"], list)
-

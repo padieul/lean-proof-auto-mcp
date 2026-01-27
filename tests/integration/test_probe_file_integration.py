@@ -97,18 +97,10 @@ class TestProbeFileIntegration:
             assert "elapsed_ms" in theorem_result
 
         # Verify summary aggregation correctness
-        closed_count = sum(
-            1 for r in result["results"] if r["classification"] == "trivial"
-        )
-        promising_count = sum(
-            1 for r in result["results"] if r["classification"] == "promising"
-        )
-        failed_count = sum(
-            1 for r in result["results"] if r["classification"] == "failed"
-        )
-        timed_out_count = sum(
-            1 for r in result["results"] if r["classification"] == "timed_out"
-        )
+        closed_count = sum(1 for r in result["results"] if r["classification"] == "trivial")
+        promising_count = sum(1 for r in result["results"] if r["classification"] == "promising")
+        failed_count = sum(1 for r in result["results"] if r["classification"] == "failed")
+        timed_out_count = sum(1 for r in result["results"] if r["classification"] == "timed_out")
 
         assert summary["closed"] == closed_count
         assert summary["promising"] == promising_count
@@ -319,12 +311,12 @@ class TestProbeFileIntegration:
             assert isinstance(theorem_result["theorem_id"], str)
             assert isinstance(theorem_result["outcome"], str)
             assert isinstance(theorem_result["classification"], str)
-            assert isinstance(theorem_result["elapsed_ms"], (int, float))
+            assert isinstance(theorem_result["elapsed_ms"], int | float)
 
         # Verify metadata structure
         metadata = result["metadata"]
         assert "elapsed_ms" in metadata
-        assert isinstance(metadata["elapsed_ms"], (int, float))
+        assert isinstance(metadata["elapsed_ms"], int | float)
 
     @pytest.mark.integration
     def test_probe_file_deterministic_result_ordering(self):

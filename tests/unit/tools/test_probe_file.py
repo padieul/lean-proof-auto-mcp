@@ -144,9 +144,7 @@ class TestBuildCommand:
             "mode": "invalid",
         }
 
-        with pytest.raises(
-            ValueError, match="'mode' must be 'aesop', 'aesop\\?', or 'grind'"
-        ):
+        with pytest.raises(ValueError, match="'mode' must be 'aesop', 'aesop\\?', or 'grind'"):
             _build_command(args)
 
     def test_non_numeric_budget_s_per(self):
@@ -234,9 +232,7 @@ class TestBuildCommand:
             "ordering": "invalid",
         }
 
-        with pytest.raises(
-            ValueError, match="'ordering' must be 'file_order' or 'rank_targets'"
-        ):
+        with pytest.raises(ValueError, match="'ordering' must be 'file_order' or 'rank_targets'"):
             _build_command(args)
 
 
@@ -463,7 +459,7 @@ class TestIntegrationScenarios:
 
 class TestErrorHandling:
     """Test cases for error handling in probe_file function.
-    
+
     Requirements: 10.4-10.5
     """
 
@@ -493,10 +489,12 @@ class TestErrorHandling:
         """Test that invalid mode returns error response."""
         from lean_proof_auto_mcp.tools.probe_file import probe_file
 
-        result = probe_file({
-            "file": "test.lean",
-            "mode": "invalid",
-        })
+        result = probe_file(
+            {
+                "file": "test.lean",
+                "mode": "invalid",
+            }
+        )
 
         assert result["status"] == "error"
         assert result["metadata"]["error_code"] == "input_validation_error"
@@ -506,11 +504,13 @@ class TestErrorHandling:
         """Test that negative budget_s_per returns error response."""
         from lean_proof_auto_mcp.tools.probe_file import probe_file
 
-        result = probe_file({
-            "file": "test.lean",
-            "mode": "aesop",
-            "budget_s_per": -5.0,
-        })
+        result = probe_file(
+            {
+                "file": "test.lean",
+                "mode": "aesop",
+                "budget_s_per": -5.0,
+            }
+        )
 
         assert result["status"] == "error"
         assert result["metadata"]["error_code"] == "input_validation_error"
@@ -520,11 +520,13 @@ class TestErrorHandling:
         """Test that negative limit returns error response."""
         from lean_proof_auto_mcp.tools.probe_file import probe_file
 
-        result = probe_file({
-            "file": "test.lean",
-            "mode": "aesop",
-            "limit": -10,
-        })
+        result = probe_file(
+            {
+                "file": "test.lean",
+                "mode": "aesop",
+                "limit": -10,
+            }
+        )
 
         assert result["status"] == "error"
         assert result["metadata"]["error_code"] == "input_validation_error"
@@ -534,11 +536,13 @@ class TestErrorHandling:
         """Test that invalid ordering returns error response."""
         from lean_proof_auto_mcp.tools.probe_file import probe_file
 
-        result = probe_file({
-            "file": "test.lean",
-            "mode": "aesop",
-            "ordering": "invalid",
-        })
+        result = probe_file(
+            {
+                "file": "test.lean",
+                "mode": "aesop",
+                "ordering": "invalid",
+            }
+        )
 
         assert result["status"] == "error"
         assert result["metadata"]["error_code"] == "input_validation_error"
@@ -591,12 +595,14 @@ class TestErrorHandling:
         from lean_proof_auto_mcp.tools.probe_file import probe_file
 
         # Multiple invalid arguments - should catch first one
-        result = probe_file({
-            "file": "",
-            "mode": "invalid",
-            "budget_s_per": -5.0,
-            "limit": -10,
-        })
+        result = probe_file(
+            {
+                "file": "",
+                "mode": "invalid",
+                "budget_s_per": -5.0,
+                "limit": -10,
+            }
+        )
 
         assert result["status"] == "error"
         # Should catch the file validation error first
@@ -604,7 +610,7 @@ class TestErrorHandling:
 
     def test_no_unhandled_exceptions_escape(self):
         """Test that no unhandled exceptions escape from probe_file function.
-        
+
         Requirements: 10.5
         """
         from lean_proof_auto_mcp.tools.probe_file import probe_file

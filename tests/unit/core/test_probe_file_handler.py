@@ -7,14 +7,13 @@ ordering, limit enforcement, summary aggregation, and partial success handling.
 Requirements: 4.1-4.7, 5.2-5.6, 10.4
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock
-from src.lean_proof_auto_mcp.core.probe_domain import (
+from unittest.mock import Mock
+
+from lean_proof_auto_mcp.core.probe_domain import (
     ProbeFileCommand,
     ProbeFileCommandHandler,
-    ProbeCommand,
-    ProbeResult,
     ProbeOutcome,
+    ProbeResult,
 )
 
 
@@ -226,9 +225,7 @@ class TestProbeFileCommandHandler:
         # Mock scan_file response with 5 theorems
         scan_file_fn.return_value = {
             "status": "success",
-            "theorems": [
-                {"theorem_id": f"theorem{i}"} for i in range(5)
-            ],
+            "theorems": [{"theorem_id": f"theorem{i}"} for i in range(5)],
         }
 
         # Mock probe results

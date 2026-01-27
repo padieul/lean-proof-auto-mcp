@@ -90,18 +90,18 @@ def create_app(cfg: Config) -> FastMCP:
         trace_config: dict | None = None,
     ) -> dict:
         """Run single-theorem automation probe with deterministic classification.
-        
+
         Measures what happens when automation (aesop, aesop?, or grind) is applied
         to a single theorem under controlled conditions. Returns structured outcome
         with classification (trivial, promising, failed, timed_out).
-        
+
         Args:
             file: Path to Lean file
             theorem_id: Theorem identifier to probe
             mode: Automation mode - "aesop", "aesop?", or "grind"
             budget_s: Time budget in seconds (default: 10.0)
             trace_config: Optional trace configuration dict
-        
+
         Returns:
             Probe result with status, classification, diagnostics, timing, and metadata
         """
@@ -125,18 +125,18 @@ def create_app(cfg: Config) -> FastMCP:
         ordering: str = "file_order",
     ) -> dict:
         """Run batch automation probing across multiple theorems in a file.
-        
+
         Produces a heatmap of automation behavior for triage and prioritization.
         Runs probe on each theorem with fixed parameters and aggregates results
         into summary statistics.
-        
+
         Args:
             file: Path to Lean file
             mode: Automation mode - "aesop", "aesop?", or "grind"
             budget_s_per: Time budget per theorem in seconds (default: 5.0)
             limit: Maximum number of theorems to probe (default: 50)
             ordering: Ordering mode - "file_order" or "rank_targets" (default: "file_order")
-        
+
         Returns:
             Batch probe result with summary statistics and per-theorem results
         """

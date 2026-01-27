@@ -80,7 +80,7 @@ Immutable command representing a probe request:
 @dataclass(frozen=True)
 class ProbeCommand:
     """Command for single-theorem automation probe.
-    
+
     Attributes:
         file_path: Path to Lean file
         theorem_id: Theorem identifier to probe
@@ -93,7 +93,7 @@ class ProbeCommand:
     mode: str  # "aesop" | "aesop?" | "grind"
     budget_s: float = 10.0
     trace_config: dict[str, bool] | None = None
-    
+
     def __post_init__(self) -> None:
         """Validate command parameters."""
         if not self.file_path:
@@ -115,7 +115,7 @@ Immutable result from a probe attempt:
 @dataclass(frozen=True)
 class ProbeResult:
     """Result from single-theorem automation probe.
-    
+
     Attributes:
         api_version: API version string
         status: Overall status (success, fail, timeout, error)
@@ -142,7 +142,7 @@ Structured outcome of automation attempt:
 @dataclass(frozen=True)
 class ProbeOutcome:
     """Structured outcome of automation attempt.
-    
+
     Attributes:
         mode: Automation mode used
         outcome: Raw outcome (closed, not_closed, timeout, error)
@@ -164,7 +164,7 @@ Immutable command for batch probing:
 @dataclass(frozen=True)
 class ProbeFileCommand:
     """Command for batch automation probing.
-    
+
     Attributes:
         file_path: Path to Lean file
         mode: Automation mode (aesop, aesop?, grind)
@@ -177,7 +177,7 @@ class ProbeFileCommand:
     budget_s_per: float = 5.0
     limit: int = 50
     ordering: str = "file_order"
-    
+
     def __post_init__(self) -> None:
         """Validate command parameters."""
         if not self.file_path:
@@ -200,7 +200,7 @@ Immutable result from batch probing:
 @dataclass(frozen=True)
 class ProbeFileResult:
     """Result from batch automation probing.
-    
+
     Attributes:
         api_version: API version string
         status: Overall status (success, partial, error)
@@ -227,7 +227,7 @@ The probe tools reuse existing ports from verify:
 ```python
 class LeanRunner(Protocol):
     """Abstract interface for running Lean verification."""
-    
+
     def verify_file(
         self,
         workspace_path: Path,
@@ -244,11 +244,11 @@ class LeanRunner(Protocol):
 ```python
 class WorkspaceProvider(Protocol):
     """Abstract interface for workspace isolation."""
-    
+
     def create_workspace(self, file_path: str) -> Workspace:
         """Create isolated workspace for verification."""
         ...
-    
+
     def cleanup_workspace(self, workspace: Workspace) -> None:
         """Clean up workspace resources."""
         ...
@@ -259,11 +259,11 @@ class WorkspaceProvider(Protocol):
 ```python
 class AutomationClassifier(Protocol):
     """Abstract interface for classifying automation outcomes.
-    
+
     This port encapsulates the logic for deterministically classifying
     automation attempts into categories (trivial, promising, failed, timed_out).
     """
-    
+
     def classify(
         self,
         outcome: str,
@@ -272,13 +272,13 @@ class AutomationClassifier(Protocol):
         budget_s: float,
     ) -> str:
         """Classify automation outcome.
-        
+
         Args:
             outcome: Raw outcome (closed, not_closed, timeout, error)
             diagnostics: Diagnostic messages from Lean
             timing: Timing information
             budget_s: Time budget that was allocated
-        
+
         Returns:
             Classification string (trivial, promising, failed, timed_out)
         """
@@ -295,7 +295,7 @@ Orchestrates single-theorem probing:
 ```python
 class ProbeCommandHandler:
     """Orchestrates single-theorem automation probing.
-    
+
     This handler implements the core probe workflow:
     1. Generate unique run_id
     2. Create isolated workspace
@@ -305,7 +305,7 @@ class ProbeCommandHandler:
     6. Build structured result
     7. Ensure workspace cleanup
     """
-    
+
     def __init__(
         self,
         lean_runner: LeanRunner,
@@ -316,7 +316,7 @@ class ProbeCommandHandler:
         self.lean_runner = lean_runner
         self.workspace_provider = workspace_provider
         self.classifier = classifier
-    
+
     def handle(self, cmd: ProbeCommand) -> ProbeResult:
         """Execute probe workflow."""
         # Implementation details in next section...
@@ -329,7 +329,7 @@ Orchestrates batch probing:
 ```python
 class ProbeFileCommandHandler:
     """Orchestrates batch automation probing.
-    
+
     This handler implements the batch probe workflow:
     1. Enumerate theorems using scan_file
     2. Apply ordering (file_order or rank_targets)
@@ -338,7 +338,7 @@ class ProbeFileCommandHandler:
     5. Aggregate results into summary
     6. Return both per-theorem and file-level statistics
     """
-    
+
     def __init__(
         self,
         probe_handler: ProbeCommandHandler,
@@ -349,7 +349,7 @@ class ProbeFileCommandHandler:
         self.probe_handler = probe_handler
         self.scan_file_fn = scan_file_fn
         self.rank_targets_fn = rank_targets_fn
-    
+
     def handle(self, cmd: ProbeFileCommand) -> ProbeFileResult:
         """Execute batch probe workflow."""
         # Implementation details in next section...
@@ -386,7 +386,7 @@ The AutomationClassifier uses deterministic rules to classify outcomes:
 ```python
 class HeuristicClassifier:
     """Heuristic-based automation classifier.
-    
+
     Classification rules:
     - trivial: Automation closes goal in < 20% of budget
     - promising: Automation fails but produces shallow subgoals (< 3 levels)
@@ -394,7 +394,7 @@ class HeuristicClassifier:
     - timed_out: Budget exhausted
     - error: Toolchain or execution error
     """
-    
+
     def classify(
         self,
         outcome: str,
@@ -406,11 +406,11 @@ class HeuristicClassifier:
         # Timeout classification
         if outcome == "timeout":
             return "timed_out"
-        
+
         # Error classification
         if outcome == "error":
             return "error"
-        
+
         # Success classification
         if outcome == "closed":
             elapsed = timing.get("lean_execution_s", 0.0)
@@ -419,7 +419,7 @@ class HeuristicClassifier:
                 return "trivial"
             else:
                 return "trivial"  # Still trivial if it closed
-        
+
         # Failure classification (outcome == "not_closed")
         # Analyze diagnostics to determine if promising
         subgoal_depth = self._estimate_subgoal_depth(diagnostics)
@@ -427,10 +427,10 @@ class HeuristicClassifier:
             return "promising"
         else:
             return "failed"
-    
+
     def _estimate_subgoal_depth(self, diagnostics: list[dict]) -> int:
         """Estimate subgoal depth from diagnostics.
-        
+
         This is a heuristic based on:
         - Number of unsolved goals messages
         - Nesting level of goal contexts
@@ -453,14 +453,14 @@ def enumerate_theorems(
     rank_targets_fn: Callable | None,
 ) -> list[str]:
     """Enumerate theorems for batch probing.
-    
+
     Args:
         file_path: Path to Lean file
         ordering: Ordering mode (file_order, rank_targets)
         limit: Maximum number of theorems
         scan_file_fn: Function to call scan_file
         rank_targets_fn: Optional function to call rank_targets
-    
+
     Returns:
         List of theorem_ids in specified order
     """
@@ -468,9 +468,9 @@ def enumerate_theorems(
     scan_result = scan_file_fn({"file": file_path})
     if scan_result["status"] != "success":
         raise RuntimeError(f"scan_file failed: {scan_result}")
-    
+
     theorems = scan_result["theorems"]
-    
+
     # Apply ordering
     if ordering == "file_order":
         # Use file order (already sorted by scan_file)
@@ -479,7 +479,7 @@ def enumerate_theorems(
         # Use rank_targets to prioritize
         if rank_targets_fn is None:
             raise ValueError("rank_targets_fn required for rank_targets ordering")
-        
+
         rank_result = rank_targets_fn({
             "file": file_path,
             "objective": "maximize_success",
@@ -487,11 +487,11 @@ def enumerate_theorems(
         })
         if rank_result["status"] != "success":
             raise RuntimeError(f"rank_targets failed: {rank_result}")
-        
+
         theorem_ids = [t["theorem_id"] for t in rank_result["ranking"]]
     else:
         raise ValueError(f"Invalid ordering: {ordering}")
-    
+
     # Apply limit
     return theorem_ids[:limit]
 ```
@@ -708,14 +708,14 @@ def handle(self, cmd: ProbeCommand) -> ProbeResult:
         self._validate_command(cmd)
     except ValueError as e:
         return self._build_error_result(cmd, "validation_error", str(e))
-    
+
     # Workspace creation errors
     workspace = None
     try:
         workspace = self.workspace_provider.create_workspace(cmd.file_path)
     except Exception as e:
         return self._build_error_result(cmd, "workspace_error", str(e))
-    
+
     try:
         # Execution errors (caught and converted to error results)
         try:
@@ -731,13 +731,13 @@ def handle(self, cmd: ProbeCommand) -> ProbeResult:
         except Exception as e:
             # Toolchain or execution error
             return self._build_error_result(cmd, "execution_error", str(e))
-        
+
         # Classification and result building (should not fail)
         classification = self.classifier.classify(
             lean_result.status, lean_result.diagnostics, lean_result.timing, cmd.budget_s
         )
         return self._build_success_result(cmd, lean_result, classification)
-    
+
     finally:
         # Cleanup always runs, errors are logged but not propagated
         if workspace:
@@ -760,11 +760,11 @@ def handle(self, cmd: ProbeFileCommand) -> ProbeFileResult:
         theorem_ids = self._enumerate_theorems(cmd)
     except Exception as e:
         return self._build_error_result(cmd, str(e))
-    
+
     # Probe each theorem (collect errors but continue)
     results = []
     errors = []
-    
+
     for theorem_id in theorem_ids:
         try:
             probe_cmd = ProbeCommand(
@@ -778,7 +778,7 @@ def handle(self, cmd: ProbeFileCommand) -> ProbeFileResult:
         except Exception as e:
             errors.append({"theorem_id": theorem_id, "error": str(e)})
             # Continue processing remaining theorems
-    
+
     # Determine status
     if len(results) == 0:
         status = "error"
@@ -786,7 +786,7 @@ def handle(self, cmd: ProbeFileCommand) -> ProbeFileResult:
         status = "partial"
     else:
         status = "success"
-    
+
     return self._build_result(cmd, results, errors, status)
 ```
 
@@ -847,14 +847,14 @@ import hypothesis
 @hypothesis.settings(max_examples=100)
 def test_no_source_modification(file_path, theorem_id, mode, budget_s):
     """Feature: probe-and-probe-file-tools, Property 6: No Source Modification
-    
-    For any probe invocation, the source file's content hash before and after 
+
+    For any probe invocation, the source file's content hash before and after
     probe execution should be identical.
     """
     # Setup: Create test file
     test_file = create_test_file(file_path)
     hash_before = compute_hash(test_file)
-    
+
     # Execute: Run probe
     cmd = ProbeCommand(
         file_path=file_path,
@@ -864,7 +864,7 @@ def test_no_source_modification(file_path, theorem_id, mode, budget_s):
     )
     handler = create_probe_handler()
     result = handler.handle(cmd)
-    
+
     # Verify: Hash unchanged
     hash_after = compute_hash(test_file)
     assert hash_before == hash_after, "Source file was modified"
@@ -881,8 +881,8 @@ def test_no_source_modification(file_path, theorem_id, mode, budget_s):
 @hypothesis.settings(max_examples=100)
 def test_deterministic_classification(file_path, theorem_id, mode, budget_s):
     """Feature: probe-and-probe-file-tools, Property 13: Deterministic Classification
-    
-    For any identical probe inputs, running probe twice should produce 
+
+    For any identical probe inputs, running probe twice should produce
     identical classifications and outcomes.
     """
     # Setup: Create command
@@ -893,11 +893,11 @@ def test_deterministic_classification(file_path, theorem_id, mode, budget_s):
         budget_s=budget_s,
     )
     handler = create_probe_handler()
-    
+
     # Execute: Run probe twice
     result1 = handler.handle(cmd)
     result2 = handler.handle(cmd)
-    
+
     # Verify: Identical classifications
     assert result1.probe_result.classification == result2.probe_result.classification
     assert result1.probe_result.outcome == result2.probe_result.outcome
@@ -912,8 +912,8 @@ def test_deterministic_classification(file_path, theorem_id, mode, budget_s):
 @hypothesis.settings(max_examples=100)
 def test_summary_aggregation_correctness(file_path, mode, budget_s_per, limit):
     """Feature: probe-and-probe-file-tools, Property 18: Summary Aggregation Correctness
-    
-    For any probe_file invocation, the summary counts should exactly match 
+
+    For any probe_file invocation, the summary counts should exactly match
     the sum of individual theorem results with those classifications.
     """
     # Setup: Create command
@@ -924,16 +924,16 @@ def test_summary_aggregation_correctness(file_path, mode, budget_s_per, limit):
         limit=limit,
     )
     handler = create_probe_file_handler()
-    
+
     # Execute: Run probe_file
     result = handler.handle(cmd)
-    
+
     # Verify: Summary matches individual results
     closed_count = sum(1 for r in result.results if r["classification"] == "trivial")
     promising_count = sum(1 for r in result.results if r["classification"] == "promising")
     failed_count = sum(1 for r in result.results if r["classification"] == "failed")
     timed_out_count = sum(1 for r in result.results if r["classification"] == "timed_out")
-    
+
     assert result.summary["closed"] == closed_count
     assert result.summary["promising"] == promising_count
     assert result.summary["failed"] == failed_count

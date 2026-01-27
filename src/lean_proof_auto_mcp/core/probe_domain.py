@@ -7,8 +7,17 @@ for automation probing following hexagonal architecture principles.
 Requirements: 1.1, 1.8, 2.1-2.6, 3.1-3.8, 4.1-4.7, 5.1-5.6
 """
 
+import hashlib
+import logging
+import time
+import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Protocol, Callable
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Protocol
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Command and Result Data Structures (Immutable)
@@ -72,7 +81,8 @@ class ProbeOutcome:
     Attributes:
         mode: Automation mode used
         outcome: Raw outcome ("closed", "not_closed", "timeout", "error")
-        classification: Deterministic classification ("trivial", "promising", "failed", "timed_out", "error")
+        classification: Deterministic classification
+            ("trivial", "promising", "failed", "timed_out", "error")
         suggested_script: Optional suggested script (for aesop? mode)
     """
 
@@ -237,15 +247,6 @@ class AutomationClassifier(Protocol):
 # Command Handler (Core Orchestrator)
 # ============================================================================
 
-import hashlib
-import logging
-import time
-import uuid
-from datetime import datetime, timezone
-from pathlib import Path
-
-logger = logging.getLogger(__name__)
-
 
 class ProbeCommandHandler:
     """
@@ -327,7 +328,7 @@ class ProbeCommandHandler:
         try:
             # 3. Construct automation harness
             try:
-                harness_content = self._construct_harness(cmd, workspace.path)
+                self._construct_harness(cmd, workspace.path)
             except ValueError as e:
                 # Theorem not found or invalid
                 logger.error(f"Harness construction failed: {e}")
@@ -391,7 +392,14 @@ class ProbeCommandHandler:
 
             # 6. Build structured result
             return self._build_result(
-                cmd, run_id, outcome, classification, suggested_script, diagnostics, lean_result, start_time
+                cmd,
+                run_id,
+                outcome,
+                classification,
+                suggested_script,
+                diagnostics,
+                lean_result,
+                start_time,
             )
 
         finally:
@@ -461,7 +469,7 @@ class ProbeCommandHandler:
         if not file_path.exists():
             raise ValueError(f"File not found: {cmd.file_path}")
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         # Find the theorem declaration
@@ -620,7 +628,13 @@ class ProbeCommandHandler:
             location = d["location"]
             if location is None:
                 # Sort None locations last using high values
-                return ("~" * 100, 999999, 999999, severity_order.get(d["severity"], 3), d["message"])
+                return (
+                    "~" * 100,
+                    999999,
+                    999999,
+                    severity_order.get(d["severity"], 3),
+                    d["message"],
+                )
             else:
                 return (
                     location["file"],
@@ -998,7 +1012,7 @@ class ProbeFileCommandHandler:
         # 5. Build final result
         elapsed_ms = round((time.time() - start_time) * 1000.0, 2)
 
-        metadata = {
+        metadata: dict[str, Any] = {
             "elapsed_ms": elapsed_ms,
             "total_theorems": len(theorem_ids),
             "successful_probes": len(results),
@@ -1063,7 +1077,9 @@ class ProbeFileCommandHandler:
             )
 
             if rank_result.get("status") != "success":
-                raise RuntimeError(f"rank_targets failed: {rank_result.get('error', 'Unknown error')}")
+                raise RuntimeError(
+                    f"rank_targets failed: {rank_result.get('error', 'Unknown error')}"
+                )
 
             # Extract theorem_ids from ranking
             theorem_ids = [t["theorem_id"] for t in rank_result.get("ranking", [])]
@@ -1169,4 +1185,4 @@ class ProbeFileCommandHandler:
 
 
 # Import LeanRunner and WorkspaceProvider from verify_domain for type hints
-from .verify_domain import LeanRunner, Workspace, WorkspaceProvider  # noqa: E402
+from .verify_domain import LeanRunner, WorkspaceProvider  # noqa: E402

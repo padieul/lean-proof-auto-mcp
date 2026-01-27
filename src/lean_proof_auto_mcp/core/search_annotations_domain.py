@@ -681,6 +681,7 @@ class SearchAnnotationsCommandHandler:
         minimizer: "Minimizer",
         proof_patch_builder: "ProofPatchBuilder",
         artifact_store: "ArtifactStore",
+        workspace_provider: "WorkspaceProvider",
     ):
         """
         Initialize handler with dependency injection.
@@ -692,8 +693,9 @@ class SearchAnnotationsCommandHandler:
             minimizer: Service for minimizing hint sets
             proof_patch_builder: Service for building proof patches
             artifact_store: Port for artifact storage
+            workspace_provider: Port for workspace isolation
             
-        Requirements: 1.1, 6.1, 6.2
+        Requirements: 1.1, 6.1, 6.2, 8.1
         """
         self.probe_handler = probe_handler
         self.candidate_generator = candidate_generator
@@ -701,13 +703,16 @@ class SearchAnnotationsCommandHandler:
         self.minimizer = minimizer
         self.proof_patch_builder = proof_patch_builder
         self.artifact_store = artifact_store
+        self.workspace_provider = workspace_provider
     
     def handle(self, cmd: SearchAnnotationsCommand) -> SearchAnnotationsResult:
         """
         Execute complete search-annotations workflow.
         
         This method orchestrates all phases of the search process with
-        comprehensive error handling and budget enforcement.
+        comprehensive error handling and budget enforcement. It ensures
+        workspace isolation and cleanup following the same pattern as
+        ProbeCommandHandler.
         
         Args:
             cmd: Search-annotations command with all parameters
@@ -716,7 +721,7 @@ class SearchAnnotationsCommandHandler:
             SearchAnnotationsResult with complete search information
             
         Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6,
-                      9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8
+                      8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8
         """
         import logging
         import time
@@ -736,6 +741,22 @@ class SearchAnnotationsCommandHandler:
         proof_patch: ProofPatch | None = None
         global_suggestions: list[GlobalSuggestion] | None = None
         
+        # Create isolated workspace
+        workspace = None
+        try:
+            workspace = self.workspace_provider.create_workspace(cmd.file)
+            logger.info(f"Created workspace: {workspace.workspace_id} (mode: {workspace.mode})")
+        except Exception as e:
+            logger.error(f"Workspace creation failed: {e}")
+            return self._build_error_result(
+                cmd,
+                "error",
+                f"Failed to create workspace: {e}",
+                {},
+                {},
+                phase_timings
+            )
+        
         try:
             # ================================================================
             # Phase 1: Viability Check
@@ -748,14 +769,14 @@ class SearchAnnotationsCommandHandler:
                 from .indexer import build_index, find_by_id
                 from .source import SourceText
                 
-                # Check file exists
-                file_path = Path(cmd.file)
+                # Check file exists in workspace
+                file_path = workspace.path / cmd.file
                 if not file_path.exists():
                     phase_timings["viability_check_s"] = time.time() - phase_start
                     return self._build_error_result(
                         cmd,
                         "fail",
-                        f"File not found: {cmd.file}",
+                        f"File not found in workspace: {cmd.file}",
                         {"error_type": "file_not_found"},
                         {},
                         phase_timings
@@ -783,7 +804,9 @@ class SearchAnnotationsCommandHandler:
                     "status": "success",
                     "theorem_found": True,
                     "theorem_id": cmd.theorem_id,
-                    "file": cmd.file
+                    "file": cmd.file,
+                    "workspace_id": workspace.workspace_id,
+                    "workspace_mode": workspace.mode
                 }
                 
                 phase_timings["viability_check_s"] = time.time() - phase_start
@@ -1142,6 +1165,21 @@ class SearchAnnotationsCommandHandler:
                 baseline_details,
                 phase_timings
             )
+        
+        finally:
+            # Cleanup workspace (always runs)
+            # Requirements: 8.2, 8.3, 8.4, 8.5
+            if workspace:
+                try:
+                    # Only cleanup if keep_artifacts is False
+                    if not cmd.workspace.keep_artifacts:
+                        self.workspace_provider.cleanup_workspace(workspace)
+                        logger.info(f"Cleaned up workspace: {workspace.workspace_id}")
+                    else:
+                        logger.info(f"Preserved workspace: {workspace.workspace_id} at {workspace.path}")
+                except Exception as e:
+                    # Log but don't propagate cleanup errors
+                    logger.warning(f"Workspace cleanup failed: {e}")
     
     def _build_error_result(
         self,
@@ -1276,4 +1314,4 @@ if TYPE_CHECKING:
     from .probe_domain import ProbeCommandHandler
     from .proof_patch_builder import ProofPatchBuilder
     from .search_strategy import SearchStrategy
-    from .verify_domain import ArtifactStore
+    from .verify_domain import ArtifactStore, WorkspaceProvider

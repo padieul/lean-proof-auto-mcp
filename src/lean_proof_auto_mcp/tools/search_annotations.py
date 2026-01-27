@@ -370,6 +370,7 @@ def _create_handler(file_path: str) -> SearchAnnotationsCommandHandler:
         minimizer=minimizer,
         proof_patch_builder=proof_patch_builder,
         artifact_store=artifact_store,
+        workspace_provider=workspace_provider,
     )
 
 

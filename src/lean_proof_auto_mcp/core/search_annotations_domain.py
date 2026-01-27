@@ -513,3 +513,135 @@ class SkeletonConfig:
         # Set default moves if None
         if self.moves is None:
             object.__setattr__(self, 'moves', ["cases", "constructor", "induction"])
+
+
+# ============================================================================
+# Command and Result Data Structures (Application Layer)
+# ============================================================================
+
+
+@dataclass(frozen=True)
+class SearchAnnotationsCommand:
+    """
+    Immutable command representing a search-annotations request.
+    
+    This command encapsulates all parameters for searching and minimizing
+    local proof hints to make a theorem provable by automation.
+    
+    Requirements: 1.1, 1.2, 1.3, 1.4, 1.5
+    
+    Attributes:
+        file: Path to Lean file
+        theorem_id: Theorem identifier to search
+        mode: Operation mode (local_only or suggest_global)
+        automation: Automation tool configuration
+        budgets: Time budget configuration for each phase
+        search: Search strategy configuration
+        candidates: Candidate generation configuration
+        skeleton: Skeleton search configuration
+        style: Proof formatting style configuration
+        workspace: Workspace isolation configuration
+        allow_global_edits: Allow applying global edits (default: False)
+        run_id: Unique identifier for this run
+    """
+    file: str
+    theorem_id: str
+    mode: Literal["local_only", "suggest_global"]
+    automation: AutomationConfig
+    budgets: BudgetConfig
+    search: SearchConfig
+    candidates: CandidateConfig
+    skeleton: SkeletonConfig
+    style: StyleConfig
+    workspace: WorkspaceConfig
+    allow_global_edits: bool
+    run_id: str
+    
+    def __post_init__(self) -> None:
+        """
+        Validate command parameters.
+        
+        Raises:
+            ValueError: If any parameter is invalid
+            
+        Requirements: 1.1, 1.3
+        """
+        if not self.file:
+            raise ValueError("file must be non-empty")
+        if not self.theorem_id:
+            raise ValueError("theorem_id must be non-empty")
+        if self.mode not in ("local_only", "suggest_global"):
+            raise ValueError("mode must be 'local_only' or 'suggest_global'")
+        if not self.run_id:
+            raise ValueError("run_id must be non-empty")
+
+
+@dataclass(frozen=True)
+class SearchAnnotationsResult:
+    """
+    Final result from search-annotations execution.
+    
+    This is the complete result returned to the user, containing all
+    information about the search process including viability, baseline,
+    search, minimization, proof patch, timing, and artifacts.
+    
+    Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8
+    
+    Attributes:
+        api_version: API version string (e.g., "0.1.0")
+        status: Overall status (success, fail, timeout, error)
+        run_id: Unique identifier for this run
+        file: Path to the verified file
+        theorem_id: Theorem identifier
+        viability: Viability check details
+        baseline: Baseline attempt outcomes
+        search_result: Search phase result (None if baseline succeeded)
+        minimized_hint_set: Final minimized hint set (None if failed)
+        proof_patch: Ready-to-paste proof code (None if failed)
+        global_suggestions: Global annotation suggestions (None if mode is local_only)
+        timing: Timing breakdown for all phases
+        artifacts: Paths to stored artifacts
+        metadata: Metadata about execution environment
+    """
+    api_version: str
+    status: Literal["success", "fail", "timeout", "error"]
+    run_id: str
+    file: str
+    theorem_id: str
+    viability: dict[str, Any]
+    baseline: dict[str, Any]
+    search_result: SearchResult | None
+    minimized_hint_set: HintSet | None
+    proof_patch: ProofPatch | None
+    global_suggestions: list[GlobalSuggestion] | None
+    timing: dict[str, float]
+    artifacts: dict[str, str]
+    metadata: dict[str, Any]
+    
+    def __post_init__(self) -> None:
+        """
+        Validate result parameters.
+        
+        Raises:
+            ValueError: If any parameter is invalid
+            
+        Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8
+        """
+        if not self.api_version:
+            raise ValueError("api_version must be non-empty")
+        if self.status not in ("success", "fail", "timeout", "error"):
+            raise ValueError("status must be 'success', 'fail', 'timeout', or 'error'")
+        if not self.run_id:
+            raise ValueError("run_id must be non-empty")
+        if not self.file:
+            raise ValueError("file must be non-empty")
+        if not self.theorem_id:
+            raise ValueError("theorem_id must be non-empty")
+        
+        # Validate consistency: success requires proof_patch
+        if self.status == "success" and self.proof_patch is None:
+            raise ValueError("success status requires proof_patch")
+        
+        # Validate consistency: success requires minimized_hint_set
+        if self.status == "success" and self.minimized_hint_set is None:
+            raise ValueError("success status requires minimized_hint_set")

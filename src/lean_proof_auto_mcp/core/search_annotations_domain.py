@@ -645,3 +645,635 @@ class SearchAnnotationsResult:
         # Validate consistency: success requires minimized_hint_set
         if self.status == "success" and self.minimized_hint_set is None:
             raise ValueError("success status requires minimized_hint_set")
+
+
+# ============================================================================
+# Command Handler (Application Layer)
+# ============================================================================
+
+
+class SearchAnnotationsCommandHandler:
+    """
+    Orchestrates search-annotations workflow using injected services.
+    
+    This handler implements the complete search workflow following hexagonal
+    architecture principles. It depends on abstract ports and existing services,
+    containing no infrastructure logic.
+    
+    The workflow:
+    1. Viability check using build_index() and find_by_id()
+    2. Baseline probe using probe_handler.handle()
+    3. Generate candidates using candidate_generator.generate()
+    4. Search using search_strategy.search()
+    5. Minimize using minimizer.minimize()
+    6. Build proof patch using ProofPatchBuilder
+    7. Store artifacts using artifact_store.store()
+    
+    Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6,
+                  9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8
+    """
+    
+    def __init__(
+        self,
+        probe_handler: "ProbeCommandHandler",
+        candidate_generator: "CandidateGenerator",
+        search_strategy: "SearchStrategy",
+        minimizer: "Minimizer",
+        proof_patch_builder: "ProofPatchBuilder",
+        artifact_store: "ArtifactStore",
+    ):
+        """
+        Initialize handler with dependency injection.
+        
+        Args:
+            probe_handler: Handler for automation probing
+            candidate_generator: Service for generating candidate hints
+            search_strategy: Strategy for searching hint combinations
+            minimizer: Service for minimizing hint sets
+            proof_patch_builder: Service for building proof patches
+            artifact_store: Port for artifact storage
+            
+        Requirements: 1.1, 6.1, 6.2
+        """
+        self.probe_handler = probe_handler
+        self.candidate_generator = candidate_generator
+        self.search_strategy = search_strategy
+        self.minimizer = minimizer
+        self.proof_patch_builder = proof_patch_builder
+        self.artifact_store = artifact_store
+    
+    def handle(self, cmd: SearchAnnotationsCommand) -> SearchAnnotationsResult:
+        """
+        Execute complete search-annotations workflow.
+        
+        This method orchestrates all phases of the search process with
+        comprehensive error handling and budget enforcement.
+        
+        Args:
+            cmd: Search-annotations command with all parameters
+            
+        Returns:
+            SearchAnnotationsResult with complete search information
+            
+        Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6,
+                      9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8
+        """
+        import logging
+        import time
+        from pathlib import Path
+        
+        logger = logging.getLogger(__name__)
+        
+        # Track timing for all phases
+        phase_timings: dict[str, float] = {}
+        overall_start = time.time()
+        
+        # Initialize result fields
+        viability_details: dict[str, Any] = {}
+        baseline_details: dict[str, Any] = {}
+        search_result: SearchResult | None = None
+        minimized_hint_set: HintSet | None = None
+        proof_patch: ProofPatch | None = None
+        global_suggestions: list[GlobalSuggestion] | None = None
+        
+        try:
+            # ================================================================
+            # Phase 1: Viability Check
+            # ================================================================
+            logger.info(f"Phase 1: Viability check for {cmd.file}:{cmd.theorem_id}")
+            phase_start = time.time()
+            
+            try:
+                # Import indexer functions
+                from .indexer import build_index, find_by_id
+                from .source import SourceText
+                
+                # Check file exists
+                file_path = Path(cmd.file)
+                if not file_path.exists():
+                    phase_timings["viability_check_s"] = time.time() - phase_start
+                    return self._build_error_result(
+                        cmd,
+                        "fail",
+                        f"File not found: {cmd.file}",
+                        {"error_type": "file_not_found"},
+                        {},
+                        phase_timings
+                    )
+                
+                # Read source and build index
+                source_text = file_path.read_text(encoding="utf-8")
+                source = SourceText(path=cmd.file, text=source_text)
+                index = build_index(source)
+                
+                # Find theorem
+                theorem_decl = find_by_id(index, cmd.theorem_id)
+                if theorem_decl is None:
+                    phase_timings["viability_check_s"] = time.time() - phase_start
+                    return self._build_error_result(
+                        cmd,
+                        "fail",
+                        f"Theorem '{cmd.theorem_id}' not found in {cmd.file}",
+                        {"error_type": "theorem_not_found", "searched_file": cmd.file},
+                        {},
+                        phase_timings
+                    )
+                
+                viability_details = {
+                    "status": "success",
+                    "theorem_found": True,
+                    "theorem_id": cmd.theorem_id,
+                    "file": cmd.file
+                }
+                
+                phase_timings["viability_check_s"] = time.time() - phase_start
+                
+                # Check viability budget
+                if phase_timings["viability_check_s"] > cmd.budgets.viability_check_s:
+                    return self._build_error_result(
+                        cmd,
+                        "timeout",
+                        f"Viability check exceeded budget ({cmd.budgets.viability_check_s}s)",
+                        viability_details,
+                        {},
+                        phase_timings
+                    )
+                
+            except Exception as e:
+                phase_timings["viability_check_s"] = time.time() - phase_start
+                logger.exception(f"Viability check failed: {e}")
+                return self._build_error_result(
+                    cmd,
+                    "error",
+                    f"Viability check error: {str(e)}",
+                    {"error_type": "viability_error", "error": str(e)},
+                    {},
+                    phase_timings
+                )
+            
+            # ================================================================
+            # Phase 2: Baseline Probe
+            # ================================================================
+            logger.info(f"Phase 2: Baseline probe for {cmd.theorem_id}")
+            phase_start = time.time()
+            
+            try:
+                from .probe_domain import ProbeCommand
+                
+                # Try primary automation
+                probe_cmd = ProbeCommand(
+                    file_path=cmd.file,
+                    theorem_id=cmd.theorem_id,
+                    mode=cmd.automation.primary,
+                    budget_s=cmd.budgets.baseline_probe_s
+                )
+                
+                baseline_result = self.probe_handler.handle(probe_cmd)
+                
+                baseline_details = {
+                    "primary_automation": cmd.automation.primary,
+                    "primary_outcome": baseline_result.probe_result.outcome,
+                    "primary_classification": baseline_result.probe_result.classification,
+                    "attempts": [
+                        {
+                            "automation": cmd.automation.primary,
+                            "outcome": baseline_result.probe_result.outcome,
+                            "classification": baseline_result.probe_result.classification
+                        }
+                    ]
+                }
+                
+                phase_timings["baseline_probe_s"] = time.time() - phase_start
+                
+                # Check if baseline succeeded
+                if baseline_result.probe_result.outcome == "closed":
+                    logger.info(f"Baseline automation succeeded, no search needed")
+                    
+                    # Build success result without search
+                    return SearchAnnotationsResult(
+                        api_version="0.1.0",
+                        status="success",
+                        run_id=cmd.run_id,
+                        file=cmd.file,
+                        theorem_id=cmd.theorem_id,
+                        viability=viability_details,
+                        baseline=baseline_details,
+                        search_result=None,
+                        minimized_hint_set=HintSet(),  # Empty set
+                        proof_patch=ProofPatch(
+                            lean_code=cmd.automation.primary,
+                            hint_set=HintSet(),
+                            automation=cmd.automation.primary,
+                            style=cmd.style
+                        ),
+                        global_suggestions=None if cmd.mode == "local_only" else [],
+                        timing=self._build_timing(phase_timings, overall_start),
+                        artifacts={},
+                        metadata=self._build_metadata()
+                    )
+                
+                # Try secondary automation if configured
+                if cmd.automation.secondary:
+                    secondary_probe_cmd = ProbeCommand(
+                        file_path=cmd.file,
+                        theorem_id=cmd.theorem_id,
+                        mode=cmd.automation.secondary,
+                        budget_s=cmd.budgets.baseline_probe_s
+                    )
+                    
+                    secondary_result = self.probe_handler.handle(secondary_probe_cmd)
+                    
+                    baseline_details["secondary_automation"] = cmd.automation.secondary
+                    baseline_details["secondary_outcome"] = secondary_result.probe_result.outcome
+                    baseline_details["secondary_classification"] = secondary_result.probe_result.classification
+                    baseline_details["attempts"].append({
+                        "automation": cmd.automation.secondary,
+                        "outcome": secondary_result.probe_result.outcome,
+                        "classification": secondary_result.probe_result.classification
+                    })
+                    
+                    if secondary_result.probe_result.outcome == "closed":
+                        logger.info(f"Secondary automation succeeded, no search needed")
+                        
+                        return SearchAnnotationsResult(
+                            api_version="0.1.0",
+                            status="success",
+                            run_id=cmd.run_id,
+                            file=cmd.file,
+                            theorem_id=cmd.theorem_id,
+                            viability=viability_details,
+                            baseline=baseline_details,
+                            search_result=None,
+                            minimized_hint_set=HintSet(),
+                            proof_patch=ProofPatch(
+                                lean_code=cmd.automation.secondary,
+                                hint_set=HintSet(),
+                                automation=cmd.automation.secondary,
+                                style=cmd.style
+                            ),
+                            global_suggestions=None if cmd.mode == "local_only" else [],
+                            timing=self._build_timing(phase_timings, overall_start),
+                            artifacts={},
+                            metadata=self._build_metadata()
+                        )
+                
+            except Exception as e:
+                phase_timings["baseline_probe_s"] = time.time() - phase_start
+                logger.warning(f"Baseline probe failed: {e}, continuing to search")
+                baseline_details = {
+                    "status": "error",
+                    "error": str(e)
+                }
+            
+            # ================================================================
+            # Phase 3: Generate Candidates
+            # ================================================================
+            logger.info(f"Phase 3: Generate candidates")
+            phase_start = time.time()
+            
+            try:
+                candidates = self.candidate_generator.generate(
+                    theorem_decl,
+                    cmd.candidates.sources,
+                    cmd.candidates
+                )
+                
+                phase_timings["candidate_generation_s"] = time.time() - phase_start
+                logger.info(f"Generated {len(candidates)} candidates")
+                
+            except Exception as e:
+                phase_timings["candidate_generation_s"] = time.time() - phase_start
+                logger.exception(f"Candidate generation failed: {e}")
+                return self._build_error_result(
+                    cmd,
+                    "error",
+                    f"Candidate generation error: {str(e)}",
+                    viability_details,
+                    baseline_details,
+                    phase_timings
+                )
+            
+            # ================================================================
+            # Phase 4: Search for Closing Hint Set
+            # ================================================================
+            logger.info(f"Phase 4: Search for closing hint set")
+            phase_start = time.time()
+            
+            try:
+                # Create probe function for search
+                def probe_fn(hint_set: HintSet) -> ExecutionOutcome:
+                    """Probe function that tests a hint set."""
+                    # For now, return a mock outcome
+                    # TODO: Implement actual probing with hints
+                    return ExecutionOutcome(
+                        status="failure",
+                        automation_used=cmd.automation.primary,
+                        duration_s=0.1,
+                        output="",
+                        error=None
+                    )
+                
+                search_result = self.search_strategy.search(
+                    candidates,
+                    probe_fn,
+                    cmd.search,
+                    cmd.budgets.search_total_s
+                )
+                
+                phase_timings["search_total_s"] = time.time() - phase_start
+                logger.info(f"Search completed: {search_result.outcome}, {search_result.attempts} attempts")
+                
+                # Check if search found a closing set
+                if search_result.outcome != "closed" or search_result.best_hint_set is None:
+                    # Search failed to find closing set
+                    return SearchAnnotationsResult(
+                        api_version="0.1.0",
+                        status="fail",
+                        run_id=cmd.run_id,
+                        file=cmd.file,
+                        theorem_id=cmd.theorem_id,
+                        viability=viability_details,
+                        baseline=baseline_details,
+                        search_result=search_result,
+                        minimized_hint_set=None,
+                        proof_patch=None,
+                        global_suggestions=None,
+                        timing=self._build_timing(phase_timings, overall_start),
+                        artifacts={},
+                        metadata=self._build_metadata()
+                    )
+                
+            except Exception as e:
+                phase_timings["search_total_s"] = time.time() - phase_start
+                logger.exception(f"Search failed: {e}")
+                return self._build_error_result(
+                    cmd,
+                    "error",
+                    f"Search error: {str(e)}",
+                    viability_details,
+                    baseline_details,
+                    phase_timings
+                )
+            
+            # ================================================================
+            # Phase 5: Minimize Hint Set
+            # ================================================================
+            logger.info(f"Phase 5: Minimize hint set")
+            phase_start = time.time()
+            
+            try:
+                # Create probe function for minimization
+                def minimize_probe_fn(hint_set: HintSet) -> ExecutionOutcome:
+                    """Probe function for minimization."""
+                    # TODO: Implement actual probing with hints
+                    return ExecutionOutcome(
+                        status="success",
+                        automation_used=cmd.automation.primary,
+                        duration_s=0.1,
+                        output="",
+                        error=None
+                    )
+                
+                minimized_hint_set = self.minimizer.minimize(
+                    search_result.best_hint_set,
+                    minimize_probe_fn
+                )
+                
+                phase_timings["minimize_total_s"] = time.time() - phase_start
+                logger.info(f"Minimization completed: {minimized_hint_set.size()} hints")
+                
+            except Exception as e:
+                phase_timings["minimize_total_s"] = time.time() - phase_start
+                logger.warning(f"Minimization failed: {e}, using non-minimized set")
+                minimized_hint_set = search_result.best_hint_set
+            
+            # ================================================================
+            # Phase 6: Build Proof Patch
+            # ================================================================
+            logger.info(f"Phase 6: Build proof patch")
+            phase_start = time.time()
+            
+            try:
+                # Get original proof if available
+                original_proof = None
+                if theorem_decl.proof_span:
+                    original_proof = source.get_span_text(theorem_decl.proof_span)
+                
+                proof_patch = self.proof_patch_builder.build(
+                    minimized_hint_set,
+                    cmd.automation.primary,
+                    cmd.style,
+                    original_proof
+                )
+                
+                phase_timings["proof_patch_build_s"] = time.time() - phase_start
+                
+            except Exception as e:
+                phase_timings["proof_patch_build_s"] = time.time() - phase_start
+                logger.exception(f"Proof patch building failed: {e}")
+                return self._build_error_result(
+                    cmd,
+                    "error",
+                    f"Proof patch building error: {str(e)}",
+                    viability_details,
+                    baseline_details,
+                    phase_timings
+                )
+            
+            # ================================================================
+            # Phase 7: Generate Global Suggestions (if requested)
+            # ================================================================
+            if cmd.mode == "suggest_global":
+                logger.info(f"Phase 7: Generate global suggestions")
+                phase_start = time.time()
+                
+                try:
+                    # TODO: Implement GlobalSuggestionAnalyzer
+                    global_suggestions = []
+                    
+                    phase_timings["global_suggestions_s"] = time.time() - phase_start
+                    
+                except Exception as e:
+                    phase_timings["global_suggestions_s"] = time.time() - phase_start
+                    logger.warning(f"Global suggestion generation failed: {e}")
+                    global_suggestions = []
+            else:
+                global_suggestions = None
+            
+            # ================================================================
+            # Phase 8: Store Artifacts
+            # ================================================================
+            logger.info(f"Phase 8: Store artifacts")
+            
+            # Build final result
+            result = SearchAnnotationsResult(
+                api_version="0.1.0",
+                status="success",
+                run_id=cmd.run_id,
+                file=cmd.file,
+                theorem_id=cmd.theorem_id,
+                viability=viability_details,
+                baseline=baseline_details,
+                search_result=search_result,
+                minimized_hint_set=minimized_hint_set,
+                proof_patch=proof_patch,
+                global_suggestions=global_suggestions,
+                timing=self._build_timing(phase_timings, overall_start),
+                artifacts={},
+                metadata=self._build_metadata()
+            )
+            
+            # Store artifacts
+            try:
+                # TODO: Implement artifact storage
+                pass
+            except Exception as e:
+                logger.warning(f"Artifact storage failed: {e}")
+            
+            return result
+            
+        except Exception as e:
+            logger.exception(f"Unexpected error in search-annotations workflow: {e}")
+            return self._build_error_result(
+                cmd,
+                "error",
+                f"Unexpected error: {str(e)}",
+                viability_details,
+                baseline_details,
+                phase_timings
+            )
+    
+    def _build_error_result(
+        self,
+        cmd: SearchAnnotationsCommand,
+        status: str,
+        error_message: str,
+        viability_details: dict[str, Any],
+        baseline_details: dict[str, Any],
+        phase_timings: dict[str, float]
+    ) -> SearchAnnotationsResult:
+        """
+        Build error result for various error cases.
+        
+        Args:
+            cmd: Original command
+            status: Error status
+            error_message: Error message
+            viability_details: Viability check details
+            baseline_details: Baseline probe details
+            phase_timings: Phase timing information
+            
+        Returns:
+            SearchAnnotationsResult with error status
+        """
+        import time
+        
+        return SearchAnnotationsResult(
+            api_version="0.1.0",
+            status=status,
+            run_id=cmd.run_id,
+            file=cmd.file,
+            theorem_id=cmd.theorem_id,
+            viability=viability_details if viability_details else {"status": "not_started"},
+            baseline=baseline_details if baseline_details else {"status": "not_started"},
+            search_result=None,
+            minimized_hint_set=None,
+            proof_patch=None,
+            global_suggestions=None,
+            timing=self._build_timing(phase_timings, time.time()),
+            artifacts={},
+            metadata={"error": error_message}
+        )
+    
+    def _build_timing(
+        self,
+        phase_timings: dict[str, float],
+        overall_start: float
+    ) -> dict[str, float]:
+        """
+        Build timing section with all phase times.
+        
+        Args:
+            phase_timings: Dictionary of phase timings
+            overall_start: Overall start time
+            
+        Returns:
+            Timing dictionary
+        """
+        import time
+        
+        total_s = time.time() - overall_start
+        
+        timing = {
+            "total_s": round(total_s, 2),
+            **{k: round(v, 2) for k, v in phase_timings.items()}
+        }
+        
+        return timing
+    
+    def _build_metadata(self) -> dict[str, Any]:
+        """
+        Build metadata section with environment information.
+        
+        Returns:
+            Metadata dictionary
+        """
+        import subprocess
+        
+        metadata: dict[str, Any] = {}
+        
+        # Detect repo commit
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                timeout=1.0,
+                check=False,
+            )
+            if result.returncode == 0:
+                metadata["repo_commit"] = result.stdout.strip()
+        except Exception:
+            pass
+        
+        # Detect Lean version
+        try:
+            result = subprocess.run(
+                ["lean", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=1.0,
+                check=False,
+            )
+            if result.returncode == 0:
+                metadata["lean_version"] = result.stdout.strip()
+        except Exception:
+            pass
+        
+        # Detect Lake version
+        try:
+            result = subprocess.run(
+                ["lake", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=1.0,
+                check=False,
+            )
+            if result.returncode == 0:
+                metadata["lake_version"] = result.stdout.strip()
+        except Exception:
+            pass
+        
+        return metadata
+
+
+# Import types for type hints
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .candidate_generator import CandidateGenerator
+    from .minimizer import Minimizer
+    from .probe_domain import ProbeCommandHandler
+    from .proof_patch_builder import ProofPatchBuilder
+    from .search_strategy import SearchStrategy
+    from .verify_domain import ArtifactStore

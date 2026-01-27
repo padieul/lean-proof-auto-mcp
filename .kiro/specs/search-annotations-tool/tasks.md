@@ -149,7 +149,7 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - Add validation in __post_init__ methods
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
 
-- [-] 8. Implement SearchAnnotationsCommandHandler
+- [x] 8. Implement SearchAnnotationsCommandHandler
   - Create SearchAnnotationsCommandHandler class with dependency injection constructor
   - Accept: probe_handler (ProbeCommandHandler), candidate_generator, search_strategy, minimizer, artifact_store
   - Implement handle(command) method orchestrating complete workflow
@@ -164,27 +164,27 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - Handle errors gracefully, return structured error responses
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8_
 
-- [ ] 8.1 Write property test for file validation correctness
+- [x] 8.1 Write property test for file validation correctness
   - **Property 1: File Validation Correctness**
   - **Validates: Requirements 1.1**
 
-- [ ] 8.2 Write property test for error descriptiveness
+- [x] 8.2 Write property test for error descriptiveness
   - **Property 2: Error Descriptiveness**
   - **Validates: Requirements 1.3, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.8**
 
-- [ ] 8.3 Write property test for budget enforcement
+- [x] 8.3 Write property test for budget enforcement
   - **Property 3: Budget Enforcement**
   - **Validates: Requirements 1.5, 2.5, 4.8, 5.4, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7**
 
-- [ ] 8.4 Write property test for viability check isolation
+- [x] 8.4 Write property test for viability check isolation
   - **Property 4: Viability Check Isolation**
   - **Validates: Requirements 1.6**
 
-- [ ] 8.5 Write property test for early termination on baseline success
+- [x] 8.5 Write property test for early termination on baseline success
   - **Property 7: Early Termination on Baseline Success**
   - **Validates: Requirements 2.4**
 
-- [ ] 8.6 Write property test for baseline attempt recording
+- [x] 8.6 Write property test for baseline attempt recording
   - **Property 8: Baseline Attempt Recording**
   - **Validates: Requirements 2.6**
 

@@ -99,7 +99,7 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - **Property 22: Minimized Set Stability**
   - **Validates: Requirements 5.6**
 
-- [ ] 5. Implement ProofPatchBuilder service
+- [x] 5. Implement ProofPatchBuilder service
   - Create ProofPatchBuilder class with build method
   - Generate Lean proof code from hint set and automation mode
   - Apply style preferences: prefer_simp_over_aesop, emit_compact, simp_only_list
@@ -109,23 +109,23 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - Ensure syntactically valid Lean code
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 15.1, 15.2, 15.3, 15.4, 15.5_
 
-- [ ] 5.1 Write property test for proof patch syntax validity
+- [x] 5.1 Write property test for proof patch syntax validity
   - **Property 23: Proof Patch Syntax Validity**
   - **Validates: Requirements 6.1**
 
-- [ ] 5.2 Write property test for automation-specific proof formatting
+- [x] 5.2 Write property test for automation-specific proof formatting
   - **Property 24: Automation-Specific Proof Formatting**
   - **Validates: Requirements 6.2, 6.3**
 
-- [ ] 5.3 Write property test for proof formatting style control
+- [x] 5.3 Write property test for proof formatting style control
   - **Property 25: Proof Formatting Style Control**
   - **Validates: Requirements 6.4, 6.5**
 
-- [ ] 5.4 Write property test for definitional proof preservation
+- [x] 5.4 Write property test for definitional proof preservation
   - **Property 27: Definitional Proof Preservation**
   - **Validates: Requirements 6.7, 15.1, 15.2, 15.3**
 
-- [ ] 6. Implement GlobalSuggestionAnalyzer service (optional, for suggest_global mode)
+- [x] 6. Implement GlobalSuggestionAnalyzer service (optional, for suggest_global mode)
   - Create GlobalSuggestionAnalyzer class with analyze method
   - Analyze minimized hint sets for globalization candidates
   - Generate @[aesop] and @[simp] suggestions with rationale
@@ -133,11 +133,11 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - Return list of GlobalSuggestion objects
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 6.1 Write property test for mode-conditional global suggestions
+- [x] 6.1 Write property test for mode-conditional global suggestions
   - **Property 29: Mode-Conditional Global Suggestions**
   - **Validates: Requirements 7.1, 7.2**
 
-- [ ] 6.2 Write property test for effective hint suggestion generation
+- [x] 6.2 Write property test for effective hint suggestion generation
   - **Property 30: Effective Hint Suggestion Generation**
   - **Validates: Requirements 7.3**
 

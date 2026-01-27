@@ -74,7 +74,7 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - **Property 18: Hint Set Scoring Consistency**
   - **Validates: Requirements 4.9**
 
-- [ ] 4. Implement Minimizer service
+- [x] 4. Implement Minimizer service
   - Create Minimizer class with minimize method
   - Apply delta-debugging algorithm: iteratively remove hints
   - Use probe_fn callback to verify each reduced set
@@ -83,19 +83,19 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - Return minimized stable hint set
   - _Requirements: 5.1, 5.2, 5.3, 5.5, 5.6_
 
-- [ ] 4.1 Write property test for minimization preservation
+- [x] 4.1 Write property test for minimization preservation
   - **Property 19: Minimization Preservation**
   - **Validates: Requirements 5.1, 5.2**
 
-- [ ] 4.2 Write property test for minimization restoration
+- [x] 4.2 Write property test for minimization restoration
   - **Property 20: Minimization Restoration**
   - **Validates: Requirements 5.3**
 
-- [ ] 4.3 Write property test for minimized set closure guarantee
+- [x] 4.3 Write property test for minimized set closure guarantee
   - **Property 21: Minimized Set Closure Guarantee**
   - **Validates: Requirements 5.5**
 
-- [ ] 4.4 Write property test for minimized set stability
+- [x] 4.4 Write property test for minimized set stability
   - **Property 22: Minimized Set Stability**
   - **Validates: Requirements 5.6**
 

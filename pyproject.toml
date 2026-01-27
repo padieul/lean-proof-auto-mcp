@@ -68,6 +68,7 @@ addopts = [
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
   "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+  "e2e: marks tests as end-to-end integration tests (deselect with '-m \"not e2e\"')",
   "requires_lean: marks tests that require Lean 4 installation (deselect with '-m \"not requires_lean\"')",
   "xfail: marks tests as expected to fail (known issues or limitations)",
 ]

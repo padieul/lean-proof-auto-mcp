@@ -276,7 +276,7 @@ This implementation plan breaks down the search-annotations-tool feature into di
 
 ### Phase 5: End-to-End Testing
 
-- [ ] 13. Write end-to-end integration tests
+- [x] 13. Write end-to-end integration tests
   - Test complete workflow with real Lean files (if available)
   - Test local_only mode produces valid proof patches
   - Test suggest_global mode produces advisory suggestions
@@ -285,7 +285,7 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - Test deterministic output across multiple runs
   - _Requirements: All requirements_
 
-- [ ] 14. Write property-based tests for all 44 correctness properties
+- [x] 14. Write property-based tests for all 44 correctness properties
   - Implement remaining properties not covered in earlier tasks
   - Use Hypothesis library with minimum 20 iterations per property
   - Tag each test with "Feature: search-annotations-tool, Property {N}"

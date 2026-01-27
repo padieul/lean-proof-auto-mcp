@@ -10,14 +10,14 @@ This implementation plan breaks down the search-annotations-tool feature into di
 
 ### Phase 1: Domain Models and Core Logic
 
-- [ ] 1. Define core domain models and value objects
+- [x] 1. Define core domain models and value objects
   - Create immutable data classes for HintSet, Hint, Candidate, SearchResult, ProofPatch, GlobalSuggestion
   - Create configuration data classes: BudgetConfig, SearchConfig, CandidateConfig, StyleConfig, WorkspaceConfig, AutomationConfig, SkeletonConfig
   - Implement HintSet operations (add, remove, size) maintaining immutability
   - Define HintType and CandidateSource enums
   - _Requirements: 3.1, 3.7, 3.8, 4.1, 4.2, 5.1, 6.1, 7.3, 14.1_
 
-- [ ] 1.1 Write property tests for HintSet immutability
+- [x] 1.1 Write property tests for HintSet immutability
   - **Property: HintSet operations preserve immutability**
   - **Validates: Requirements 5.2**
 

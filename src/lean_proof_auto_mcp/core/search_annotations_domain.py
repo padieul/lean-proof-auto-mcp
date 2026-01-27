@@ -1128,7 +1128,7 @@ class SearchAnnotationsCommandHandler:
             # ================================================================
             logger.info(f"Phase 8: Store artifacts")
             
-            # Build final result
+            # Build final result (without artifacts paths yet)
             result = SearchAnnotationsResult(
                 api_version="0.1.0",
                 status="success",
@@ -1148,10 +1148,52 @@ class SearchAnnotationsCommandHandler:
             
             # Store artifacts
             try:
-                # TODO: Implement artifact storage
-                pass
+                # Collect all logs (for now, just a placeholder)
+                # TODO: Collect actual logs from all phases
+                full_logs = self._collect_logs(
+                    viability_details,
+                    baseline_details,
+                    search_result,
+                    minimized_hint_set
+                )
+                
+                # Store artifacts using artifact store
+                self.artifact_store.store(
+                    run_id=cmd.run_id,
+                    command=cmd,
+                    result=result,
+                    full_logs=full_logs
+                )
+                
+                # Update result with artifact paths
+                from pathlib import Path
+                artifacts_dir = Path(".artifacts") / cmd.run_id
+                result = SearchAnnotationsResult(
+                    api_version=result.api_version,
+                    status=result.status,
+                    run_id=result.run_id,
+                    file=result.file,
+                    theorem_id=result.theorem_id,
+                    viability=result.viability,
+                    baseline=result.baseline,
+                    search_result=result.search_result,
+                    minimized_hint_set=result.minimized_hint_set,
+                    proof_patch=result.proof_patch,
+                    global_suggestions=result.global_suggestions,
+                    timing=result.timing,
+                    artifacts={
+                        "request_path": str(artifacts_dir / "request.json"),
+                        "result_path": str(artifacts_dir / "result.json"),
+                        "logs_path": str(artifacts_dir / "lean_output.log")
+                    },
+                    metadata=result.metadata
+                )
+                
+                logger.info(f"Stored artifacts for run_id: {cmd.run_id}")
+                
             except Exception as e:
                 logger.warning(f"Artifact storage failed: {e}")
+                # Continue with result even if artifact storage fails
             
             return result
             
@@ -1303,6 +1345,77 @@ class SearchAnnotationsCommandHandler:
             pass
         
         return metadata
+    
+    def _collect_logs(
+        self,
+        viability_details: dict[str, Any],
+        baseline_details: dict[str, Any],
+        search_result: SearchResult | None,
+        minimized_hint_set: HintSet | None
+    ) -> str:
+        """
+        Collect logs from all phases for artifact storage.
+        
+        This method aggregates logs from viability check, baseline probe,
+        search, and minimization phases into a single log string.
+        
+        Args:
+            viability_details: Viability check details
+            baseline_details: Baseline probe details
+            search_result: Search phase result
+            minimized_hint_set: Final minimized hint set
+            
+        Returns:
+            Aggregated log string
+            
+        Requirements: 9.8, 13.1, 13.2, 13.3, 13.4, 13.5
+        """
+        import json
+        from .json_serialization import to_json_serializable
+        
+        logs = []
+        
+        # Viability check logs
+        logs.append("=" * 80)
+        logs.append("VIABILITY CHECK")
+        logs.append("=" * 80)
+        logs.append(json.dumps(viability_details, indent=2, sort_keys=True))
+        logs.append("")
+        
+        # Baseline probe logs
+        logs.append("=" * 80)
+        logs.append("BASELINE PROBE")
+        logs.append("=" * 80)
+        logs.append(json.dumps(baseline_details, indent=2, sort_keys=True))
+        logs.append("")
+        
+        # Search logs
+        if search_result is not None:
+            logs.append("=" * 80)
+            logs.append("SEARCH PHASE")
+            logs.append("=" * 80)
+            search_dict = to_json_serializable({
+                "outcome": search_result.outcome,
+                "attempts": search_result.attempts,
+                "explored_sets": search_result.explored_sets,
+                "best_hint_set_size": search_result.best_hint_set.size() if search_result.best_hint_set else 0
+            })
+            logs.append(json.dumps(search_dict, indent=2, sort_keys=True))
+            logs.append("")
+        
+        # Minimization logs
+        if minimized_hint_set is not None:
+            logs.append("=" * 80)
+            logs.append("MINIMIZATION PHASE")
+            logs.append("=" * 80)
+            hints_list = [
+                {"name": h.name, "type": h.type.value, "source": h.source.value}
+                for h in minimized_hint_set.to_sorted_list()
+            ]
+            logs.append(json.dumps({"minimized_hints": hints_list}, indent=2, sort_keys=True))
+            logs.append("")
+        
+        return "\n".join(logs)
 
 
 # Import types for type hints

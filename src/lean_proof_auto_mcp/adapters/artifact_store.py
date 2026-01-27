@@ -5,14 +5,16 @@ This module implements concrete artifact storage strategies following
 hexagonal architecture principles. Adapters implement the ArtifactStore
 port defined in core.verify_domain.
 
-Requirements: 1.5, 7.1
+Requirements: 1.5, 7.1, 9.8, 10.9, 10.10, 13.1, 13.2, 13.3, 13.4, 13.5
 """
 
 import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
+from ..core.json_serialization import to_json_serializable
 from ..core.verify_domain import VerifyCommand, VerifyResult
 
 logger = logging.getLogger(__name__)
@@ -48,8 +50,8 @@ class FilesystemArtifactStore:
     def store(
         self,
         run_id: str,
-        command: VerifyCommand,
-        result: VerifyResult,
+        command: Any,
+        result: Any,
         full_logs: str,
     ) -> None:
         """
@@ -67,29 +69,33 @@ class FilesystemArtifactStore:
 
         Args:
             run_id: Unique identifier for this verification run
-            command: Original verification command
-            result: Verification result
+            command: Original verification command (VerifyCommand or SearchAnnotationsCommand)
+            result: Verification result (VerifyResult or SearchAnnotationsResult)
             full_logs: Complete stdout/stderr logs
 
         Raises:
             RuntimeError: If artifact storage fails (disk space, permissions, etc.)
 
-        Requirements: 1.5, 7.1
+        Requirements: 1.5, 7.1, 9.8, 10.9, 10.10, 13.1, 13.2, 13.3, 13.4, 13.5
         """
         try:
             # Create run_id directory
             run_dir = self.artifacts_dir / run_id
             run_dir.mkdir(parents=True, exist_ok=True)
 
+            # Convert command and result to JSON-serializable dicts
+            command_dict = to_json_serializable(asdict(command))
+            result_dict = to_json_serializable(asdict(result))
+
             # Write request.json with command data
             request_path = run_dir / "request.json"
             with open(request_path, "w", encoding="utf-8") as f:
-                json.dump(asdict(command), f, indent=2, sort_keys=True)
+                json.dump(command_dict, f, indent=2, sort_keys=True)
 
             # Write result.json with result data
             result_path = run_dir / "result.json"
             with open(result_path, "w", encoding="utf-8") as f:
-                json.dump(asdict(result), f, indent=2, sort_keys=True)
+                json.dump(result_dict, f, indent=2, sort_keys=True)
 
             # Write lean_output.log with full logs
             log_path = run_dir / "lean_output.log"

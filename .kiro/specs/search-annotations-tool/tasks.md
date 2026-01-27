@@ -237,22 +237,22 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - **Property 37: Original Directory Isolation**
   - **Validates: Requirements 8.6**
 
-- [ ] 11. Implement artifact storage using existing FilesystemArtifactStore
+- [x] 11. Implement artifact storage using existing FilesystemArtifactStore
   - Reuse FilesystemArtifactStore from adapters/artifact_store.py
   - Store request JSON, result JSON, logs under .kiro/runs/{run_id}/
   - Store per-attempt logs for baseline, search trials, minimization
   - Record repo commit, Lean version, Lake version in metadata
   - _Requirements: 9.8, 10.9, 10.10, 13.1, 13.2, 13.3, 13.4, 13.5_
 
-- [ ] 11.1 Write property test for timing completeness
+- [x] 11.1 Write property test for timing completeness
   - **Property 38: Timing Completeness**
   - **Validates: Requirements 9.8**
 
-- [ ] 11.2 Write property test for result structure completeness
+- [x] 11.2 Write property test for result structure completeness
   - **Property 39: Result Structure Completeness**
   - **Validates: Requirements 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8**
 
-- [ ] 11.3 Write property test for result determinism
+- [x] 11.3 Write property test for result determinism
   - **Property 40: Result Determinism**
   - **Validates: Requirements 10.9, 10.10, 13.1, 13.2, 13.3, 13.4, 13.5**
 

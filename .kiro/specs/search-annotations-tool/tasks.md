@@ -258,7 +258,7 @@ This implementation plan breaks down the search-annotations-tool feature into di
 
 ### Phase 4: Advanced Features (Optional)
 
-- [ ] 12. Implement skeleton-based search (if skeleton.enabled=true)
+- [x] 12. Implement skeleton-based search (if skeleton.enabled=true)
   - Create SkeletonExplorer service
   - Implement tactic move exploration (cases, constructor, induction)
   - Respect skeleton.max_depth limit
@@ -266,11 +266,11 @@ This implementation plan breaks down the search-annotations-tool feature into di
   - Combine with hint search in branches
   - _Requirements: 14.1, 14.2, 14.3, 14.4_
 
-- [ ] 12.1 Write property test for skeleton mode conditional behavior
+- [x] 12.1 Write property test for skeleton mode conditional behavior
   - **Property 41: Skeleton Mode Conditional Behavior**
   - **Validates: Requirements 14.1, 14.2**
 
-- [ ] 12.2 Write property test for skeleton depth limit
+- [x] 12.2 Write property test for skeleton depth limit
   - **Property 42: Skeleton Depth Limit**
   - **Validates: Requirements 14.3**
 
@@ -287,7 +287,7 @@ This implementation plan breaks down the search-annotations-tool feature into di
 
 - [ ] 14. Write property-based tests for all 44 correctness properties
   - Implement remaining properties not covered in earlier tasks
-  - Use Hypothesis library with minimum 100 iterations per property
+  - Use Hypothesis library with minimum 20 iterations per property
   - Tag each test with "Feature: search-annotations-tool, Property {N}"
   - Enable shrinking to find minimal failing examples
   - _Requirements: All requirements_

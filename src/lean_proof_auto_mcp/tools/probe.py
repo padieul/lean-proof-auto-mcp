@@ -12,6 +12,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from ..adapters.artifact_store import FilesystemArtifactStore
 from ..adapters.lean_interact_runner import LeanInteractRunner
 from ..adapters.workspace_provider import create_workspace_provider
 from ..core.probe_classifier import HeuristicClassifier
@@ -20,6 +21,9 @@ from ..core.probe_domain import ProbeCommand, ProbeCommandHandler
 logger = logging.getLogger(__name__)
 
 API_VERSION = "0.1.0"
+
+# Artifacts directory for storing probe logs
+ARTIFACTS_DIR = Path(".artifacts")
 
 
 def probe(args: dict[str, Any]) -> dict[str, Any]:
@@ -187,12 +191,16 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
 
     # Create classifier
     classifier = HeuristicClassifier()
+    
+    # Create artifact store
+    artifact_store = FilesystemArtifactStore(ARTIFACTS_DIR)
 
     # Wire dependencies into handler
     return ProbeCommandHandler(
         lean_runner=lean_runner,
         workspace_provider=workspace_provider,
         classifier=classifier,
+        artifact_store=artifact_store,
     )
 
 

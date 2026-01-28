@@ -199,6 +199,38 @@ class ProbeFileResult:
 # ============================================================================
 
 
+class ArtifactStore(Protocol):
+    """
+    Abstract interface for artifact storage.
+
+    This port defines how the core domain stores probe artifacts,
+    without depending on specific storage implementation (filesystem, S3, etc.).
+
+    Requirements: Logging and debugging support
+    """
+
+    def store(
+        self,
+        run_id: str,
+        command: Any,
+        result: Any,
+        full_logs: str,
+    ) -> None:
+        """
+        Store probe artifacts under run_id directory.
+
+        Args:
+            run_id: Unique identifier for this probe run
+            command: Original probe command
+            result: Probe result
+            full_logs: Complete logs from Lean execution
+
+        Raises:
+            RuntimeError: If artifact storage fails
+        """
+        ...
+
+
 class AutomationClassifier(Protocol):
     """
     Abstract interface for classifying automation outcomes.
@@ -273,6 +305,7 @@ class ProbeCommandHandler:
         lean_runner: "LeanRunner",
         workspace_provider: "WorkspaceProvider",
         classifier: AutomationClassifier,
+        artifact_store: ArtifactStore | None = None,
     ):
         """
         Initialize handler with dependency injection.
@@ -281,12 +314,14 @@ class ProbeCommandHandler:
             lean_runner: Port for running Lean verification
             workspace_provider: Port for workspace isolation
             classifier: Port for classifying automation outcomes
+            artifact_store: Optional port for artifact storage
 
         Requirements: 1.1, 6.1, 6.2
         """
         self.lean_runner = lean_runner
         self.workspace_provider = workspace_provider
         self.classifier = classifier
+        self.artifact_store = artifact_store
 
     def handle(self, cmd: ProbeCommand, lean_server: "LeanServer | None" = None) -> ProbeResult:
         """
@@ -401,7 +436,16 @@ class ProbeCommandHandler:
                 )
 
             # 5. Parse and classify outcome
-            return self._process_lean_result(cmd, run_id, lean_result, start_time, workspace)
+            result = self._process_lean_result(cmd, run_id, lean_result, start_time, workspace)
+            
+            # 6. Store artifacts if artifact_store is configured
+            if self.artifact_store is not None:
+                try:
+                    self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
+                except Exception as e:
+                    logger.warning(f"Failed to store artifacts for {run_id}: {e}")
+            
+            return result
 
         finally:
             # 7. Cleanup harness file and workspace (always runs)
@@ -477,7 +521,16 @@ class ProbeCommandHandler:
             )
 
         # Process the result (no workspace object in server reuse mode)
-        return self._process_lean_result(cmd, run_id, lean_result, start_time, workspace=None)
+        result = self._process_lean_result(cmd, run_id, lean_result, start_time, workspace=None)
+        
+        # Store artifacts if artifact_store is configured
+        if self.artifact_store is not None:
+            try:
+                self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
+            except Exception as e:
+                logger.warning(f"Failed to store artifacts for {run_id}: {e}")
+        
+        return result
 
     def _process_lean_result(
         self,

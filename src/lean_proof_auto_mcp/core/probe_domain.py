@@ -7,6 +7,7 @@ for automation probing following hexagonal architecture principles.
 Requirements: 1.1, 1.8, 2.1-2.6, 3.1-3.8, 4.1-4.7, 5.1-5.6
 """
 
+import contextlib
 import hashlib
 import logging
 import time
@@ -437,14 +438,14 @@ class ProbeCommandHandler:
 
             # 5. Parse and classify outcome
             result = self._process_lean_result(cmd, run_id, lean_result, start_time, workspace)
-            
+
             # 6. Store artifacts if artifact_store is configured
             if self.artifact_store is not None:
                 try:
                     self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
                 except Exception as e:
                     logger.warning(f"Failed to store artifacts for {run_id}: {e}")
-            
+
             return result
 
         finally:
@@ -457,7 +458,7 @@ class ProbeCommandHandler:
                         logger.debug(f"Cleaned up harness file: {harness_file_path}")
                 except Exception as e:
                     logger.warning(f"Harness file cleanup failed: {e}")
-            
+
             if workspace:
                 try:
                     self.workspace_provider.cleanup_workspace(workspace)
@@ -494,11 +495,11 @@ class ProbeCommandHandler:
         # Note: In server reuse mode, the workspace and harness are managed
         # by ProbeFileCommandHandler, so we just need to construct the harness
         # filename and verify it
-        
+
         # Generate harness filename (must match _write_harness logic)
         safe_theorem_id = "".join(c if c.isalnum() else "_" for c in cmd.theorem_id)
         harness_filename = f"_probe_harness_{safe_theorem_id}.lean"
-        
+
         try:
             # Run verification using the reusable server on the harness file
             lean_result = lean_server.verify_file(
@@ -511,9 +512,7 @@ class ProbeCommandHandler:
             return self._build_timeout_result(cmd, run_id, start_time)
         except ValueError as e:
             logger.error(f"Theorem validation failed: {e}")
-            return self._build_error_result(
-                cmd, run_id, "theorem_not_found", str(e), start_time
-            )
+            return self._build_error_result(cmd, run_id, "theorem_not_found", str(e), start_time)
         except Exception as e:
             logger.error(f"Lean execution failed: {e}")
             return self._build_error_result(
@@ -522,14 +521,14 @@ class ProbeCommandHandler:
 
         # Process the result (no workspace object in server reuse mode)
         result = self._process_lean_result(cmd, run_id, lean_result, start_time, workspace=None)
-        
+
         # Store artifacts if artifact_store is configured
         if self.artifact_store is not None:
             try:
                 self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
             except Exception as e:
                 logger.warning(f"Failed to store artifacts for {run_id}: {e}")
-        
+
         return result
 
     def _process_lean_result(
@@ -592,6 +591,7 @@ class ProbeCommandHandler:
             lean_result,
             start_time,
         )
+
     def _generate_run_id(self, cmd: ProbeCommand) -> str:
         """
         Generate unique run_id with timestamp, file hash, and random suffix.
@@ -646,7 +646,7 @@ class ProbeCommandHandler:
                 f.write(harness_content)
             return harness_filename
         except Exception as e:
-            raise IOError(f"Failed to write harness file: {e}") from e
+            raise OSError(f"Failed to write harness file: {e}") from e
 
     def _construct_harness(self, cmd: ProbeCommand, workspace_path: Path) -> str:
         """
@@ -691,17 +691,20 @@ class ProbeCommandHandler:
             content = f.read()
 
         source = SourceText(path=cmd.file_path, text=content)
-        
+
         # Check if we have a cached index for this file
         # Cache key is (file_path, content_hash)
         import hashlib
+
         content_hash = hashlib.md5(content.encode()).hexdigest()
         cache_key = (cmd.file_path, content_hash)
-        
+
         # Use instance-level cache (will be shared across probes in same handler instance)
-        if not hasattr(self, '_index_cache'):
-            self._index_cache = {}
-        
+        if not hasattr(self, "_index_cache"):
+            from .indexer import FileIndex
+
+            self._index_cache: dict[tuple[str, str], FileIndex] = {}
+
         if cache_key in self._index_cache:
             index = self._index_cache[cache_key]
         else:
@@ -711,7 +714,7 @@ class ProbeCommandHandler:
             if len(self._index_cache) > 10:
                 # Remove oldest entry
                 self._index_cache.pop(next(iter(self._index_cache)))
-        
+
         theorem_decl = find_by_id(index, cmd.theorem_id)
 
         if theorem_decl is None:
@@ -720,18 +723,18 @@ class ProbeCommandHandler:
         # Extract theorem signature from the found location
         # The indexer gives us the exact location, so we can extract precisely
         lines = content.splitlines()
-        
+
         # Get the declaration span (includes signature)
         decl_start_line = theorem_decl.decl_span.start_line - 1  # Convert to 0-indexed
         decl_end_line = theorem_decl.decl_span.end_line - 1
-        
+
         # Find the ":=" that marks the end of the signature
         signature_lines = []
         found_assignment = False
-        
+
         for line_idx in range(decl_start_line, min(decl_end_line + 1, len(lines))):
             line = lines[line_idx]
-            
+
             # Check if this line contains ":="
             if ":=" in line:
                 # Take everything before ":="
@@ -741,16 +744,16 @@ class ProbeCommandHandler:
                 break
             else:
                 signature_lines.append(line)
-        
+
         if not found_assignment:
             raise ValueError(f"Theorem '{cmd.theorem_id}' has no proof body (no ':=' found)")
-        
+
         theorem_signature = "\n".join(signature_lines).strip()
 
         # Build harness
         # For standalone theorems (test fixtures), we don't need imports
         # For real projects with Lake, we need to import the original file
-        
+
         # Build standalone harness (no imports)
         # The harness should NOT import the original file because that would
         # cause "already declared" errors. Instead, we write a standalone
@@ -759,9 +762,9 @@ class ProbeCommandHandler:
         # For theorems that depend on definitions from the file, this won't work.
         # In that case, we'd need to import only the dependencies (not the file itself).
         # For now, we focus on simple theorems that don't need external dependencies.
-        
+
         harness_lines = []
-        
+
         # Import Aesop if using aesop mode (needed for the tactic)
         if cmd.mode in ("aesop", "aesop?"):
             harness_lines.append("import Aesop")
@@ -1259,11 +1262,11 @@ class ProbeFileCommandHandler:
             logger.error(f"Workspace/server creation failed: {e}")
             # Cleanup if partially created
             if workspace:
-                try:
+                with contextlib.suppress(Exception):
                     self.probe_handler.workspace_provider.cleanup_workspace(workspace)
-                except Exception:
-                    pass
-            return self._build_error_result(cmd, f"Failed to create workspace/server: {e}", start_time)
+            return self._build_error_result(
+                cmd, f"Failed to create workspace/server: {e}", start_time
+            )
 
         try:
             # 3. Probe each theorem (reuse server for all theorems)
@@ -1283,13 +1286,21 @@ class ProbeFileCommandHandler:
 
                     # Construct and write harness for this theorem
                     try:
-                        harness_content = self.probe_handler._construct_harness(probe_cmd, workspace.path)
-                        harness_file = self.probe_handler._write_harness(probe_cmd, workspace.path, harness_content)
+                        harness_content = self.probe_handler._construct_harness(
+                            probe_cmd, workspace.path
+                        )
+                        harness_file = self.probe_handler._write_harness(
+                            probe_cmd, workspace.path, harness_content
+                        )
                         harness_files.append(harness_file)
                         logger.debug(f"Wrote harness for theorem '{theorem_id}': {harness_file}")
                     except Exception as e:
-                        logger.warning(f"Failed to construct harness for theorem '{theorem_id}': {e}")
-                        errors.append({"theorem_id": theorem_id, "error": f"Harness construction failed: {e}"})
+                        logger.warning(
+                            f"Failed to construct harness for theorem '{theorem_id}': {e}"
+                        )
+                        errors.append(
+                            {"theorem_id": theorem_id, "error": f"Harness construction failed: {e}"}
+                        )
                         continue
 
                     # Execute probe with server reuse
@@ -1349,7 +1360,7 @@ class ProbeFileCommandHandler:
                         logger.debug(f"Cleaned up harness file: {harness_file}")
                 except Exception as e:
                     logger.warning(f"Harness file cleanup failed for {harness_file}: {e}")
-            
+
             if lean_server:
                 try:
                     lean_server.close()

@@ -12,7 +12,6 @@ Requirements: All requirements
 """
 
 import json
-import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -576,7 +575,10 @@ class TestTimeoutHandling:
 
         # Verify timeout was recorded
         assert result["viability"]["status"] == "timeout"
-        assert "timeout" in result["viability"]["error"].lower() or "exceeded" in result["viability"]["error"].lower()
+        assert (
+            "timeout" in result["viability"]["error"].lower()
+            or "exceeded" in result["viability"]["error"].lower()
+        )
 
     @patch("lean_proof_auto_mcp.tools.search_annotations._create_handler")
     def test_baseline_probe_timeout(self, mock_create_handler):
@@ -767,7 +769,9 @@ class TestErrorHandling:
 
         # Verify error message mentions file not found
         error_msg = result["metadata"]["error_message"].lower()
-        assert "not found" in error_msg or "no such file" in error_msg or "does not exist" in error_msg
+        assert (
+            "not found" in error_msg or "no such file" in error_msg or "does not exist" in error_msg
+        )
 
     def test_invalid_theorem_id_error(self):
         """Test error handling for invalid theorem_id.
@@ -939,7 +943,7 @@ class TestDeterministicOutput:
         assert result1["run_id"] != result2["run_id"]
 
         # Verify all other fields are identical (except run_id)
-        for key in result1.keys():
+        for key in result1:
             if key != "run_id":
                 assert result1[key] == result2[key], f"Field {key} differs between runs"
 
@@ -973,7 +977,9 @@ class TestDeterministicOutput:
             baseline={"status": "completed"},
             search_result={"outcome": "closed"},
             minimized_hint_set=hint_set,
-            proof_patch={"lean_code": "by aesop (add safe Nat.add_assoc, Nat.add_comm, Nat.zero_add)"},
+            proof_patch={
+                "lean_code": "by aesop (add safe Nat.add_assoc, Nat.add_comm, Nat.zero_add)"
+            },
             global_suggestions=None,
             timing={"total_s": 10.0},
             artifacts={},
@@ -1042,7 +1048,7 @@ class TestDeterministicOutput:
             results.append(result)
 
         # Convert to JSON strings to verify ordering
-        json_strings = [json.dumps(r, sort_keys=True) for r in results]
+        [json.dumps(r, sort_keys=True) for r in results]
 
         # Verify all JSON strings are identical (except run_id)
         # We can't compare directly due to run_id, but we can verify structure
@@ -1054,10 +1060,7 @@ class TestDeterministicOutput:
 class TestRealLeanFiles:
     """Test with real Lean files if available."""
 
-    @pytest.mark.skipif(
-        not Path(VALID_THEOREM).exists(),
-        reason="Lean test files not available"
-    )
+    @pytest.mark.skipif(not Path(VALID_THEOREM).exists(), reason="Lean test files not available")
     @patch("lean_proof_auto_mcp.tools.search_annotations._create_handler")
     def test_with_real_lean_file(self, mock_create_handler):
         """Test with real Lean file structure.
@@ -1107,10 +1110,7 @@ class TestRealLeanFiles:
         assert result["file"] == VALID_THEOREM
         assert result["theorem_id"] == "simple_add_comm"
 
-    @pytest.mark.skipif(
-        not Path(MULTI_THEOREM).exists(),
-        reason="Lean test files not available"
-    )
+    @pytest.mark.skipif(not Path(MULTI_THEOREM).exists(), reason="Lean test files not available")
     @patch("lean_proof_auto_mcp.tools.search_annotations._create_handler")
     def test_with_multi_theorem_file(self, mock_create_handler):
         """Test with file containing multiple theorems.

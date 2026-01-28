@@ -5,6 +5,7 @@ Tests all validation rules specified in Requirements 1.1, 1.3, 10.1-10.8.
 """
 
 import pytest
+
 from lean_proof_auto_mcp.core.search_annotations_domain import (
     AutomationConfig,
     BudgetConfig,
@@ -16,7 +17,6 @@ from lean_proof_auto_mcp.core.search_annotations_domain import (
     SearchAnnotationsCommand,
     SearchAnnotationsResult,
     SearchConfig,
-    SearchResult,
     SkeletonConfig,
     StyleConfig,
     WorkspaceConfig,

@@ -279,6 +279,7 @@ class TestProbeCommandHandler:
             parts = run_id.split("-")
             assert len(parts) == 5  # probe-YYYYMMDD-HHMMSS-hash-random
 
+    @pytest.mark.requires_lean
     def test_harness_construction_for_aesop(self, handler, mock_workspace_provider):
         """Test harness construction for aesop mode."""
         # Setup
@@ -313,6 +314,7 @@ theorem my_theorem : True := by
         test_file.unlink()
         test_file.parent.rmdir()
 
+    @pytest.mark.requires_lean
     def test_harness_construction_for_grind(self, handler, mock_workspace_provider):
         """Test harness construction for grind mode."""
         # Setup

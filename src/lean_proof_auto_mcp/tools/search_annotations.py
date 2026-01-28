@@ -14,7 +14,7 @@ import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 from ..adapters.artifact_store import FilesystemArtifactStore
 from ..adapters.lean_interact_runner import LeanInteractRunner
@@ -36,7 +36,7 @@ from ..core.search_annotations_domain import (
     StyleConfig,
     WorkspaceConfig,
 )
-from ..core.search_strategy import BeamSearch, GreedySearch
+from ..core.search_strategy import GreedySearch
 
 logger = logging.getLogger(__name__)
 
@@ -145,111 +145,117 @@ def _build_command(args: dict[str, Any]) -> SearchAnnotationsCommand:
         raise ValueError("'theorem_id' must be a non-empty string")
 
     # Validate and extract mode (optional, default: "local_only")
-    mode = args.get("mode", "local_only")
-    if not isinstance(mode, str):
+    mode_raw = args.get("mode", "local_only")
+    if not isinstance(mode_raw, str):
         raise ValueError("'mode' must be a string")
-    if mode not in ("local_only", "suggest_global"):
+    if mode_raw not in ("local_only", "suggest_global"):
         raise ValueError("'mode' must be 'local_only' or 'suggest_global'")
+    # Cast to Literal type after validation
+    mode: Literal["local_only", "suggest_global"] = cast(
+        Literal["local_only", "suggest_global"], mode_raw
+    )
 
     # Build automation config
     automation_dict = args.get("automation", {})
     if not isinstance(automation_dict, dict):
         raise ValueError("'automation' must be a dict")
-    
+
     automation = AutomationConfig(
         primary=automation_dict.get("primary", "aesop"),
         secondary=automation_dict.get("secondary"),
-        aesop_rules=automation_dict.get("aesop_rules")
+        aesop_rules=automation_dict.get("aesop_rules"),
     )
 
     # Build budget config
     budgets_dict = args.get("budgets", {})
     if not isinstance(budgets_dict, dict):
         raise ValueError("'budgets' must be a dict")
-    
+
     budgets = BudgetConfig(
         viability_check_s=budgets_dict.get("viability_check_s", 5.0),
         baseline_probe_s=budgets_dict.get("baseline_probe_s", 10.0),
         search_total_s=budgets_dict.get("search_total_s", 300.0),
         candidate_trial_s=budgets_dict.get("candidate_trial_s", 5.0),
         minimize_total_s=budgets_dict.get("minimize_total_s", 60.0),
-        final_verify_s=budgets_dict.get("final_verify_s", 10.0)
+        final_verify_s=budgets_dict.get("final_verify_s", 10.0),
     )
 
     # Build search config
     search_dict = args.get("search", {})
     if not isinstance(search_dict, dict):
         raise ValueError("'search' must be a dict")
-    
+
     # Validate strategy if provided
     strategy = search_dict.get("strategy", "greedy")
     if strategy not in ("beam", "greedy"):
         raise ValueError("'search.strategy' must be 'beam' or 'greedy'")
-    
+
     search = SearchConfig(
         strategy=strategy,
         beam_width=search_dict.get("beam_width", 3),
         max_steps=search_dict.get("max_steps", 100),
         max_hints=search_dict.get("max_hints", 10),
-        stop_on_first_close=search_dict.get("stop_on_first_close", True)
+        stop_on_first_close=search_dict.get("stop_on_first_close", True),
     )
 
     # Build candidate config
     candidates_dict = args.get("candidates", {})
     if not isinstance(candidates_dict, dict):
         raise ValueError("'candidates' must be a dict")
-    
+
     # Parse sources list
-    sources_raw = candidates_dict.get("sources", ["goal_symbols", "local_context", "same_namespace"])
+    sources_raw = candidates_dict.get(
+        "sources", ["goal_symbols", "local_context", "same_namespace"]
+    )
     if not isinstance(sources_raw, list):
         raise ValueError("'candidates.sources' must be a list")
-    
+
     sources = []
     for source_str in sources_raw:
         if not isinstance(source_str, str):
             raise ValueError(f"'candidates.sources' must contain strings, got {type(source_str)}")
         try:
             sources.append(CandidateSource(source_str))
-        except ValueError:
-            raise ValueError(f"Invalid candidate source: {source_str}")
-    
+        except ValueError as e:
+            raise ValueError(f"Invalid candidate source: {source_str}") from e
+
     candidates = CandidateConfig(
         sources=sources,
         max_candidates_per_source=candidates_dict.get("max_candidates_per_source", 20),
         allow_simp_hints=candidates_dict.get("allow_simp_hints", True),
-        allow_unfold_hints=candidates_dict.get("allow_unfold_hints", True)
+        allow_unfold_hints=candidates_dict.get("allow_unfold_hints", True),
     )
 
     # Build skeleton config
     skeleton_dict = args.get("skeleton", {})
     if not isinstance(skeleton_dict, dict):
         raise ValueError("'skeleton' must be a dict")
-    
+
     skeleton = SkeletonConfig(
         enabled=skeleton_dict.get("enabled", False),
         max_depth=skeleton_dict.get("max_depth", 3),
-        moves=skeleton_dict.get("moves")
+        moves=skeleton_dict.get("moves"),
     )
 
     # Build style config
     style_dict = args.get("style", {})
     if not isinstance(style_dict, dict):
         raise ValueError("'style' must be a dict")
-    
+
     style = StyleConfig(
         prefer_simp_over_aesop=style_dict.get("prefer_simp_over_aesop", True),
         emit_compact=style_dict.get("emit_compact", False),
-        simp_only_list=style_dict.get("simp_only_list", False)
+        simp_only_list=style_dict.get("simp_only_list", False),
     )
 
     # Build workspace config
     workspace_dict = args.get("workspace", {})
     if not isinstance(workspace_dict, dict):
         raise ValueError("'workspace' must be a dict")
-    
+
     workspace = WorkspaceConfig(
         mode=workspace_dict.get("mode", "git_worktree"),
-        keep_artifacts=workspace_dict.get("keep_artifacts", False)
+        keep_artifacts=workspace_dict.get("keep_artifacts", False),
     )
 
     # Extract allow_global_edits (optional, default: False)
@@ -276,7 +282,7 @@ def _build_command(args: dict[str, Any]) -> SearchAnnotationsCommand:
         style=style,
         workspace=workspace,
         allow_global_edits=allow_global_edits,
-        run_id=run_id
+        run_id=run_id,
     )
 
 
@@ -302,17 +308,17 @@ def _create_handler(file_path: str) -> SearchAnnotationsCommandHandler:
 
     Raises:
         FileNotFoundError: If the file does not exist
-        
+
     Requirements: 11.3, 11.4, 11.5, 11.6, 11.7, 11.8
     """
     # Detect project root from file path
     # Look for lakefile.toml or lakefile.lean in parent directories
     file_path_obj = Path(file_path).resolve()
-    
+
     # Check if file exists
     if not file_path_obj.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
-    
+
     project_root = _find_lean_project_root(file_path_obj)
 
     # If no Lean project found, use the file's directory
@@ -334,6 +340,7 @@ def _create_handler(file_path: str) -> SearchAnnotationsCommandHandler:
 
     # Create artifact store
     import os
+
     artifacts_dir = Path(os.getenv("LPAM_ARTIFACTS_DIR", ".artifacts"))
     artifact_store = FilesystemArtifactStore(artifacts_dir)
 
@@ -348,18 +355,18 @@ def _create_handler(file_path: str) -> SearchAnnotationsCommandHandler:
     # Read source for candidate generation
     from ..core.indexer import build_index
     from ..core.source import SourceText
-    
+
     source_text = file_path_obj.read_text(encoding="utf-8")
     source = SourceText(path=file_path, text=source_text)
     index = build_index(source)
-    
+
     candidate_generator = CandidateGenerator(source, index)
-    
+
     # Use greedy search by default (can be configured via command)
     search_strategy = GreedySearch()
-    
+
     minimizer = Minimizer()
-    
+
     proof_patch_builder = ProofPatchBuilder()
 
     # Wire into handler
@@ -445,23 +452,13 @@ def _build_error_response(
         "run_id": run_id,
         "file": file_str,
         "theorem_id": theorem_id_str,
-        "viability": {
-            "status": "not_started",
-            "error": error_message
-        },
-        "baseline": {
-            "status": "not_started"
-        },
+        "viability": {"status": "not_started", "error": error_message},
+        "baseline": {"status": "not_started"},
         "search_result": None,
         "minimized_hint_set": None,
         "proof_patch": None,
         "global_suggestions": None,
-        "timing": {
-            "total_s": 0.0
-        },
+        "timing": {"total_s": 0.0},
         "artifacts": {},
-        "metadata": {
-            "error_code": error_code,
-            "error_message": error_message
-        }
+        "metadata": {"error_code": error_code, "error_message": error_message},
     }

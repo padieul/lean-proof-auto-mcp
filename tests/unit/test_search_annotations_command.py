@@ -5,6 +5,7 @@ Tests validation logic and immutability of command and result data structures.
 """
 
 import pytest
+
 from lean_proof_auto_mcp.core.search_annotations_domain import (
     AutomationConfig,
     BudgetConfig,

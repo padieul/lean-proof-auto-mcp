@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 from ..core.json_serialization import to_json_serializable
-from ..core.verify_domain import VerifyCommand, VerifyResult
 
 logger = logging.getLogger(__name__)
 

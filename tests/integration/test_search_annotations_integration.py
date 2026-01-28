@@ -39,7 +39,10 @@ class TestSearchAnnotationsIntegration:
         assert result["api_version"] == "0.1.0"
 
         # Verify error message mentions file not found
-        assert "not found" in result["metadata"]["error_message"].lower() or "no such file" in result["metadata"]["error_message"].lower()
+        assert (
+            "not found" in result["metadata"]["error_message"].lower()
+            or "no such file" in result["metadata"]["error_message"].lower()
+        )
 
         # Verify run_id exists
         assert "run_id" in result
@@ -129,7 +132,9 @@ class TestSearchAnnotationsIntegration:
         )
 
         # Verify error or fail status
-        assert result["status"] in ("fail", "error"), f"Expected fail/error but got {result['status']}"
+        assert result["status"] in ("fail", "error"), (
+            f"Expected fail/error but got {result['status']}"
+        )
         assert result["api_version"] == "0.1.0"
 
         # Verify run_id exists
@@ -428,7 +433,7 @@ class TestSearchAnnotationsIntegration:
         mock_handler.handle.return_value = mock_result
 
         # Execute search twice
-        result1 = search_annotations(
+        search_annotations(
             {
                 "file": VALID_THEOREM,
                 "theorem_id": "MyTheorem",
@@ -438,7 +443,7 @@ class TestSearchAnnotationsIntegration:
         # Get run_id from first execution
         run_id_1 = mock_handler.handle.call_args[0][0].run_id
 
-        result2 = search_annotations(
+        search_annotations(
             {
                 "file": VALID_THEOREM,
                 "theorem_id": "MyTheorem",

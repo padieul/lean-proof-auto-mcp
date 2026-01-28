@@ -88,7 +88,9 @@ class LeanInteractRunner:
                 try:
                     project = LocalProject(directory=str(workspace_path), auto_build=False)
                     config = LeanREPLConfig(project=project)
-                    logger.info(f"Created reusable server with Lake project context from {workspace_path}")
+                    logger.info(
+                        f"Created reusable server with Lake project context from {workspace_path}"
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to initialize Lake project, using standalone mode: {e}")
                     config = LeanREPLConfig(lean_version="v4.15.0")
@@ -466,7 +468,6 @@ class LeanInteractRunner:
         return "\n".join(logs) if logs else ""
 
 
-
 class ReusableLeanServer:
     """
     Reusable Lean server wrapper for batch operations.
@@ -576,7 +577,9 @@ class ReusableLeanServer:
             # Filter diagnostics to theorem's line range if theorem-level verification
             if theorem_id and theorem_line_range:
                 start_line, end_line = theorem_line_range
-                diagnostics = self.runner._filter_diagnostics_by_range(diagnostics, start_line, end_line)
+                diagnostics = self.runner._filter_diagnostics_by_range(
+                    diagnostics, start_line, end_line
+                )
 
             elapsed = time.time() - start_time
 

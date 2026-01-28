@@ -191,7 +191,7 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
 
     # Create classifier
     classifier = HeuristicClassifier()
-    
+
     # Create artifact store
     artifact_store = FilesystemArtifactStore(ARTIFACTS_DIR)
 

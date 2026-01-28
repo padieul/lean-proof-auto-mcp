@@ -86,7 +86,7 @@ class SearchAnnotationsCommand:
 ```python
 class SearchAnnotationsCommandHandler:
     """Orchestrate search workflow using existing services."""
-    
+
     def __init__(
         self,
         probe_handler: ProbeCommandHandler,  # Reuse existing
@@ -100,7 +100,7 @@ class SearchAnnotationsCommandHandler:
         self.search_strategy = search_strategy
         self.minimizer = minimizer
         self.artifact_store = artifact_store
-    
+
     def handle(self, cmd: SearchAnnotationsCommand) -> SearchAnnotationsResult:
         """Execute complete search workflow."""
         # 1. Viability check (using existing indexer)
@@ -119,11 +119,11 @@ class SearchAnnotationsCommandHandler:
 ```python
 class CandidateGenerator:
     """Generate candidate hints from theorem and context."""
-    
+
     def __init__(self, source: SourceText, index: TheoremIndex):
         self.source = source
         self.index = index
-    
+
     def generate(
         self,
         theorem_decl: TheoremDecl,
@@ -132,7 +132,7 @@ class CandidateGenerator:
     ) -> list[Candidate]:
         """Generate candidates from configured sources."""
         candidates = []
-        
+
         if "goal_symbols" in sources:
             candidates.extend(self._extract_from_goal(theorem_decl))
         if "local_context" in sources:
@@ -143,7 +143,7 @@ class CandidateGenerator:
             candidates.extend(self._extract_nearby(theorem_decl))
         if "original_proof_refs" in sources:
             candidates.extend(self._extract_from_proof(theorem_decl))
-        
+
         return self._rank_and_deduplicate(candidates, config)
 ```
 
@@ -187,7 +187,7 @@ class GreedySearch:
 ```python
 class Minimizer:
     """Delta-debug minimization."""
-    
+
     def minimize(
         self,
         hint_set: HintSet,
@@ -196,7 +196,7 @@ class Minimizer:
         """Remove redundant hints iteratively."""
         current = hint_set
         changed = True
-        
+
         while changed:
             changed = False
             for hint in current.hints:
@@ -206,7 +206,7 @@ class Minimizer:
                     current = candidate
                     changed = True
                     break
-        
+
         return current
 ```
 
@@ -214,7 +214,7 @@ class Minimizer:
 ```python
 class ProofPatchBuilder:
     """Generate ready-to-paste Lean proof code."""
-    
+
     def build(
         self,
         hint_set: HintSet,
@@ -253,7 +253,7 @@ class ProbeCommandHandler:
         classifier: AutomationClassifier
     ):
         ...
-    
+
     def handle(self, cmd: ProbeCommand) -> ProbeResult:
         """Execute probe workflow."""
         ...
@@ -270,7 +270,7 @@ class VerifyCommandHandler:
         artifact_store: ArtifactStore
     ):
         ...
-    
+
     def handle(self, cmd: VerifyCommand) -> VerifyResult:
         """Execute verification workflow."""
         ...
@@ -282,7 +282,7 @@ class LeanInteractRunner:
     """Execute Lean processes with timeout (existing adapter)."""
     def __init__(self, timeout_buffer_ms: int = 100):
         ...
-    
+
     def verify_file(
         self,
         workspace_path: Path,
@@ -310,7 +310,7 @@ class FilesystemArtifactStore:
     """Store artifacts to disk (existing adapter)."""
     def __init__(self, artifacts_dir: Path):
         ...
-    
+
     def store(
         self,
         run_id: str,
@@ -332,7 +332,7 @@ def search_annotations(args: dict[str, Any]) -> dict[str, Any]:
         command = _build_command(args)
     except ValueError as e:
         return _build_error_response(str(e), "input_validation_error")
-    
+
     try:
         handler = _create_handler(command.file)
         result = handler.handle(command)
@@ -349,7 +349,7 @@ def _create_handler(file_path: str) -> SearchAnnotationsCommandHandler:
     project_root = _find_lean_project_root(file_path_obj)
     if project_root is None:
         project_root = file_path_obj.parent
-    
+
     # Create existing adapters (reuse pattern from probe.py)
     lean_runner = LeanInteractRunner(timeout_buffer_ms=100)
     workspace_provider = create_workspace_provider(
@@ -359,21 +359,21 @@ def _create_handler(file_path: str) -> SearchAnnotationsCommandHandler:
     )
     classifier = HeuristicClassifier()
     artifact_store = FilesystemArtifactStore(Path(".artifacts"))
-    
+
     # Create probe handler (reuse existing)
     probe_handler = ProbeCommandHandler(
         lean_runner=lean_runner,
         workspace_provider=workspace_provider,
         classifier=classifier
     )
-    
+
     # Create search-specific components
     source = SourceText(path=file_path, text=Path(file_path).read_text())
     index = build_index(source)
     candidate_generator = CandidateGenerator(source, index)
     search_strategy = BeamSearch()  # or GreedySearch based on config
     minimizer = Minimizer()
-    
+
     # Wire into handler
     return SearchAnnotationsCommandHandler(
         probe_handler=probe_handler,
@@ -391,13 +391,13 @@ This follows the exact pattern from existing tools - no port wrappers, direct se
 @dataclass(frozen=True)
 class HintSet:
     hints: frozenset[Hint]
-    
+
     def add(self, hint: Hint) -> HintSet:
         return HintSet(self.hints | {hint})
-    
+
     def remove(self, hint: Hint) -> HintSet:
         return HintSet(self.hints - {hint})
-    
+
     def size(self) -> int:
         return len(self.hints)
 ```
@@ -409,7 +409,7 @@ class Hint:
     name: str
     type: HintType  # AddSafe, AddUnsafe, Unfold, Simp, RuleSet
     source: CandidateSource
-    
+
     def to_lean_syntax(self) -> str:
         ...
 ```
@@ -706,27 +706,27 @@ The system uses the Result/Either pattern to represent all failure modes explici
 @dataclass(frozen=True)
 class FileNotFoundError:
     path: str
-    
+
 @dataclass(frozen=True)
 class TheoremNotFoundError:
     theorem_id: str
     searched_locations: list[str]
-    
+
 @dataclass(frozen=True)
 class LeanEnvironmentError:
     diagnostic: str
-    
+
 @dataclass(frozen=True)
 class TimeoutError:
     phase: str
     budget_s: float
     elapsed_s: float
-    
+
 @dataclass(frozen=True)
 class WorktreeError:
     operation: str
     reason: str
-    
+
 @dataclass(frozen=True)
 class VerificationError:
     hint_set: HintSet
@@ -806,12 +806,12 @@ from hypothesis import given, strategies as st
 )
 def test_property_1_file_validation_correctness(file_path, theorem_id):
     """Feature: search-annotations-tool, Property 1: File Validation Correctness
-    
-    For any file path provided as input, the system should correctly 
+
+    For any file path provided as input, the system should correctly
     identify whether the file exists and is readable.
     """
     result = search_annotations_handler.validate_file(file_path)
-    
+
     if os.path.exists(file_path) and os.access(file_path, os.R_OK):
         assert result.is_ok()
     else:

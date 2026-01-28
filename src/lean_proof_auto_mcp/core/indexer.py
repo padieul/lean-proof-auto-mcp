@@ -7,7 +7,7 @@ of theorem-like declarations in Lean files and looking them up by ID or range.
 import re
 from dataclasses import dataclass, field
 
-from .lean_syntax import detect_string_literals, strip_comments
+from .lean_syntax import detect_string_literals
 from .source import SourceText, Span
 
 
@@ -82,7 +82,7 @@ def build_index(source: SourceText) -> FileIndex:
 
     # Detect string literals to avoid false positives
     string_spans = detect_string_literals(text)
-    
+
     # Detect comment spans to avoid false positives
     comment_spans = _detect_comment_spans(text)
 
@@ -111,7 +111,7 @@ def build_index(source: SourceText) -> FileIndex:
         match_start_pos = match.start()
         if _is_inside_string_literal(match_start_pos, text, string_spans):
             continue
-        
+
         # Check if this match is inside a comment
         if _is_inside_comment(match_start_pos, text, comment_spans):
             continue
@@ -254,81 +254,82 @@ def _is_inside_string_literal(pos: int, text: str, string_spans: list[Span]) -> 
 
 def _detect_comment_spans(text: str) -> list[Span]:
     """Detect comment spans in Lean source code.
-    
+
     Detects both line comments (--) and block comments (/- ... -/).
-    
+
     Args:
         text: The source text
-        
+
     Returns:
         List of Span objects representing comment regions
     """
     comment_spans = []
     lines = text.splitlines()
-    
+
     in_block_comment = False
     block_start_line = 0
     block_start_col = 0
-    
+
     for line_idx, line in enumerate(lines):
         line_num = line_idx + 1
         col = 0
-        
+
         while col < len(line):
             # Check for block comment start
-            if not in_block_comment and col + 1 < len(line) and line[col:col+2] == '/-':
+            if not in_block_comment and col + 1 < len(line) and line[col : col + 2] == "/-":
                 in_block_comment = True
                 block_start_line = line_num
                 block_start_col = col
                 col += 2
                 continue
-            
+
             # Check for block comment end
-            if in_block_comment and col + 1 < len(line) and line[col:col+2] == '-/':
+            if in_block_comment and col + 1 < len(line) and line[col : col + 2] == "-/":
                 # End of block comment
-                comment_spans.append(Span(
-                    start_line=block_start_line,
-                    start_col=block_start_col,
-                    end_line=line_num,
-                    end_col=col + 2
-                ))
+                comment_spans.append(
+                    Span(
+                        start_line=block_start_line,
+                        start_col=block_start_col,
+                        end_line=line_num,
+                        end_col=col + 2,
+                    )
+                )
                 in_block_comment = False
                 col += 2
                 continue
-            
+
             # Check for line comment (only if not in block comment)
-            if not in_block_comment and col + 1 < len(line) and line[col:col+2] == '--':
+            if not in_block_comment and col + 1 < len(line) and line[col : col + 2] == "--":
                 # Rest of line is a comment
-                comment_spans.append(Span(
-                    start_line=line_num,
-                    start_col=col,
-                    end_line=line_num,
-                    end_col=len(line)
-                ))
+                comment_spans.append(
+                    Span(start_line=line_num, start_col=col, end_line=line_num, end_col=len(line))
+                )
                 break  # Rest of line is comment
-            
+
             col += 1
-    
+
     # If still in block comment at end of file, close it
     if in_block_comment:
-        comment_spans.append(Span(
-            start_line=block_start_line,
-            start_col=block_start_col,
-            end_line=len(lines),
-            end_col=len(lines[-1]) if lines else 0
-        ))
-    
+        comment_spans.append(
+            Span(
+                start_line=block_start_line,
+                start_col=block_start_col,
+                end_line=len(lines),
+                end_col=len(lines[-1]) if lines else 0,
+            )
+        )
+
     return comment_spans
 
 
 def _is_inside_comment(pos: int, text: str, comment_spans: list[Span]) -> bool:
     """Check if a position is inside a comment.
-    
+
     Args:
         pos: Character position in text
         text: The source text
         comment_spans: List of comment spans
-        
+
     Returns:
         True if position is inside a comment
     """

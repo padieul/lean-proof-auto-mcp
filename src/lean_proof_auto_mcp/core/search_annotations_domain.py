@@ -605,6 +605,7 @@ class SearchAnnotationsResult:
         timing: Timing breakdown for all phases
         artifacts: Paths to stored artifacts
         metadata: Metadata about execution environment
+        workflow_recommendation: Optional recommendation for LLM workflow optimization
     """
     api_version: str
     status: Literal["success", "fail", "timeout", "error"]
@@ -620,6 +621,7 @@ class SearchAnnotationsResult:
     timing: dict[str, float]
     artifacts: dict[str, str]
     metadata: dict[str, Any]
+    workflow_recommendation: str | None = None
     
     def __post_init__(self) -> None:
         """
@@ -909,7 +911,13 @@ class SearchAnnotationsCommandHandler:
                         global_suggestions=None if cmd.mode == "local_only" else [],
                         timing=self._build_timing(phase_timings, overall_start),
                         artifacts={},
-                        metadata=self._build_metadata()
+                        metadata=self._build_metadata(),
+                        workflow_recommendation=(
+                            "OPTIMIZATION: This theorem is trivial (plain automation works). "
+                            "For better performance, use 'probe' or 'probe_file' tools first to identify "
+                            "non-trivial theorems before calling 'search_annotations'. This avoids redundant "
+                            f"baseline checks and saves ~{phase_timings.get('baseline_probe_s', 0):.1f}s per theorem."
+                        )
                     )
                     
                     # Store artifacts before returning
@@ -971,7 +979,13 @@ class SearchAnnotationsCommandHandler:
                             global_suggestions=None if cmd.mode == "local_only" else [],
                             timing=self._build_timing(phase_timings, overall_start),
                             artifacts={},
-                            metadata=self._build_metadata()
+                            metadata=self._build_metadata(),
+                            workflow_recommendation=(
+                                "OPTIMIZATION: This theorem is trivial (plain automation works). "
+                                "For better performance, use 'probe' or 'probe_file' tools first to identify "
+                                "non-trivial theorems before calling 'search_annotations'. This avoids redundant "
+                                f"baseline checks and saves ~{phase_timings.get('baseline_probe_s', 0):.1f}s per theorem."
+                            )
                         )
                         
                         # Store artifacts before returning
@@ -1061,7 +1075,8 @@ class SearchAnnotationsCommandHandler:
                         global_suggestions=None,
                         timing=self._build_timing(phase_timings, overall_start),
                         artifacts={},
-                        metadata=self._build_metadata()
+                        metadata=self._build_metadata(),
+                        workflow_recommendation=None
                     )
                 
             except Exception as e:
@@ -1181,7 +1196,8 @@ class SearchAnnotationsCommandHandler:
                 global_suggestions=global_suggestions,
                 timing=self._build_timing(phase_timings, overall_start),
                 artifacts={},
-                metadata=self._build_metadata()
+                metadata=self._build_metadata(),
+                workflow_recommendation=None  # No recommendation for non-trivial cases
             )
             
             # Collect all logs
@@ -1262,7 +1278,8 @@ class SearchAnnotationsCommandHandler:
             global_suggestions=None,
             timing=self._build_timing(phase_timings, time.time()),
             artifacts={},
-            metadata={"error": error_message}
+            metadata={"error": error_message},
+            workflow_recommendation=None
         )
     
     def _store_artifacts_and_update_result(
@@ -1328,7 +1345,8 @@ class SearchAnnotationsCommandHandler:
                     "result_path": str(artifacts_dir / "result.json"),
                     "logs_path": str(artifacts_dir / "lean_output.log")
                 },
-                metadata=result.metadata
+                metadata=result.metadata,
+                workflow_recommendation=result.workflow_recommendation
             )
             
             logger.info(f"Stored artifacts for run_id: {cmd.run_id}")

@@ -63,6 +63,10 @@ def build_index(source: SourceText) -> FileIndex:
     declarations. Extracts declaration spans and proof spans where possible.
     Enhanced to include namespace context in theorem names.
 
+    CRITICAL: Uses original source text (not comment-stripped) to maintain
+    correct line numbers. Comments are filtered out by checking if matches
+    are inside comment blocks.
+
     Args:
         source: The source text to index
 
@@ -72,11 +76,15 @@ def build_index(source: SourceText) -> FileIndex:
     if not source.text:
         return FileIndex(file=source.path, decls=[])
 
-    # Strip comments to avoid false positives
-    clean_text = strip_comments(source.text)
+    # Use ORIGINAL text to maintain correct line numbers
+    # We'll filter out comments by detecting them, not by stripping them
+    text = source.text
 
     # Detect string literals to avoid false positives
-    string_spans = detect_string_literals(clean_text)
+    string_spans = detect_string_literals(text)
+    
+    # Detect comment spans to avoid false positives
+    comment_spans = _detect_comment_spans(text)
 
     # Find all theorem-like declarations
     decls = []
@@ -90,22 +98,26 @@ def build_index(source: SourceText) -> FileIndex:
         r"\b(theorem|lemma|example|instance)(?:\s+([^\s:({}\[\]]+(?:\.[^\s:({}\[\]]+)*))?\s*"
     )
 
-    lines = clean_text.splitlines()
+    lines = text.splitlines()
 
     # Track namespace context for proper theorem_id generation
     current_namespace_stack: list[str] = []
 
-    for match in re.finditer(decl_pattern, clean_text, re.MULTILINE):
+    for match in re.finditer(decl_pattern, text, re.MULTILINE):
         kind = match.group(1)
         full_name = match.group(2) if match.group(2) else None
 
         # Check if this match is inside a string literal
         match_start_pos = match.start()
-        if _is_inside_string_literal(match_start_pos, clean_text, string_spans):
+        if _is_inside_string_literal(match_start_pos, text, string_spans):
+            continue
+        
+        # Check if this match is inside a comment
+        if _is_inside_comment(match_start_pos, text, comment_spans):
             continue
 
         # Find the line number where this declaration starts
-        decl_start_line = clean_text[:match_start_pos].count("\n") + 1
+        decl_start_line = text[:match_start_pos].count("\n") + 1
 
         # Update namespace context up to this line
         current_namespace_stack = _update_namespace_context(
@@ -114,7 +126,7 @@ def build_index(source: SourceText) -> FileIndex:
 
         # Verify this is actually a declaration by looking for a colon within reasonable distance
         # Look ahead from the match position to find a colon
-        remaining_text = clean_text[match.end() :]
+        remaining_text = text[match.end() :]
         colon_search = re.search(
             r":\s*(?!=)", remaining_text[:500]
         )  # Look within 500 chars, avoid :=
@@ -131,7 +143,7 @@ def build_index(source: SourceText) -> FileIndex:
         decl_span, proof_span = _find_declaration_spans(
             lines,
             decl_start_line,
-            match.start() - clean_text[:match_start_pos].rfind("\n", 0, match_start_pos) - 1,
+            match.start() - text[:match_start_pos].rfind("\n", 0, match_start_pos) - 1,
         )
 
         if decl_span:
@@ -225,6 +237,113 @@ def _is_inside_string_literal(pos: int, text: str, string_spans: list[Span]) -> 
 
     # Check if this line/column is inside any string span
     for span in string_spans:
+        if span.start_line == line_num == span.end_line:
+            if span.start_col <= col_num < span.end_col:
+                return True
+        elif span.start_line <= line_num <= span.end_line and (
+            line_num == span.start_line
+            and col_num >= span.start_col
+            or line_num == span.end_line
+            and col_num < span.end_col
+            or span.start_line < line_num < span.end_line
+        ):
+            return True
+
+    return False
+
+
+def _detect_comment_spans(text: str) -> list[Span]:
+    """Detect comment spans in Lean source code.
+    
+    Detects both line comments (--) and block comments (/- ... -/).
+    
+    Args:
+        text: The source text
+        
+    Returns:
+        List of Span objects representing comment regions
+    """
+    comment_spans = []
+    lines = text.splitlines()
+    
+    in_block_comment = False
+    block_start_line = 0
+    block_start_col = 0
+    
+    for line_idx, line in enumerate(lines):
+        line_num = line_idx + 1
+        col = 0
+        
+        while col < len(line):
+            # Check for block comment start
+            if not in_block_comment and col + 1 < len(line) and line[col:col+2] == '/-':
+                in_block_comment = True
+                block_start_line = line_num
+                block_start_col = col
+                col += 2
+                continue
+            
+            # Check for block comment end
+            if in_block_comment and col + 1 < len(line) and line[col:col+2] == '-/':
+                # End of block comment
+                comment_spans.append(Span(
+                    start_line=block_start_line,
+                    start_col=block_start_col,
+                    end_line=line_num,
+                    end_col=col + 2
+                ))
+                in_block_comment = False
+                col += 2
+                continue
+            
+            # Check for line comment (only if not in block comment)
+            if not in_block_comment and col + 1 < len(line) and line[col:col+2] == '--':
+                # Rest of line is a comment
+                comment_spans.append(Span(
+                    start_line=line_num,
+                    start_col=col,
+                    end_line=line_num,
+                    end_col=len(line)
+                ))
+                break  # Rest of line is comment
+            
+            col += 1
+    
+    # If still in block comment at end of file, close it
+    if in_block_comment:
+        comment_spans.append(Span(
+            start_line=block_start_line,
+            start_col=block_start_col,
+            end_line=len(lines),
+            end_col=len(lines[-1]) if lines else 0
+        ))
+    
+    return comment_spans
+
+
+def _is_inside_comment(pos: int, text: str, comment_spans: list[Span]) -> bool:
+    """Check if a position is inside a comment.
+    
+    Args:
+        pos: Character position in text
+        text: The source text
+        comment_spans: List of comment spans
+        
+    Returns:
+        True if position is inside a comment
+    """
+    # Convert character position to line/column
+    lines_before = text[:pos].count("\n")
+    line_num = lines_before + 1
+
+    if lines_before == 0:
+        col_num = pos
+    else:
+        last_newline = text.rfind("\n", 0, pos)
+        col_num = pos - last_newline - 1
+
+    # Check if this line/column is inside any comment span
+    for span in comment_spans:
         if span.start_line == line_num == span.end_line:
             if span.start_col <= col_num < span.end_col:
                 return True

@@ -477,7 +477,27 @@ class ProbeCommandHandler:
             content = f.read()
 
         source = SourceText(path=cmd.file_path, text=content)
-        index = build_index(source)
+        
+        # Check if we have a cached index for this file
+        # Cache key is (file_path, content_hash)
+        import hashlib
+        content_hash = hashlib.md5(content.encode()).hexdigest()
+        cache_key = (cmd.file_path, content_hash)
+        
+        # Use instance-level cache (will be shared across probes in same handler instance)
+        if not hasattr(self, '_index_cache'):
+            self._index_cache = {}
+        
+        if cache_key in self._index_cache:
+            index = self._index_cache[cache_key]
+        else:
+            index = build_index(source)
+            self._index_cache[cache_key] = index
+            # Limit cache size to prevent memory issues
+            if len(self._index_cache) > 10:
+                # Remove oldest entry
+                self._index_cache.pop(next(iter(self._index_cache)))
+        
         theorem_decl = find_by_id(index, cmd.theorem_id)
 
         if theorem_decl is None:

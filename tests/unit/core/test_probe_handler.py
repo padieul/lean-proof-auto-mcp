@@ -76,10 +76,16 @@ class TestProbeCommandHandler:
             exit_code=0,
         )
 
-        # Mock harness construction to avoid file I/O
-        with patch(
-            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
-            return_value="mocked harness",
+        # Mock harness construction and writing to avoid file I/O
+        with (
+            patch(
+                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
+                return_value="mocked harness",
+            ),
+            patch(
+                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
+                return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
+            ),
         ):
             # Execute
             result = handler.handle(cmd)
@@ -160,10 +166,16 @@ class TestProbeCommandHandler:
             budget_s=10.0,
         )
 
-        # Mock harness construction to avoid file I/O
-        with patch(
-            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
-            return_value="mocked harness",
+        # Mock harness construction and writing to avoid file I/O
+        with (
+            patch(
+                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
+                return_value="mocked harness",
+            ),
+            patch(
+                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
+                return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
+            ),
         ):
             # Mock Lean execution raising RuntimeError for toolchain failure
             mock_lean_runner.verify_file.side_effect = RuntimeError("Lean process failed")
@@ -190,10 +202,16 @@ class TestProbeCommandHandler:
             budget_s=10.0,
         )
 
-        # Mock harness construction to avoid file I/O
-        with patch(
-            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
-            return_value="mocked harness",
+        # Mock harness construction and writing to avoid file I/O
+        with (
+            patch(
+                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
+                return_value="mocked harness",
+            ),
+            patch(
+                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
+                return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
+            ),
         ):
             # Mock Lean execution raising TimeoutError
             mock_lean_runner.verify_file.side_effect = TimeoutError("Execution timed out")
@@ -255,10 +273,16 @@ class TestProbeCommandHandler:
         # Mock cleanup failure
         mock_workspace_provider.cleanup_workspace.side_effect = RuntimeError("Cleanup failed")
 
-        # Mock harness construction to avoid file I/O
-        with patch(
-            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
-            return_value="mocked harness",
+        # Mock harness construction and writing to avoid file I/O
+        with (
+            patch(
+                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
+                return_value="mocked harness",
+            ),
+            patch(
+                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
+                return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
+            ),
         ):
             # Execute - should not raise exception
             result = handler.handle(cmd)
@@ -476,10 +500,16 @@ theorem other_theorem : True := by
 
         mock_classifier.classify.return_value = "promising"
 
-        # Mock harness construction to avoid file I/O
-        with patch(
-            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
-            return_value="mocked harness",
+        # Mock harness construction and writing to avoid file I/O
+        with (
+            patch(
+                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
+                return_value="mocked harness",
+            ),
+            patch(
+                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
+                return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
+            ),
         ):
             # Execute
             result = handler.handle(cmd)

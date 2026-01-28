@@ -464,33 +464,54 @@ class ProbeCommandHandler:
 
         Requirements: 1.2, 3.2
         """
-        # Read the original file to find the theorem
+        # Read the original file
         file_path = workspace_path / cmd.file_path
         if not file_path.exists():
             raise ValueError(f"File not found: {cmd.file_path}")
 
+        # Use indexer to find theorem (single source of truth)
+        from .indexer import build_index, find_by_id
+        from .source import SourceText
+
         with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
-        # Find the theorem declaration
-        # Simple pattern: "theorem <name> :" or "theorem <name> (...) :"
-        import re
+        source = SourceText(path=cmd.file_path, text=content)
+        index = build_index(source)
+        theorem_decl = find_by_id(index, cmd.theorem_id)
 
-        # Pattern to match theorem declarations
-        theorem_pattern = rf"theorem\s+{re.escape(cmd.theorem_id)}\s*[^:]*:"
-        match = re.search(theorem_pattern, content)
-
-        if not match:
+        if theorem_decl is None:
             raise ValueError(f"Theorem '{cmd.theorem_id}' not found in {cmd.file_path}")
 
-        # Extract theorem signature (everything up to ":=")
-        theorem_start = match.start()
-        theorem_decl_end = content.find(":=", theorem_start)
-        if theorem_decl_end == -1:
-            # No ":=" found, might be a sorry or axiom
-            raise ValueError(f"Theorem '{cmd.theorem_id}' has no proof body")
-
-        theorem_signature = content[theorem_start:theorem_decl_end].strip()
+        # Extract theorem signature from the found location
+        # The indexer gives us the exact location, so we can extract precisely
+        lines = content.splitlines()
+        
+        # Get the declaration span (includes signature)
+        decl_start_line = theorem_decl.decl_span.start_line - 1  # Convert to 0-indexed
+        decl_end_line = theorem_decl.decl_span.end_line - 1
+        
+        # Find the ":=" that marks the end of the signature
+        signature_lines = []
+        found_assignment = False
+        
+        for line_idx in range(decl_start_line, min(decl_end_line + 1, len(lines))):
+            line = lines[line_idx]
+            
+            # Check if this line contains ":="
+            if ":=" in line:
+                # Take everything before ":="
+                before_assignment = line.split(":=")[0]
+                signature_lines.append(before_assignment)
+                found_assignment = True
+                break
+            else:
+                signature_lines.append(line)
+        
+        if not found_assignment:
+            raise ValueError(f"Theorem '{cmd.theorem_id}' has no proof body (no ':=' found)")
+        
+        theorem_signature = "\n".join(signature_lines).strip()
 
         # Build harness
         # Convert file path to module import path (remove .lean, replace / with .)

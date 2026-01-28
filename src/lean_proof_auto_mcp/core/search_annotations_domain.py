@@ -7,9 +7,12 @@ and proof patch generation following hexagonal architecture principles.
 Requirements: 3.1, 3.7, 3.8, 4.1, 4.2, 5.1, 6.1, 7.3, 14.1
 """
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Literal
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -853,6 +856,19 @@ class SearchAnnotationsCommandHandler:
                 
                 baseline_result = self.probe_handler.handle(probe_cmd)
                 
+                # Extract error details from diagnostics if outcome is error
+                error_details = None
+                if baseline_result.probe_result.outcome == "error":
+                    # Extract error message from diagnostics
+                    if baseline_result.diagnostics:
+                        error_messages = [
+                            d.get("message", "") 
+                            for d in baseline_result.diagnostics 
+                            if d.get("severity") == "error"
+                        ]
+                        if error_messages:
+                            error_details = "; ".join(error_messages)
+                
                 baseline_details = {
                     "primary_automation": cmd.automation.primary,
                     "primary_outcome": baseline_result.probe_result.outcome,
@@ -861,7 +877,8 @@ class SearchAnnotationsCommandHandler:
                         {
                             "automation": cmd.automation.primary,
                             "outcome": baseline_result.probe_result.outcome,
-                            "classification": baseline_result.probe_result.classification
+                            "classification": baseline_result.probe_result.classification,
+                            "error": error_details
                         }
                     ]
                 }
@@ -873,7 +890,7 @@ class SearchAnnotationsCommandHandler:
                     logger.info(f"Baseline automation succeeded, no search needed")
                     
                     # Build success result without search
-                    return SearchAnnotationsResult(
+                    result = SearchAnnotationsResult(
                         api_version="0.1.0",
                         status="success",
                         run_id=cmd.run_id,
@@ -894,6 +911,10 @@ class SearchAnnotationsCommandHandler:
                         artifacts={},
                         metadata=self._build_metadata()
                     )
+                    
+                    # Store artifacts before returning
+                    result = self._store_artifacts_and_update_result(cmd, result, "")
+                    return result
                 
                 # Try secondary automation if configured
                 if cmd.automation.secondary:
@@ -906,19 +927,32 @@ class SearchAnnotationsCommandHandler:
                     
                     secondary_result = self.probe_handler.handle(secondary_probe_cmd)
                     
+                    # Extract error details from secondary result
+                    secondary_error_details = None
+                    if secondary_result.probe_result.outcome == "error":
+                        if secondary_result.diagnostics:
+                            error_messages = [
+                                d.get("message", "") 
+                                for d in secondary_result.diagnostics 
+                                if d.get("severity") == "error"
+                            ]
+                            if error_messages:
+                                secondary_error_details = "; ".join(error_messages)
+                    
                     baseline_details["secondary_automation"] = cmd.automation.secondary
                     baseline_details["secondary_outcome"] = secondary_result.probe_result.outcome
                     baseline_details["secondary_classification"] = secondary_result.probe_result.classification
                     baseline_details["attempts"].append({
                         "automation": cmd.automation.secondary,
                         "outcome": secondary_result.probe_result.outcome,
-                        "classification": secondary_result.probe_result.classification
+                        "classification": secondary_result.probe_result.classification,
+                        "error": secondary_error_details
                     })
                     
                     if secondary_result.probe_result.outcome == "closed":
                         logger.info(f"Secondary automation succeeded, no search needed")
                         
-                        return SearchAnnotationsResult(
+                        result = SearchAnnotationsResult(
                             api_version="0.1.0",
                             status="success",
                             run_id=cmd.run_id,
@@ -939,6 +973,10 @@ class SearchAnnotationsCommandHandler:
                             artifacts={},
                             metadata=self._build_metadata()
                         )
+                        
+                        # Store artifacts before returning
+                        result = self._store_artifacts_and_update_result(cmd, result, "")
+                        return result
                 
             except Exception as e:
                 phase_timings["baseline_probe_s"] = time.time() - phase_start
@@ -1146,54 +1184,16 @@ class SearchAnnotationsCommandHandler:
                 metadata=self._build_metadata()
             )
             
-            # Store artifacts
-            try:
-                # Collect all logs (for now, just a placeholder)
-                # TODO: Collect actual logs from all phases
-                full_logs = self._collect_logs(
-                    viability_details,
-                    baseline_details,
-                    search_result,
-                    minimized_hint_set
-                )
-                
-                # Store artifacts using artifact store
-                self.artifact_store.store(
-                    run_id=cmd.run_id,
-                    command=cmd,
-                    result=result,
-                    full_logs=full_logs
-                )
-                
-                # Update result with artifact paths
-                from pathlib import Path
-                artifacts_dir = Path(".artifacts") / cmd.run_id
-                result = SearchAnnotationsResult(
-                    api_version=result.api_version,
-                    status=result.status,
-                    run_id=result.run_id,
-                    file=result.file,
-                    theorem_id=result.theorem_id,
-                    viability=result.viability,
-                    baseline=result.baseline,
-                    search_result=result.search_result,
-                    minimized_hint_set=result.minimized_hint_set,
-                    proof_patch=result.proof_patch,
-                    global_suggestions=result.global_suggestions,
-                    timing=result.timing,
-                    artifacts={
-                        "request_path": str(artifacts_dir / "request.json"),
-                        "result_path": str(artifacts_dir / "result.json"),
-                        "logs_path": str(artifacts_dir / "lean_output.log")
-                    },
-                    metadata=result.metadata
-                )
-                
-                logger.info(f"Stored artifacts for run_id: {cmd.run_id}")
-                
-            except Exception as e:
-                logger.warning(f"Artifact storage failed: {e}")
-                # Continue with result even if artifact storage fails
+            # Collect all logs
+            full_logs = self._collect_logs(
+                viability_details,
+                baseline_details,
+                search_result,
+                minimized_hint_set
+            )
+            
+            # Store artifacts and update result with paths
+            result = self._store_artifacts_and_update_result(cmd, result, full_logs)
             
             return result
             
@@ -1264,6 +1264,80 @@ class SearchAnnotationsCommandHandler:
             artifacts={},
             metadata={"error": error_message}
         )
+    
+    def _store_artifacts_and_update_result(
+        self,
+        cmd: SearchAnnotationsCommand,
+        result: SearchAnnotationsResult,
+        full_logs: str
+    ) -> SearchAnnotationsResult:
+        """
+        Store artifacts and update result with artifact paths.
+        
+        This helper method handles artifact storage and updates the result
+        with the correct artifact paths. It's used for both early returns
+        and normal completion paths.
+        
+        Args:
+            cmd: Original command
+            result: Result to update
+            full_logs: Full logs to store
+            
+        Returns:
+            Updated result with artifact paths
+            
+        Requirements: 10.8, 12.8
+        """
+        try:
+            # Collect logs if not provided
+            if not full_logs:
+                full_logs = self._collect_logs(
+                    result.viability,
+                    result.baseline,
+                    result.search_result,
+                    result.minimized_hint_set
+                )
+            
+            # Store artifacts using artifact store
+            self.artifact_store.store(
+                run_id=cmd.run_id,
+                command=cmd,
+                result=result,
+                full_logs=full_logs
+            )
+            
+            # Update result with artifact paths
+            from pathlib import Path
+            artifacts_dir = Path(".artifacts") / cmd.run_id
+            
+            updated_result = SearchAnnotationsResult(
+                api_version=result.api_version,
+                status=result.status,
+                run_id=result.run_id,
+                file=result.file,
+                theorem_id=result.theorem_id,
+                viability=result.viability,
+                baseline=result.baseline,
+                search_result=result.search_result,
+                minimized_hint_set=result.minimized_hint_set,
+                proof_patch=result.proof_patch,
+                global_suggestions=result.global_suggestions,
+                timing=result.timing,
+                artifacts={
+                    "request_path": str(artifacts_dir / "request.json"),
+                    "result_path": str(artifacts_dir / "result.json"),
+                    "logs_path": str(artifacts_dir / "lean_output.log")
+                },
+                metadata=result.metadata
+            )
+            
+            logger.info(f"Stored artifacts for run_id: {cmd.run_id}")
+            return updated_result
+            
+        except Exception as e:
+            logger.warning(f"Artifact storage failed: {e}")
+            # Return original result if artifact storage fails
+            return result
     
     def _build_timing(
         self,

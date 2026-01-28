@@ -77,7 +77,10 @@ class TestProbeCommandHandler:
         )
 
         # Mock harness construction to avoid file I/O
-        with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        with patch(
+            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
+            return_value="mocked harness",
+        ):
             # Execute
             result = handler.handle(cmd)
 
@@ -158,7 +161,10 @@ class TestProbeCommandHandler:
         )
 
         # Mock harness construction to avoid file I/O
-        with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        with patch(
+            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
+            return_value="mocked harness",
+        ):
             # Mock Lean execution raising RuntimeError for toolchain failure
             mock_lean_runner.verify_file.side_effect = RuntimeError("Lean process failed")
 
@@ -185,7 +191,10 @@ class TestProbeCommandHandler:
         )
 
         # Mock harness construction to avoid file I/O
-        with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        with patch(
+            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
+            return_value="mocked harness",
+        ):
             # Mock Lean execution raising TimeoutError
             mock_lean_runner.verify_file.side_effect = TimeoutError("Execution timed out")
 
@@ -247,7 +256,10 @@ class TestProbeCommandHandler:
         mock_workspace_provider.cleanup_workspace.side_effect = RuntimeError("Cleanup failed")
 
         # Mock harness construction to avoid file I/O
-        with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        with patch(
+            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
+            return_value="mocked harness",
+        ):
             # Execute - should not raise exception
             result = handler.handle(cmd)
 
@@ -347,7 +359,9 @@ theorem my_theorem : True := by
         # Cleanup
         test_file.unlink()
 
-    def test_harness_construction_with_trace_config(self, handler, mock_workspace_provider):
+    def test_harness_construction_with_trace_config(
+        self, handler, mock_workspace_provider, tmp_path
+    ):
         """Test harness construction with trace configuration."""
         # Setup
         cmd = ProbeCommand(
@@ -358,7 +372,8 @@ theorem my_theorem : True := by
             trace_config={"trace.aesop": True},
         )
 
-        workspace_path = Path("/tmp/workspace")
+        workspace_path = tmp_path / "workspace"
+        workspace_path.mkdir()
 
         # Create a test file with a theorem
         test_file_content = """
@@ -374,10 +389,9 @@ theorem my_theorem : True := by
         # Verify trace configuration is included
         assert "set_option trace.aesop true" in harness
 
-        # Cleanup
-        test_file.unlink()
-
-    def test_harness_construction_theorem_not_found(self, handler, mock_workspace_provider):
+    def test_harness_construction_theorem_not_found(
+        self, handler, mock_workspace_provider, tmp_path
+    ):
         """Test harness construction raises error when theorem not found."""
         # Setup
         cmd = ProbeCommand(
@@ -387,7 +401,8 @@ theorem my_theorem : True := by
             budget_s=10.0,
         )
 
-        workspace_path = Path("/tmp/workspace")
+        workspace_path = tmp_path / "workspace"
+        workspace_path.mkdir()
 
         # Create a test file without the theorem
         test_file_content = """
@@ -400,9 +415,6 @@ theorem other_theorem : True := by
         # Execute and verify error
         with pytest.raises(ValueError, match="Theorem 'nonexistent_theorem' not found"):
             handler._construct_harness(cmd, workspace_path)
-
-        # Cleanup
-        test_file.unlink()
 
     def test_diagnostic_normalization(self, handler):
         """Test diagnostic normalization and sorting."""
@@ -465,7 +477,10 @@ theorem other_theorem : True := by
         mock_classifier.classify.return_value = "promising"
 
         # Mock harness construction to avoid file I/O
-        with patch.object(handler, "_construct_harness", return_value="mocked harness"):
+        with patch(
+            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
+            return_value="mocked harness",
+        ):
             # Execute
             result = handler.handle(cmd)
 

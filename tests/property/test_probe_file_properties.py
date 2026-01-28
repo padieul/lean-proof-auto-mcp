@@ -807,7 +807,7 @@ def test_property_20_partial_success_handling(file_path, mode, num_theorems, err
     }
 
     # Mock probe results - one raises exception
-    def mock_probe_handle(cmd):
+    def mock_probe_handle(cmd, lean_server=None):
         if cmd.theorem_id == f"theorem_{error_index}":
             raise RuntimeError(f"Probe failed for {cmd.theorem_id}")
         return ProbeResult(

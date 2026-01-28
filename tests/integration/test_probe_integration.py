@@ -27,13 +27,17 @@ try:
 except ImportError:
     LEAN_INTERACT_AVAILABLE = False
 
-# Fixture paths
-FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "lean"
-AESOP_TRIVIAL = str(FIXTURES_DIR / "probe_aesop_trivial.lean")
-AESOP_PROMISING = str(FIXTURES_DIR / "probe_aesop_promising.lean")
-GRIND_TEST = str(FIXTURES_DIR / "probe_grind_test.lean")
-TIMEOUT_TEST = str(FIXTURES_DIR / "probe_timeout_test.lean")
-ERROR_TEST = str(FIXTURES_DIR / "probe_error_test.lean")
+# Fixture paths - using Lake project for real Lean verification
+FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "lean_project"
+AESOP_TRIVIAL = str(FIXTURES_DIR / "ProbeTests" / "AesopTrivial.lean")
+MANUAL_PROOFS = str(FIXTURES_DIR / "ProbeTests" / "ManualProofs.lean")
+
+# Old standalone fixtures (kept for reference, but won't work with LeanInteract)
+OLD_FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "lean"
+AESOP_PROMISING = str(OLD_FIXTURES_DIR / "probe_aesop_promising.lean")
+GRIND_TEST = str(OLD_FIXTURES_DIR / "probe_grind_test.lean")
+TIMEOUT_TEST = str(OLD_FIXTURES_DIR / "probe_timeout_test.lean")
+ERROR_TEST = str(OLD_FIXTURES_DIR / "probe_error_test.lean")
 
 # Skip all tests if LeanInteract is not available
 pytestmark = [

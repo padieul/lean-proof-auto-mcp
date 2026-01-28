@@ -143,6 +143,50 @@ class Workspace:
 # ============================================================================
 
 
+class LeanServer(Protocol):
+    """
+    Abstract interface for a reusable Lean server instance.
+
+    This port represents a long-lived Lean server that can be reused
+    across multiple verification requests, avoiding repeated initialization overhead.
+
+    Requirements: Performance optimization for batch operations
+    """
+
+    def verify_file(
+        self,
+        file_path: str,
+        theorem_id: str | None,
+        budget_s: float,
+    ) -> LeanRunResult:
+        """
+        Run Lean verification using this server instance.
+
+        Args:
+            file_path: Path to Lean file (relative to workspace)
+            theorem_id: Optional theorem identifier for theorem-level verification
+            budget_s: Time budget in seconds
+
+        Returns:
+            LeanRunResult with status, diagnostics, logs, timing
+
+        Raises:
+            TimeoutError: If verification exceeds budget
+            ValueError: If theorem_id is invalid or not found
+            RuntimeError: If Lean process fails unexpectedly
+        """
+        ...
+
+    def close(self) -> None:
+        """
+        Close the server and cleanup resources.
+
+        This method should be called when the server is no longer needed.
+        It should not raise exceptions - cleanup errors should be logged.
+        """
+        ...
+
+
 class LeanRunner(Protocol):
     """
     Abstract interface for running Lean verification.
@@ -176,6 +220,24 @@ class LeanRunner(Protocol):
             TimeoutError: If verification exceeds budget
             ValueError: If theorem_id is invalid or not found
             RuntimeError: If Lean process fails unexpectedly
+        """
+        ...
+
+    def create_server(self, workspace_path: Path) -> LeanServer:
+        """
+        Create a reusable Lean server for the given workspace.
+
+        This method creates a long-lived server that can be reused across
+        multiple verification requests, avoiding repeated initialization overhead.
+
+        Args:
+            workspace_path: Path to isolated workspace
+
+        Returns:
+            LeanServer instance that can be reused
+
+        Raises:
+            RuntimeError: If server creation fails
         """
         ...
 

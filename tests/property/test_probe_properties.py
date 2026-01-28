@@ -795,6 +795,7 @@ def test_property_1_workspace_isolation(cmd):
     mode=st.sampled_from(["aesop", "aesop?", "grind"]),
 )
 @settings(max_examples=10, deadline=None)
+@pytest.mark.requires_lean
 def test_property_2_harness_structure_validity(file_path, theorem_id, mode):
     """
     Feature: probe-and-probe-file-tools

@@ -42,7 +42,7 @@ class TestProbeFileCommandHandler:
         }
 
         # Mock probe results
-        def mock_probe_handle(cmd):
+        def mock_probe_handle(cmd, lean_server=None):
             return ProbeResult(
                 api_version="0.1.0",
                 status="success",
@@ -392,7 +392,7 @@ class TestProbeFileCommandHandler:
         }
 
         # Mock probe results - second one raises exception
-        def mock_probe_handle(cmd):
+        def mock_probe_handle(cmd, lean_server=None):
             if cmd.theorem_id == "theorem2":
                 raise RuntimeError("Probe failed for theorem2")
             return ProbeResult(

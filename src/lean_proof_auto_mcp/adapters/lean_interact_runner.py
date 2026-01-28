@@ -54,6 +54,57 @@ class LeanInteractRunner:
         """
         self.timeout_buffer_ms = timeout_buffer_ms
 
+    def create_server(self, workspace_path: Path) -> "ReusableLeanServer":
+        """
+        Create a reusable Lean server for the given workspace.
+
+        This method creates a long-lived server that can be reused across
+        multiple verification requests, avoiding repeated initialization overhead.
+
+        Args:
+            workspace_path: Path to isolated workspace
+
+        Returns:
+            ReusableLeanServer instance that can be reused
+
+        Raises:
+            RuntimeError: If server creation fails or LeanInteract not available
+
+        Requirements: Performance optimization for batch operations
+        """
+        if not LEAN_INTERACT_AVAILABLE or LeanServer is None:
+            raise RuntimeError(
+                "LeanInteract library not installed. Install with: pip install lean-interact"
+            )
+
+        # Initialize LeanServer with project context
+        try:
+            # Check if workspace has lakefile
+            lakefile_path = workspace_path / "lakefile.toml"
+            lakefile_lean_path = workspace_path / "lakefile.lean"
+
+            if lakefile_path.exists() or lakefile_lean_path.exists():
+                # Has Lake project - use it
+                try:
+                    project = LocalProject(directory=str(workspace_path), auto_build=False)
+                    config = LeanREPLConfig(project=project)
+                    logger.info(
+                        f"Created reusable server with Lake project context from {workspace_path}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to initialize Lake project, using standalone mode: {e}")
+                    config = LeanREPLConfig(lean_version="v4.15.0")
+            else:
+                # No Lake project - use standalone mode
+                logger.info("Created reusable server in standalone mode")
+                config = LeanREPLConfig(lean_version="v4.15.0")
+
+            server = LeanServer(config)
+            return ReusableLeanServer(server, workspace_path, self)
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to create Lean server: {e}") from e
+
     def verify_file(
         self,
         workspace_path: Path,
@@ -415,3 +466,159 @@ class LeanInteractRunner:
                 logs.append(f"[sorry] {sorry.goal}")
 
         return "\n".join(logs) if logs else ""
+
+
+class ReusableLeanServer:
+    """
+    Reusable Lean server wrapper for batch operations.
+
+    This class wraps a LeanServer instance and provides the LeanServer protocol
+    interface, enabling efficient batch verification by reusing the same server
+    across multiple theorems.
+
+    Requirements: Performance optimization for batch operations
+    """
+
+    def __init__(
+        self,
+        server: Any,  # LeanServer from lean_interact
+        workspace_path: Path,
+        runner: LeanInteractRunner,
+    ):
+        """
+        Initialize reusable server wrapper.
+
+        Args:
+            server: LeanServer instance from lean_interact
+            workspace_path: Path to workspace
+            runner: Parent LeanInteractRunner for helper methods
+        """
+        self.server = server
+        self.workspace_path = workspace_path
+        self.runner = runner
+
+    def verify_file(
+        self,
+        file_path: str,
+        theorem_id: str | None,
+        budget_s: float,
+    ) -> LeanRunResult:
+        """
+        Run Lean verification using this server instance.
+
+        This method reuses the existing server instead of creating a new one,
+        avoiding the LocalProject/LeanServer initialization overhead.
+
+        Args:
+            file_path: Path to Lean file (relative to workspace)
+            theorem_id: Optional theorem identifier for theorem-level verification
+            budget_s: Time budget in seconds
+
+        Returns:
+            LeanRunResult with status, diagnostics, logs, timing
+
+        Raises:
+            TimeoutError: If verification exceeds budget
+            ValueError: If theorem_id is invalid or not found
+            RuntimeError: If Lean process fails unexpectedly
+
+        Requirements: Performance optimization for batch operations
+        """
+        start_time = time.time()
+
+        # Determine verification scope and theorem line range
+        theorem_line_range = None
+        if theorem_id:
+            # Theorem-level: get theorem's line range for filtering
+            target_file, theorem_line_range = self.runner._prepare_theorem_verification(
+                self.workspace_path, file_path, theorem_id
+            )
+            scope_used = "theorem"
+        else:
+            # File-level: verify entire file
+            target_file = file_path
+            scope_used = "file"
+
+        try:
+            # Run file verification with timeout using the reusable server
+            command = FileCommand(path=target_file)
+            response = self.server.run(command, timeout=budget_s)
+
+            # Check if response indicates an error (including timeout)
+            if isinstance(response, LeanError):
+                # LeanError response - could be timeout or other error
+                elapsed = time.time() - start_time
+                error_msg = str(response)
+
+                # Check if it's a timeout error
+                if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                    return LeanRunResult(
+                        status="timeout",
+                        diagnostics=[],
+                        scope_used=scope_used,
+                        full_logs=error_msg,
+                        timing={"lean_execution_s": elapsed},
+                        exit_code=-1,
+                    )
+                else:
+                    # Other error
+                    return LeanRunResult(
+                        status="error",
+                        diagnostics=[],
+                        scope_used=scope_used,
+                        full_logs=error_msg,
+                        timing={"lean_execution_s": elapsed},
+                        exit_code=1,
+                    )
+
+            # Parse diagnostics from response
+            diagnostics = self.runner._parse_diagnostics(response)
+
+            # Filter diagnostics to theorem's line range if theorem-level verification
+            if theorem_id and theorem_line_range:
+                start_line, end_line = theorem_line_range
+                diagnostics = self.runner._filter_diagnostics_by_range(
+                    diagnostics, start_line, end_line
+                )
+
+            elapsed = time.time() - start_time
+
+            # Determine status based on diagnostics
+            has_errors = any(d["severity"] == "error" for d in diagnostics)
+            status = "fail" if has_errors else "success"
+
+            return LeanRunResult(
+                status=status,
+                diagnostics=diagnostics,
+                scope_used=scope_used,
+                full_logs=self.runner._capture_logs(response),
+                timing={"lean_execution_s": elapsed},
+                exit_code=0,
+            )
+
+        except TimeoutError:
+            elapsed = time.time() - start_time
+            return LeanRunResult(
+                status="timeout",
+                diagnostics=[],
+                scope_used="theorem" if theorem_id else "file",
+                full_logs="Verification timed out",
+                timing={"lean_execution_s": elapsed},
+                exit_code=-1,
+            )
+
+    def close(self) -> None:
+        """
+        Close the server and cleanup resources.
+
+        This method kills the Lean server process and cleans up resources.
+        It does not raise exceptions - cleanup errors are logged.
+
+        Requirements: Performance optimization for batch operations
+        """
+        if self.server is not None:
+            from contextlib import suppress
+
+            with suppress(Exception):
+                self.server.kill()
+                logger.info("Closed reusable Lean server")

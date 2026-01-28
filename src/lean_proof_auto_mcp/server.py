@@ -9,6 +9,7 @@ from .tools.probe_file import probe_file
 from .tools.rank_targets import rank_targets
 from .tools.scan_file import scan_file
 from .tools.scan_theorem import scan_theorem
+from .tools.search_annotations import search_annotations
 from .tools.verify import verify
 
 
@@ -22,6 +23,7 @@ def create_app(cfg: Config) -> FastMCP:
     router.register("verify", verify)
     router.register("probe", probe)
     router.register("probe_file", probe_file)
+    router.register("search_annotations", search_annotations)
 
     app = FastMCP(cfg.server_name)
 
@@ -148,6 +150,59 @@ def create_app(cfg: Config) -> FastMCP:
                 "budget_s_per": budget_s_per,
                 "limit": limit,
                 "ordering": ordering,
+            },
+        )
+
+    @app.tool(name="search_annotations")
+    def search_annotations_tool(
+        file: str,
+        theorem_id: str,
+        mode: str = "local_only",
+        automation: dict | None = None,
+        budgets: dict | None = None,
+        search: dict | None = None,
+        candidates: dict | None = None,
+        skeleton: dict | None = None,
+        style: dict | None = None,
+        workspace: dict | None = None,
+        allow_global_edits: bool = False,
+    ) -> dict:
+        """Search for minimal local proof hints to make a theorem provable by automation.
+
+        Discovers the minimal set of local hints (lemmas, definitions, rules) that
+        enable automation to close a goal. Uses search strategies (greedy or beam)
+        to explore hint combinations, then minimizes the result using delta-debugging.
+
+        Args:
+            file: Path to Lean file
+            theorem_id: Theorem identifier to search
+            mode: Operation mode - "local_only" or "suggest_global" (default: "local_only")
+            automation: Automation configuration dict (optional)
+            budgets: Budget configuration dict (optional)
+            search: Search configuration dict (optional)
+            candidates: Candidate configuration dict (optional)
+            skeleton: Skeleton configuration dict (optional)
+            style: Style configuration dict (optional)
+            workspace: Workspace configuration dict (optional)
+            allow_global_edits: Allow global edits (default: False)
+
+        Returns:
+            Search result with status, minimized hint set, proof patch, timing, and artifacts
+        """
+        return router.dispatch(
+            "search_annotations",
+            {
+                "file": file,
+                "theorem_id": theorem_id,
+                "mode": mode,
+                "automation": automation or {},
+                "budgets": budgets or {},
+                "search": search or {},
+                "candidates": candidates or {},
+                "skeleton": skeleton or {},
+                "style": style or {},
+                "workspace": workspace or {},
+                "allow_global_edits": allow_global_edits,
             },
         )
 

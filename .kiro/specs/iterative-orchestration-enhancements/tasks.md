@@ -2,476 +2,395 @@
 
 ## Overview
 
-This implementation plan breaks down the iterative orchestration enhancements into discrete, incremental coding tasks. Each task builds on previous work and includes testing to validate functionality early. The plan follows the phased approach outlined in the design document, prioritizing high-impact features first.
+This plan implements the migration to LeanInteract as the sole foundation for Lean interaction, enabling LLM-guided proof refactoring with 95%+ hint extraction accuracy and rich feedback mechanisms. The implementation follows a phased approach: Adapter Layer → Core Domain Refactoring → MCP Tool Enhancement → Existing Tool Migration → Test Suite Migration.
 
 ## Tasks
 
-- [ ] 1. Set up core data models and serialization
-  - [ ] 1.1 Create `SubgoalState` dataclass with validation
-    - Implement frozen dataclass with fields: remaining_goals, applied_hints, complexity_before, complexity_after
-    - Add `__post_init__` validation for non-negative complexity and monotonicity
-    - _Requirements: 1.1, 1.2, 1.3, 1.5_
+- [ ] 1. Implement LeanInteract Adapter Layer
+  - [ ] 1.1 Create LeanInteractQuerier component
+    - Implement `extract_declarations()` using `FileCommand(declarations=True)`
+    - Implement `get_proof_references()` using value.constants + pp text parsing fallback
+    - Implement `get_theorem_context()` with scope and hypothesis extraction
+    - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4_
   
-  - [ ] 1.2 Create `CaseInfo` and `CaseAnalysis` dataclasses
-    - Implement `CaseInfo` with case_label, goal_expression, recommended_hints, complexity
-    - Implement `CaseAnalysis` with has_induction, cases, induction_variable
-    - Add validation for consistency (has_induction implies non-empty cases)
-    - _Requirements: 2.2, 2.3, 2.4, 2.6_
+  - [ ]* 1.2 Write property test for LeanInteractQuerier
+    - **Property 1: Complete Declaration Extraction**
+    - **Validates: Requirements 1.1, 1.2, 1.3**
   
-  - [ ] 1.3 Create `HintProvenance` dataclass
-    - Implement frozen dataclass with source_category, source_theorem, relevance_score, selection_reasoning
-    - Add validation for relevance_score in [0, 1] range
-    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+  - [ ]* 1.3 Write property test for proof reference extraction
+    - **Property 2: Accurate Proof Reference Extraction**
+    - **Validates: Requirements 2.3**
   
-  - [ ] 1.4 Create `DependencyAnalysis` dataclass
-    - Implement frozen dataclass with has_missing_dependencies, missing_symbols, suggested_imports, suggest_global_mode, confidence
-    - Add validation for confidence in [0, 1] range and consistency checks
-    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+  - [ ]* 1.4 Write property test for context extraction
+    - **Property 3: Complete Context Extraction**
+    - **Validates: Requirements 3.1, 3.2, 3.3, 3.4**
   
-  - [ ] 1.5 Create `ProgressMetrics` dataclass
-    - Implement frozen dataclass with complexity_before, complexity_after, reduction_percentage, blockers, iteration_recommendation
-    - Add validation for reduction_percentage calculation accuracy
-    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+  - [ ] 1.5 Create ProofStateInspector component
+    - Implement `get_initial_proof_state()` using Command with sorry
+    - Implement `apply_tactic()` using ProofStep
+    - Parse proof states to extract goals and hypotheses
+    - _Requirements: 16.1, 16.2, 16.3, 16.4_
   
-  - [ ] 1.6 Enhance `Hint` dataclass with optional provenance field
-    - Add optional `provenance: HintProvenance | None = None` field
-    - Maintain backward compatibility (existing code works without provenance)
-    - _Requirements: 3.5, 6.3_
+  - [ ]* 1.6 Write property test for proof state inspection
+    - **Property 8: Proof State Completeness**
+    - **Validates: Requirements 16.1, 16.2, 16.3, 16.4**
   
-  - [ ] 1.7 Create `EnhancementsConfig` dataclass
-    - Implement configuration with boolean flags for each enhancement
-    - Add optional `target_case` field for case-specific search
-    - _Requirements: 1.1, 2.1, 3.1, 4.1, 5.1_
+  - [ ] 1.7 Create ProofValidator component
+    - Implement `validate_proof()` using Command with timeout
+    - Parse error messages for location and suggestions
+    - Extract proof state for incomplete proofs
+    - Return structured ValidationResult
+    - _Requirements: 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8_
   
-  - [ ] 1.8 Enhance `SearchAnnotationsCommand` with enhancements field
-    - Add optional `enhancements: EnhancementsConfig = EnhancementsConfig()` field
-    - Maintain backward compatibility (defaults to all disabled)
-    - _Requirements: 1.1, 2.1, 3.1, 4.1, 5.1_
+  - [ ]* 1.8 Write property test for proof validation
+    - **Property 7: Validation Result Structure Completeness**
+    - **Validates: Requirements 7.3, 7.4, 7.5, 7.6, 7.7, 17.1, 17.2, 17.3, 17.4, 17.5**
   
-  - [ ] 1.9 Enhance `SearchAnnotationsResult` with optional enhancement fields
-    - Add optional fields: subgoal_state, case_analysis, dependency_analysis, progress_metrics
-    - Ensure fields are None by default for backward compatibility
-    - _Requirements: 6.1, 6.2, 6.4, 6.5, 7.1, 7.2_
+  - [ ] 1.9 Create ServerManager component
+    - Implement server instance management (one per file)
+    - Implement crash detection and automatic restart
+    - Implement request/response logging
+    - Use lean-interact-runner as execution wrapper
+    - _Requirements: 10.6, 28.3, 28.4, 28.5, 28.6_
   
-  - [ ] 1.10 Write property test for serialization round-trip
-    - **Property 10: Serialization Round-Trip**
-    - **Validates: Requirements 9.6**
-    - Generate random instances of all new data structures
-    - Serialize to JSON, deserialize, verify equivalence
+  - [ ]* 1.10 Write property test for server management
+    - **Property 19: Server Instance Reuse**
+    - **Validates: Requirements 10.6, 28.4, 28.5, 28.6**
   
-  - [ ] 1.11 Write unit tests for data model validation
-    - Test invalid inputs raise ValueError
-    - Test edge cases (empty lists, boundary values)
-    - _Requirements: 1.1, 1.2, 2.2, 3.1, 4.1, 5.1_
+  - [ ]* 1.11 Write unit tests for error handling
+    - Test LeanInteract crash recovery
+    - Test timeout handling
+    - Test invalid input handling
+    - _Requirements: 11.1, 11.2, 11.3_
 
-- [ ] 2. Checkpoint - Verify data models and serialization
-  - Ensure all tests pass, ask the user if questions arise.
+- [ ] 2. Checkpoint - Verify Adapter Layer
+  - Ensure all adapter layer tests pass
+  - Verify LeanInteract integration works with real Lean files
+  - Ask the user if questions arise
 
-- [ ] 3. Implement SubgoalAnalyzer service
-  - [ ] 3.1 Create `SubgoalAnalyzer` class with dependency injection
-    - Accept `LeanInteractRunner` in constructor
-    - Follow hexagonal architecture (no infrastructure in core logic)
-    - _Requirements: 1.1, 1.2, 1.3_
+- [ ] 3. Refactor Core Domain Layer
+  - [ ] 3.1 Refactor CandidateGenerator to use LeanInteractQuerier
+    - Remove all regex-based parsing code
+    - Implement goal_symbols extraction using LeanInteract + parsing
+    - Implement local_context extraction using proof states
+    - Implement same_namespace extraction using declarations
+    - Implement original_proof_refs extraction using value.constants
+    - Infer hint types from declaration attributes
+    - _Requirements: 12.1, 12.2, 12.3, 12.4, 5.2, 5.3, 5.4, 5.5_
   
-  - [ ] 3.2 Implement `analyze()` method
-    - Parse Lean execution output to extract remaining goals
-    - Calculate complexity metrics before and after hints
-    - Return `SubgoalState` with all required fields
-    - _Requirements: 1.1, 1.2, 1.3, 1.5_
+  - [ ]* 3.2 Write property test for candidate generation
+    - **Property 5: Candidate Source Extraction Accuracy**
+    - **Validates: Requirements 5.2, 5.3, 5.4, 5.5, 5.7**
   
-  - [ ] 3.3 Implement `calculate_complexity()` helper function
-    - Count symbols, nesting depth, quantifiers
-    - Return integer complexity score
-    - _Requirements: 1.2, 5.1, 5.2_
+  - [ ]* 3.3 Write static analysis test for no regex usage
+    - Verify no regex patterns in CandidateGenerator
+    - **Validates: Requirements 12.2**
   
-  - [ ] 3.4 Write unit tests for SubgoalAnalyzer
-    - Test with mock Lean output
-    - Test complexity calculation accuracy
-    - Test edge cases (no remaining goals, empty output)
-    - _Requirements: 1.1, 1.2, 1.3_
+  - [ ] 3.4 Implement ContextExtractor component
+    - Extract theorem statement and original proof
+    - Extract hypotheses from proof state
+    - Extract in-scope declarations
+    - Implement similar proof discovery with similarity scoring
+    - Cache context for performance
+    - _Requirements: 8.2, 8.3, 8.4, 8.5, 8.6_
   
-  - [ ] 3.5 Write property test for complexity monotonicity
-    - **Property 2: Complexity Monotonicity**
-    - **Validates: Requirements 1.2, 5.1, 5.2**
-    - Generate random SubgoalState instances
-    - Verify complexity_after <= complexity_before
+  - [ ]* 3.5 Write property test for similar proof discovery
+    - **Property 9: Similar Proof Discovery Accuracy**
+    - **Validates: Requirements 18.1, 18.2, 18.3, 18.4**
+  
+  - [ ] 3.6 Implement FeedbackBuilder component
+    - Track hints that helped and their impact
+    - Calculate goal complexity reduction
+    - Generate tactical suggestions with confidence scores
+    - Provide reasoning for all suggestions
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
+  
+  - [ ]* 3.7 Write property test for feedback building
+    - **Property 16: Feedback Builder Completeness**
+    - **Validates: Requirements 13.2, 13.3, 13.4, 13.5**
+  
+  - [ ] 3.8 Enhance SearchOrchestrator
+    - Support configurable search parameters
+    - Implement search depth presets
+    - Support all four candidate sources
+    - Build rich feedback using FeedbackBuilder
+    - Track partial progress during search
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 5.1, 5.6, 5.7_
+  
+  - [ ]* 3.9 Write property test for search configuration
+    - **Property 4: Search Depth Configuration Consistency**
+    - **Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6, 4.7**
+  
+  - [ ]* 3.10 Write property test for search strategies
+    - **Property 10: Search Strategy Behavior Consistency**
+    - **Validates: Requirements 19.2, 19.3, 19.4**
 
-- [ ] 4. Integrate SubgoalAnalyzer into SearchAnnotationsCommandHandler
-  - [ ] 4.1 Add SubgoalAnalyzer to handler dependencies
-    - Update `__init__` to accept SubgoalAnalyzer
-    - Update composition root in `search_annotations.py`
-    - _Requirements: 1.1_
-  
-  - [ ] 4.2 Call SubgoalAnalyzer when outcome is "partial"
-    - Check if `enhancements.enable_subgoal_reporting` is True
-    - Call `analyzer.analyze()` with execution output
-    - Set `result.subgoal_state` with returned SubgoalState
-    - _Requirements: 1.1, 1.2, 1.3_
-  
-  - [ ] 4.3 Handle SubgoalAnalyzer errors gracefully
-    - Catch exceptions and log warnings
-    - Continue without subgoal_state if analysis fails
-    - Add error to metadata
-    - _Requirements: 12.1, 12.2_
-  
-  - [ ] 4.4 Write integration test for subgoal reporting
-    - Test end-to-end with real Lean execution
-    - Verify subgoal_state in result
-    - Verify artifact logging includes subgoal_state
-    - _Requirements: 1.1, 1.2, 1.3, 10.2_
+- [ ] 4. Checkpoint - Verify Core Domain Layer
+  - Ensure all core domain tests pass
+  - Verify candidate generation achieves 95%+ accuracy on test set
+  - Ask the user if questions arise
 
-- [ ] 5. Checkpoint - Verify subgoal reporting works end-to-end
-  - Ensure all tests pass, ask the user if questions arise.
+- [ ] 5. Implement Enhanced MCP Tools
+  - [ ] 5.1 Implement search_automated_proof tool
+    - Define tool signature with all parameters
+    - Validate input parameters
+    - Build SearchConfig from parameters
+    - Delegate to SearchOrchestrator
+    - Format response with rich feedback
+    - Support all return options (proof_states, partial_progress, context, similar_proofs, search_trace)
+    - _Requirements: 4.1, 4.8, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
+  
+  - [ ]* 5.2 Write property test for conditional return values
+    - **Property 6: Conditional Return Value Completeness**
+    - **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5, 6.6**
+  
+  - [ ]* 5.3 Write unit tests for search_automated_proof
+    - Test parameter validation
+    - Test JSON response format
+    - Test all search depth presets
+    - _Requirements: 4.2, 4.3, 4.4, 4.5, 4.6, 4.7_
+  
+  - [ ] 5.4 Implement try_automated_proof tool
+    - Define tool signature
+    - Validate input parameters
+    - Delegate to ProofValidator
+    - Format ValidationResult as JSON
+    - Include tactical suggestions
+    - Enforce timeout
+    - _Requirements: 7.1, 7.2, 7.8_
+  
+  - [ ]* 5.5 Write unit tests for try_automated_proof
+    - Test validation success case
+    - Test validation error case
+    - Test validation incomplete case
+    - Test validation timeout case
+    - _Requirements: 7.3, 7.4, 7.5, 7.6_
+  
+  - [ ] 5.6 Implement get_proof_context tool
+    - Define tool signature
+    - Validate input parameters
+    - Delegate to ContextExtractor
+    - Format ProofContext as JSON
+    - Include similar proofs if requested
+    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
+  
+  - [ ]* 5.7 Write unit tests for get_proof_context
+    - Test context extraction
+    - Test similar proof inclusion
+    - Test JSON response format
+    - _Requirements: 8.2, 8.3, 8.4, 8.5, 8.6_
+  
+  - [ ] 5.8 Add deprecation error for search_annotations
+    - Remove search_annotations tool entirely
+    - Return clear error message directing users to search_automated_proof
+    - Do NOT provide backward compatibility or parameter mapping
+    - _Requirements: 4.8, 26.5_
+  
+  - [ ]* 5.9 Write unit test for deprecation error
+    - Test that search_annotations is not available
+    - Test error message is clear and helpful
+    - _Requirements: 4.8, 26.5_
 
-- [ ] 6. Implement ProvenanceTracker service
-  - [ ] 6.1 Create `ProvenanceTracker` class with Index dependency
-    - Accept `Index` in constructor
-    - Follow hexagonal architecture
-    - _Requirements: 3.1, 3.2_
-  
-  - [ ] 6.2 Implement `track()` method
-    - Determine source_category from hint.source
-    - Look up source_theorem from index if applicable
-    - Calculate relevance_score based on goal/context
-    - Generate selection_reasoning string
-    - Return `HintProvenance` instance
-    - _Requirements: 3.1, 3.2, 3.3, 3.4_
-  
-  - [ ] 6.3 Implement relevance scoring heuristic
-    - Score based on symbol overlap with goal
-    - Score based on namespace proximity
-    - Score based on usage frequency
-    - Return score in [0, 1] range
-    - _Requirements: 3.3_
-  
-  - [ ] 6.4 Write unit tests for ProvenanceTracker
-    - Test with mock Index
-    - Test relevance scoring accuracy
-    - Test edge cases (no source theorem, empty goal)
-    - _Requirements: 3.1, 3.2, 3.3, 3.4_
-  
-  - [ ] 6.5 Write property test for provenance completeness
-    - **Property 5: Hint Provenance Completeness**
-    - **Validates: Requirements 3.1, 3.3, 3.4**
-    - Generate random hints with provenance
-    - Verify all required fields present and valid
+- [ ] 6. Checkpoint - Verify MCP Tools
+  - Ensure all MCP tool tests pass
+  - Test tools with real LeanInteract on sample theorems
+  - Ask the user if questions arise
 
-- [ ] 7. Integrate ProvenanceTracker into candidate generation
-  - [ ] 7.1 Add ProvenanceTracker to CandidateGenerator dependencies
-    - Update `__init__` to accept ProvenanceTracker
-    - Update composition root
-    - _Requirements: 3.1_
+- [ ] 7. Migrate Existing Tools to LeanInteract
+  - [ ] 7.1 Migrate probe tool
+    - Replace direct Lean CLI calls with LeanInteractQuerier
+    - Route all Lean interaction through adapter layer
+    - Maintain existing interface and functionality
+    - _Requirements: 24.1, 24.4, 24.5_
   
-  - [ ] 7.2 Track provenance when generating candidates
-    - Check if `enhancements.enable_provenance_tracking` is True
-    - Call `tracker.track()` for each generated hint
-    - Set hint.provenance field
-    - _Requirements: 3.1, 3.2, 3.3, 3.4_
+  - [ ] 7.2 Write regression tests for probe
+    - Verify existing functionality preserved
+    - Test with existing test cases
+    - _Requirements: 24.5_
   
-  - [ ] 7.3 Handle ProvenanceTracker errors gracefully
-    - Catch exceptions and log warnings
-    - Continue without provenance if tracking fails
-    - _Requirements: 12.1, 12.2_
+  - [ ] 7.3 Migrate probe_file tool
+    - Replace direct Lean CLI calls with LeanInteractQuerier
+    - Route all Lean interaction through adapter layer
+    - Maintain existing interface and functionality
+    - _Requirements: 24.2, 24.4, 24.5_
   
-  - [ ] 7.4 Write integration test for provenance tracking
-    - Test end-to-end with candidate generation
-    - Verify hints have provenance in result
-    - Verify artifact logging includes provenance
-    - _Requirements: 3.1, 3.2, 3.3, 3.4, 10.6_
+  - [ ] 7.4 Write regression tests for probe_file
+    - Verify existing functionality preserved
+    - Test with existing test cases
+    - _Requirements: 24.5_
+  
+  - [ ] 7.5 Migrate verify tool
+    - Replace direct Lean CLI calls with ProofValidator
+    - Route all Lean interaction through adapter layer
+    - Maintain existing interface and functionality
+    - _Requirements: 24.3, 24.4, 24.5_
+  
+  - [ ] 7.6 Write regression tests for verify
+    - Verify existing functionality preserved
+    - Test with existing test cases
+    - _Requirements: 24.5_
+  
+  - [ ]* 7.7 Write static analysis test for LeanInteract foundation
+    - **Property 18: LeanInteract Foundation Consistency**
+    - Verify no direct Lean CLI calls in codebase
+    - Verify no regex parsing of Lean output
+    - Verify all Lean interaction goes through adapter layer
+    - **Validates: Requirements 28.1, 28.2, 28.4**
 
-- [ ] 8. Checkpoint - Verify provenance tracking works end-to-end
-  - Ensure all tests pass, ask the user if questions arise.
+- [ ] 8. Checkpoint - Verify Tool Migration
+  - Ensure all migrated tools pass regression tests
+  - Verify no direct Lean CLI calls remain
+  - Ask the user if questions arise
 
-- [ ] 9. Implement DependencyAnalyzer service
-  - [ ] 9.1 Create `DependencyAnalyzer` class with Index dependency
-    - Accept `Index` in constructor
-    - Follow hexagonal architecture
-    - _Requirements: 4.1_
+- [ ] 9. Migrate Test Suite
+  - [ ] 9.1 Update search_annotations tests
+    - Update tests to use search_automated_proof
+    - Update parameter names and values
+    - Update expected response format
+    - _Requirements: 25.1_
   
-  - [ ] 9.2 Implement `analyze()` method
-    - Extract symbols from theorem declaration
-    - Check each symbol against index
-    - Identify undefined symbols
-    - Suggest imports for missing symbols
-    - Calculate confidence based on validation
-    - Return `DependencyAnalysis` instance
-    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+  - [ ] 9.2 Remove regex-based tests
+    - Identify tests that rely on regex parsing
+    - Remove or update to use LeanInteract
+    - _Requirements: 25.2_
   
-  - [ ] 9.3 Implement symbol validation to avoid false positives
-    - Check if symbol is defined in current file
-    - Check if symbol is in standard library
-    - Check if symbol is a built-in
-    - _Requirements: 4.4_
+  - [ ] 9.3 Add LeanInteract-based candidate source tests
+    - Test goal_symbols extraction
+    - Test local_context extraction
+    - Test same_namespace extraction
+    - Test original_proof_refs extraction
+    - _Requirements: 25.3_
   
-  - [ ] 9.4 Write unit tests for DependencyAnalyzer
-    - Test with mock Index
-    - Test false positive avoidance
-    - Test edge cases (no dependencies, all missing)
-    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+  - [ ] 9.4 Add original_proof_refs accuracy tests
+    - Create test dataset with known proof references
+    - Measure extraction accuracy
+    - Verify 95%+ accuracy target
+    - _Requirements: 25.4, 2.4_
   
-  - [ ] 9.5 Write property test for dependency detection accuracy
-    - **Property 6: Dependency Detection Accuracy**
-    - **Validates: Requirements 4.1, 4.4**
-    - Generate theorems with undefined symbols
-    - Verify detection identifies them correctly
+  - [ ] 9.5 Update test mocking strategy
+    - Mock LeanInteract Adapter Layer interfaces
+    - Remove mocks of Lean CLI
+    - Update all tests to use new mocking approach
+    - _Requirements: 25.5_
+  
+  - [ ]* 9.6 Verify test coverage
+    - Run coverage analysis
+    - Ensure 80%+ coverage maintained
+    - Add tests for uncovered code
+    - _Requirements: 25.6, 27.4_
 
-- [ ] 10. Integrate DependencyAnalyzer into viability check
-  - [ ] 10.1 Add DependencyAnalyzer to handler dependencies
-    - Update `__init__` to accept DependencyAnalyzer
-    - Update composition root
-    - _Requirements: 4.1_
+- [ ] 10. Add Property-Based Tests for All Properties
+  - [ ]* 10.1 Write property test for automation mode selection
+    - **Property 11: Automation Mode Selection**
+    - **Validates: Requirements 20.2, 20.3, 20.4, 20.5, 20.6**
   
-  - [ ] 10.2 Call DependencyAnalyzer during viability check
-    - Check if `enhancements.enable_dependency_detection` is True
-    - Call `analyzer.analyze()` with theorem declaration
-    - Set `result.dependency_analysis` with returned DependencyAnalysis
-    - _Requirements: 4.1, 4.2, 4.3, 4.5_
+  - [ ]* 10.2 Write property test for hint type filtering
+    - **Property 12: Hint Type Filtering**
+    - **Validates: Requirements 21.4, 21.5**
   
-  - [ ] 10.3 Handle DependencyAnalyzer errors gracefully
-    - Catch exceptions and log warnings
-    - Continue without dependency_analysis if analysis fails
-    - _Requirements: 12.1, 12.2_
+  - [ ]* 10.3 Write property test for hint minimization
+    - **Property 13: Hint Set Minimization Correctness**
+    - **Validates: Requirements 22.2, 22.3, 22.5**
   
-  - [ ] 10.4 Write integration test for dependency detection
-    - Test end-to-end with theorems having missing imports
-    - Verify dependency_analysis in result
-    - Verify artifact logging includes dependency_analysis
-    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 10.4_
+  - [ ]* 10.4 Write property test for metadata completeness
+    - **Property 14: Metadata Completeness**
+    - **Validates: Requirements 23.1, 23.2, 23.3**
+  
+  - [ ]* 10.5 Write property test for error handling
+    - **Property 15: Error Handling Without Crashes**
+    - **Validates: Requirements 11.2, 11.3**
+  
+  - [ ]* 10.6 Write property test for original proof preservation
+    - **Property 17: Original Proof Preservation**
+    - **Validates: Requirements 14.5**
+  
+  - [ ]* 10.7 Write property test for dependency injection
+    - **Property 20: Dependency Injection Architecture**
+    - **Validates: Requirements 9.2, 9.5**
 
-- [ ] 11. Checkpoint - Verify dependency detection works end-to-end
-  - Ensure all tests pass, ask the user if questions arise.
-
-- [ ] 12. Implement CaseDetector service
-  - [ ] 12.1 Create `CaseDetector` class (no external dependencies)
-    - Pure domain logic for detecting induction structure
-    - Follow hexagonal architecture
-    - _Requirements: 2.2, 2.3_
+- [ ] 11. Add Integration and Benchmark Tests
+  - [ ]* 11.1 Create integration test suite
+    - Test end-to-end workflow on real mathlib theorems
+    - Test search → validate → iterate cycle
+    - Test all three MCP tools together
+    - _Requirements: 27.3_
   
-  - [ ] 12.2 Implement `detect()` method
-    - Scan proof text for `induction` tactic
-    - Extract case labels from proof structure
-    - Identify induction variable
-    - Parse case-specific goals
-    - Return `CaseAnalysis` instance
-    - _Requirements: 2.2, 2.3_
+  - [ ]* 11.2 Create benchmark test for declaration extraction accuracy
+    - Create ground truth dataset
+    - Measure extraction accuracy
+    - Verify 95%+ accuracy target
+    - _Requirements: 1.4_
   
-  - [ ] 12.3 Implement `recommend_hints_for_case()` method
-    - Filter hints by relevance to specific case
-    - Rank hints by case-specific relevance
-    - Return list of recommended hints
+  - [ ]* 11.3 Create benchmark test for proof reference extraction accuracy
+    - Create ground truth dataset
+    - Measure extraction accuracy
+    - Verify 95%+ accuracy target
     - _Requirements: 2.4_
   
-  - [ ] 12.4 Write unit tests for CaseDetector
-    - Test with various induction patterns
-    - Test case label extraction
-    - Test edge cases (no induction, nested induction)
-    - _Requirements: 2.2, 2.3, 2.4_
+  - [ ]* 11.4 Create benchmark test for success rates
+    - Test on trivial theorems (Tier 1)
+    - Test on simple theorems (Tier 2)
+    - Test on medium theorems (Tier 3)
+    - Measure overall success rate
+    - Verify 20-35% overall target
+    - _Requirements: 14.1, 14.2, 14.3, 14.4_
   
-  - [ ] 12.5 Write property test for induction detection accuracy
-    - **Property 4: Induction Detection Accuracy**
-    - **Validates: Requirements 2.2, 2.3**
-    - Generate theorems with/without induction
-    - Verify detection is correct
+  - [ ]* 11.5 Create benchmark test for iteration efficiency
+    - Measure average iterations per successful refactoring
+    - Verify 2-3 iteration average
+    - _Requirements: 15.1_
+  
+  - [ ]* 11.6 Create benchmark test for false positive rate
+    - Validate all refactored proofs with Lean
+    - Measure false positive rate
+    - Verify < 5% target
+    - _Requirements: 11.6_
+  
+  - [ ]* 11.7 Create performance tests
+    - Test quick search time (≤ 15s)
+    - Test normal search time (≤ 40s)
+    - Test deep search time (≤ 90s)
+    - Test validation time (≤ 10s)
+    - Test full iteration cycle (≤ 50s)
+    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
 
-- [ ] 13. Integrate CaseDetector into SearchAnnotationsCommandHandler
-  - [ ] 13.1 Add CaseDetector to handler dependencies
-    - Update `__init__` to accept CaseDetector
-    - Update composition root
-    - _Requirements: 2.2_
-  
-  - [ ] 13.2 Call CaseDetector during viability check
-    - Check if `enhancements.enable_case_analysis` is True
-    - Call `detector.detect()` with theorem declaration
-    - Set `result.case_analysis` with returned CaseAnalysis
-    - _Requirements: 2.2, 2.3_
-  
-  - [ ] 13.3 Implement case-specific search when target_case is specified
-    - Check if `enhancements.target_case` is not None
-    - Filter candidates to case-specific hints
-    - Search only for that case
-    - _Requirements: 2.1, 2.4_
-  
-  - [ ] 13.4 Handle CaseDetector errors gracefully
-    - Catch exceptions and log warnings
-    - Continue without case_analysis if detection fails
-    - _Requirements: 12.1, 12.2_
-  
-  - [ ] 13.5 Write integration test for case-aware search
-    - Test end-to-end with inductive theorems
-    - Test with target_case parameter
-    - Verify case_analysis in result
-    - Verify artifact logging includes case_analysis
-    - _Requirements: 2.1, 2.2, 2.3, 2.4, 10.3_
-  
-  - [ ] 13.6 Write property test for case-specific search correctness
-    - **Property 3: Case-Specific Search Correctness**
-    - **Validates: Requirements 2.1, 2.4**
-    - Generate theorems with cases
-    - Search with target_case
-    - Verify returned hints are case-specific
+- [ ] 12. Final Checkpoint - Comprehensive Verification
+  - Ensure all tests pass (unit, property, integration, benchmark)
+  - Verify 80%+ code coverage
+  - Verify 95%+ hint extraction accuracy
+  - Verify 20-35% refactoring success rate
+  - Verify < 5% false positive rate
+  - Verify all performance targets met
+  - Ask the user if questions arise
 
-- [ ] 14. Checkpoint - Verify case-aware search works end-to-end
-  - Ensure all tests pass, ask the user if questions arise.
-
-- [ ] 15. Implement ProgressCalculator service
-  - [ ] 15.1 Create `ProgressCalculator` class (no external dependencies)
-    - Pure domain logic for calculating progress metrics
-    - Follow hexagonal architecture
-    - _Requirements: 5.1, 5.2, 5.3_
+- [ ] 13. Documentation and Deployment Preparation
+  - [ ] 13.1 Update API documentation
+    - Document all three MCP tools with examples
+    - Document removal of search_annotations
+    - Document migration guide for users (use search_automated_proof instead)
+    - _Requirements: 26.1, 26.5_
   
-  - [ ] 15.2 Implement `calculate()` method
-    - Accept complexity_before, complexity_after, execution_output
-    - Calculate reduction_percentage
-    - Identify blockers from execution output
-    - Generate iteration recommendation
-    - Return `ProgressMetrics` instance
-    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
+  - [ ] 13.2 Add logging and monitoring
+    - Log all LeanInteract interactions
+    - Log performance metrics
+    - Log success rates by complexity tier
+    - Add alerts for anomalies
+    - _Requirements: 11.4, 28.6_
   
-  - [ ] 15.3 Implement `identify_blockers()` helper method
-    - Parse execution output for error patterns
-    - Identify missing symbols, type mismatches, etc.
-    - Return list of blocker descriptions
-    - _Requirements: 5.4_
-  
-  - [ ] 15.4 Write unit tests for ProgressCalculator
-    - Test reduction calculation accuracy
-    - Test blocker identification
-    - Test recommendation generation
-    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
-  
-  - [ ] 15.5 Write property test for progress reduction calculation
-    - **Property 7: Progress Reduction Calculation**
-    - **Validates: Requirements 5.3**
-    - Generate random complexity values
-    - Calculate ProgressMetrics
-    - Verify reduction_percentage formula
-
-- [ ] 16. Integrate ProgressCalculator into SearchAnnotationsCommandHandler
-  - [ ] 16.1 Add ProgressCalculator to handler dependencies
-    - Update `__init__` to accept ProgressCalculator
-    - Update composition root
-    - _Requirements: 5.1_
-  
-  - [ ] 16.2 Call ProgressCalculator after search phase
-    - Check if `enhancements.enable_progress_metrics` is True
-    - Call `calculator.calculate()` with complexity and output
-    - Set `result.progress_metrics` with returned ProgressMetrics
-    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
-  
-  - [ ] 16.3 Handle ProgressCalculator errors gracefully
-    - Catch exceptions and log warnings
-    - Continue without progress_metrics if calculation fails
-    - _Requirements: 12.1, 12.2_
-  
-  - [ ] 16.4 Write integration test for progress metrics
-    - Test end-to-end with partial outcomes
-    - Verify progress_metrics in result
-    - Verify artifact logging includes progress_metrics
-    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 10.5_
-
-- [ ] 17. Checkpoint - Verify progress metrics work end-to-end
-  - Ensure all tests pass, ask the user if questions arise.
-
-- [ ] 18. Implement backward compatibility and artifact logging tests
-  - [ ] 18.1 Write property test for backward compatibility - optional fields
-    - **Property 8: Backward Compatibility - Optional Fields**
-    - **Validates: Requirements 7.1, 7.2, 7.5**
-    - Generate SearchAnnotationsResult with enhancements disabled
-    - Verify new fields are None and omitted from JSON
-  
-  - [ ] 18.2 Write property test for backward compatibility - existing fields
-    - **Property 9: Backward Compatibility - Existing Fields**
-    - **Validates: Requirements 7.3**
-    - Generate SearchAnnotationsResult
-    - Verify all existing fields maintain original types and names
-  
-  - [ ] 18.3 Write property test for artifact logging completeness
-    - **Property 11: Artifact Logging Completeness**
-    - **Validates: Requirements 10.1, 10.2, 10.3, 10.4, 10.5, 10.6**
-    - Generate SearchAnnotationsResult with all enhancements
-    - Store via ArtifactStore
-    - Load result.json and verify all enhancement fields present
-  
-  - [ ] 18.4 Write integration test for full backward compatibility
-    - Test with enhancements disabled (default)
-    - Verify response identical to current behavior
-    - Verify artifacts identical to current structure
-    - _Requirements: 7.1, 7.2, 7.3, 7.5, 10.7_
-
-- [ ] 19. Update MCP tool argument parsing
-  - [ ] 19.1 Add `enhancements` parameter to search_annotations tool
-    - Accept optional dict with enhancement flags
-    - Parse into `EnhancementsConfig` dataclass
-    - Default to all disabled for backward compatibility
-    - _Requirements: 1.1, 2.1, 3.1, 4.1, 5.1_
-  
-  - [ ] 19.2 Update argument validation in `_build_command()`
-    - Validate enhancement flags are booleans
-    - Validate target_case is string or None
-    - Raise ValueError for invalid inputs
-    - _Requirements: 1.1, 2.1_
-  
-  - [ ] 19.3 Write unit tests for argument parsing
-    - Test with various enhancement configurations
-    - Test validation errors
-    - Test backward compatibility (no enhancements param)
-    - _Requirements: 1.1, 2.1, 3.1, 4.1, 5.1_
-
-- [ ] 20. Update JSON serialization to omit None fields
-  - [ ] 20.1 Enhance `to_json_serializable()` function
-    - Check if field value is None
-    - Omit field from output dict if None
-    - Maintain existing behavior for non-None values
-    - _Requirements: 7.2_
-  
-  - [ ] 20.2 Test serialization with optional fields
-    - Test with all fields None (omitted)
-    - Test with some fields populated (included)
-    - Test with all fields populated (all included)
-    - _Requirements: 7.2, 9.1, 9.2, 9.3, 9.4, 9.5_
-
-- [ ] 21. Final checkpoint - End-to-end validation
-  - [ ] 21.1 Run full integration test suite
-    - Test all enhancements together
-    - Test with real Lean execution
-    - Verify artifacts contain all enhancement data
-    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7_
-  
-  - [ ] 21.2 Run backward compatibility test suite
-    - Test with enhancements disabled
-    - Verify no changes to existing behavior
-    - Verify API version unchanged
-    - _Requirements: 6.6, 7.1, 7.2, 7.3, 7.4, 7.5_
-  
-  - [ ] 21.3 Run performance validation
-    - Measure overhead for each enhancement
-    - Verify total overhead < 500ms
-    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
-
-- [ ] 22. Documentation and cleanup
-  - [ ] 22.1 Update API documentation with new fields
-    - Document all new data structures
-    - Document enhancement configuration options
-    - Provide examples of enhanced responses
-    - _Requirements: 6.7_
-  
-  - [ ] 22.2 Update CHANGELOG.md
-    - Document new features
-    - Note backward compatibility
-    - Provide migration examples
-  
-  - [ ] 22.3 Update README.md with enhancement examples
-    - Show how to enable enhancements
-    - Show example enhanced responses
-    - Explain use cases for each enhancement
+  - [ ] 13.3 Prepare deployment configuration
+    - Configure feature flags
+    - Set up gradual rollout plan
+    - Document rollback procedure
+    - _Requirements: 26.1, 26.2, 26.3, 26.4_
 
 ## Notes
 
-- All tasks are required for comprehensive implementation
+- Tasks marked with `*` are optional and can be skipped for faster MVP
 - Each task references specific requirements for traceability
 - Checkpoints ensure incremental validation
-- Property tests validate universal correctness properties
+- Property tests validate universal correctness properties (minimum 100 iterations each)
 - Unit tests validate specific examples and edge cases
-- Integration tests validate end-to-end workflows with real Lean execution
-- All enhancements maintain backward compatibility (disabled by default)
-- Artifact logging works automatically via existing `ArtifactStore` interface
+- Integration tests validate end-to-end workflows
+- Benchmark tests validate accuracy and success rate targets
+- All tests use hypothesis library for property-based testing
+- All property tests include comment tags: `# Feature: iterative-orchestration-enhancements, Property N: [property text]`

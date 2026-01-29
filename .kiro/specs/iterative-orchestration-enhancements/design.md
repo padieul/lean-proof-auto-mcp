@@ -2,898 +2,1173 @@
 
 ## Overview
 
-This design extends the `search_annotations` MCP tool to provide LLM orchestrators with contextual information needed for effective iterative proof automation. Based on research on Mathlib proof automation, we address five critical issues: subgoal blindness, induction case splitting, hint provenance tracking, cross-file dependency detection, and progress metrics.
+This design describes the architectural migration of the lean-proof-auto-mcp system to use LeanInteract as its sole foundation for Lean interaction, enabling LLM-guided proof refactoring through iterative orchestration.
 
-The design follows hexagonal architecture principles, keeping core domain logic independent of infrastructure concerns. All enhancements are implemented as optional extensions to existing data structures, maintaining full backward compatibility with API version 0.1.0.
+### Problem Statement
+
+The current system uses regex-based parsing for hint extraction, achieving only ~70% accuracy. This prevents reliable extraction of lemmas from original proofs, limiting the system's ability to suggest appropriate hints for automation. Additionally, the system provides minimal feedback (success/fail only), preventing LLMs from iterating effectively on proof attempts.
+
+### Solution Approach
+
+Replace all Lean interaction with LeanInteract-based queries, achieving 95%+ accuracy for hint extraction. Provide rich feedback mechanisms including proof states, partial progress tracking, and tactical suggestions. Enable fast iteration cycles through new validation tools.
+
+### Key Innovations
+
+1. **LeanInteract Foundation**: All Lean interaction via LeanInteract REPL, no regex parsing
+2. **Accurate Hint Extraction**: Use `declaration.value.constants` for 95%+ accuracy
+3. **Rich Feedback**: Proof states, partial progress, tactical suggestions for LLM iteration
+4. **Fast Validation**: 10-second validation cycles for rapid iteration
+5. **Three-Layer Architecture**: Clean separation between MCP tools, business logic, and Lean interaction
+
+### Success Criteria
+
+- 20-35% overall refactoring success rate across theorem complexity tiers
+- 95%+ accuracy for hint extraction from original proofs
+- Average 2-3 LLM iterations per successful refactoring
+- < 50 second full iteration cycle (search + validate)
+- < 5% false positive rate for refactored proofs
 
 ## Architecture
 
-### Hexagonal Architecture Layers>
+### Three-Layer Hexagonal Architecture
+
+The system follows hexagonal architecture with three distinct layers:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    MCP Tool Layer                        │
-│  (search_annotations.py - argument validation, routing)  │
-└─────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│                  Application Layer                       │
-│  (SearchAnnotationsCommandHandler - orchestration)       │
-└─────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│                    Domain Layer                          │
-│  • SubgoalAnalyzer (new)                                │
-│  • CaseDetector (new)                                   │
-│  • ProvenanceTracker (new)                              │
-│  • DependencyAnalyzer (new)                             │
-│  • ProgressCalculator (new)                             │
-│  • Enhanced domain models (immutable)                    │
-└─────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────┐
-│                  Infrastructure Layer                    │
-│  • LeanInteractRunner (existing)                        │
-│  • WorkspaceProvider (existing)                         │
-│  • ArtifactStore (existing)                             │
-└─────────────────────────────────────────────────────────┘
+│              (LLM-facing interface)                      │
+│                                                          │
+│  • search_automated_proof (enhanced)                    │
+│  • try_automated_proof (new)                            │
+│  • get_proof_context (new)                              │
+│  • probe (migrated to LeanInteract)                     │
+│  • probe_file (migrated to LeanInteract)                │
+│  • verify (migrated to LeanInteract)                    │
+└────────────────┬────────────────────────────────────────┘
+                 │
+┌────────────────▼────────────────────────────────────────┐
+│              Core Domain Layer                           │
+│         (Business logic, hexagonal)                      │
+│                                                          │
+│  • CandidateGenerator (refactored)                      │
+│  • ContextExtractor (new)                               │
+│  • FeedbackBuilder (new)                                │
+│  • SearchOrchestrator (enhanced)                        │
+│  • MinimizationEngine (existing)                        │
+└────────────────┬────────────────────────────────────────┘
+                 │
+┌────────────────▼────────────────────────────────────────┐
+│            LeanInteract Adapter Layer                    │
+│       (All Lean interaction via LeanInteract)            │
+│                                                          │
+│  • LeanInteractQuerier                                  │
+│  • ProofStateInspector                                  │
+│  • ProofValidator                                       │
+│  • ServerManager                                        │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### Design Principles
+### Layer Responsibilities
 
-1. **Immutability**: All domain models are frozen dataclasses
-2. **Dependency Injection**: Services receive dependencies via constructor
-3. **Command Pattern**: Each enhancement is triggered by command configuration
-4. **Strategy Pattern**: Different analysis strategies can be plugged in
-5. **Result Pattern**: All operations return explicit success/failure results
-6. **Backward Compatibility**: All new fields are optional, omitted when not populated
+**MCP Tool Layer**:
+- Exposes tools to LLM via Model Context Protocol
+- Validates input parameters
+- Translates between MCP format and domain objects
+- Returns structured JSON responses
+- No business logic or Lean interaction
+
+**Core Domain Layer**:
+- Implements business logic for proof refactoring
+- Orchestrates search strategies
+- Builds feedback and suggestions
+- Manages candidate generation and ranking
+- Independent of MCP and LeanInteract details
+- Uses dependency injection for all external dependencies
+
+**LeanInteract Adapter Layer**:
+- Encapsulates all LeanInteract interaction
+- Manages LeanInteract server lifecycle
+- Translates between domain objects and LeanInteract types
+- Handles errors and timeouts
+- Provides abstract interfaces (ports) to Core Domain Layer
+
+### Dependency Flow
+
+Dependencies flow inward: MCP Tool Layer → Core Domain Layer ← LeanInteract Adapter Layer
+
+The Core Domain Layer depends only on abstract interfaces (protocols), not concrete implementations. This enables:
+- Testing core logic without LeanInteract
+- Swapping LeanInteract for alternative implementations
+- Clear separation of concerns
 
 ## Components and Interfaces
 
-### 1. Enhanced Domain Models
+### LeanInteract Adapter Layer
 
-#### SubgoalState
+#### LeanInteractQuerier
 
-Represents the remaining goal state after partial hint application.
+**Purpose**: Extract declarations and references from Lean files using LeanInteract.
 
+**Interface**:
 ```python
-@dataclass(frozen=True)
-class SubgoalState:
-    """
-    Remaining goal state after partial hint application.
-    
-    Requirements: 1.1, 1.2, 1.3, 1.5
-    """
-    remaining_goals: list[str]  # List of remaining goal expressions
-    applied_hints: list[Hint]  # Hints that were applied to reach this state
-    complexity_before: int  # Goal complexity before hints
-    complexity_after: int  # Goal complexity after hints
-    
-    def __post_init__(self) -> None:
-        if self.complexity_before < 0:
-            raise ValueError("complexity_before must be non-negative")
-        if self.complexity_after < 0:
-            raise ValueError("complexity_after must be non-negative")
-        if self.complexity_after > self.complexity_before:
-            raise ValueError("complexity_after cannot exceed complexity_before")
-```
-
-#### CaseAnalysis
-
-Represents induction structure and case-specific information.
-
-```python
-@dataclass(frozen=True)
-class CaseInfo:
-    """
-    Information about a single case in an inductive proof.
-    
-    Requirements: 2.3, 2.4, 2.6
-    """
-    case_label: str  # e.g., "base", "inductive", "zero", "succ"
-    goal_expression: str  # The goal for this specific case
-    recommended_hints: list[Hint]  # Case-specific hint recommendations
-    complexity: int  # Complexity metric for this case
-    
-    def __post_init__(self) -> None:
-        if not self.case_label:
-            raise ValueError("case_label must be non-empty")
-        if self.complexity < 0:
-            raise ValueError("complexity must be non-negative")
-
+from typing import Protocol
+from dataclasses import dataclass
 
 @dataclass(frozen=True)
-class CaseAnalysis:
-    """
-    Analysis of induction structure in a theorem.
-    
-    Requirements: 2.2, 2.3, 2.4, 2.6
-    """
-    has_induction: bool  # Whether induction structure was detected
-    cases: list[CaseInfo]  # List of identified cases
-    induction_variable: str | None  # Variable being inducted on
-    
-    def __post_init__(self) -> None:
-        if self.has_induction and not self.cases:
-            raise ValueError("has_induction=True requires non-empty cases")
-        if not self.has_induction and self.cases:
-            raise ValueError("has_induction=False requires empty cases")
-```
-
-#### HintProvenance
-
-Represents the source and relevance information for a hint.
-
-```python
-@dataclass(frozen=True)
-class HintProvenance:
-    """
-    Provenance information for a hint.
-    
-    Requirements: 3.1, 3.2, 3.3, 3.4
-    """
-    source_category: CandidateSource  # Where the hint came from
-    source_theorem: str | None  # Source theorem name if applicable
-    relevance_score: float  # Relevance score in [0, 1]
-    selection_reasoning: str  # Why this hint was selected
-    
-    def __post_init__(self) -> None:
-        if not (0.0 <= self.relevance_score <= 1.0):
-            raise ValueError("relevance_score must be in [0, 1]")
-        if not self.selection_reasoning:
-            raise ValueError("selection_reasoning must be non-empty")
-```
-
-#### DependencyAnalysis
-
-Represents cross-file dependency information.
-
-```python
-@dataclass(frozen=True)
-class DependencyAnalysis:
-    """
-    Analysis of cross-file dependencies.
-    
-    Requirements: 4.1, 4.2, 4.3, 4.4, 4.5
-    """
-    has_missing_dependencies: bool  # Whether missing dependencies were detected
-    missing_symbols: list[str]  # List of undefined symbols
-    suggested_imports: list[str]  # Suggested import statements
-    suggest_global_mode: bool  # Whether to suggest switching to suggest_global
-    confidence: float  # Confidence in suggestion, in [0, 1]
-    
-    def __post_init__(self) -> None:
-        if not (0.0 <= self.confidence <= 1.0):
-            raise ValueError("confidence must be in [0, 1]")
-        if self.has_missing_dependencies and not self.missing_symbols:
-            raise ValueError("has_missing_dependencies=True requires non-empty missing_symbols")
-```
-
-#### ProgressMetrics
-
-Represents quantitative progress metrics.
-
-```python
-@dataclass(frozen=True)
-class ProgressMetrics:
-    """
-    Quantitative progress metrics for iteration decisions.
-    
-    Requirements: 5.1, 5.2, 5.3, 5.4, 5.5
-    """
-    complexity_before: int  # Goal complexity before hints
-    complexity_after: int  # Goal complexity after hints
-    reduction_percentage: float  # (before - after) / before * 100
-    blockers: list[str]  # What is blocking progress
-    iteration_recommendation: str  # Recommendation for next iteration
-    
-    def __post_init__(self) -> None:
-        if self.complexity_before < 0:
-            raise ValueError("complexity_before must be non-negative")
-        if self.complexity_after < 0:
-            raise ValueError("complexity_after must be non-negative")
-        if self.complexity_before > 0:
-            expected_reduction = (
-                (self.complexity_before - self.complexity_after) 
-                / self.complexity_before * 100
-            )
-            if abs(self.reduction_percentage - expected_reduction) > 0.01:
-                raise ValueError("reduction_percentage must match calculated value")
-```
-
-#### Enhanced Hint Model
-
-```python
-@dataclass(frozen=True)
-class Hint:
-    """
-    Immutable hint for automation (enhanced with provenance).
-    
-    Requirements: 3.1, 3.2, 3.3, 3.4, 3.5
-    """
+class Declaration:
     name: str
-    type: HintType
-    source: CandidateSource
-    provenance: HintProvenance | None = None  # Optional provenance info
+    full_name: str
+    type: str
+    value: DeclValue | None
+    attributes: list[str]
+    range: Range
+    namespace: str
+
+@dataclass(frozen=True)
+class DeclValue:
+    pp: str  # Pretty-printed proof text
+    constants: list[str]  # Constants/lemmas used
+    range: Range
+
+class LeanInteractQuerier(Protocol):
+    def extract_declarations(self, file_path: str) -> list[Declaration]:
+        """Extract all declarations from a file using FileCommand(declarations=True)."""
+        ...
     
-    def __post_init__(self) -> None:
-        if not self.name:
-            raise ValueError("name must be non-empty")
+    def get_proof_references(self, file_path: str, theorem_id: str) -> list[str]:
+        """Extract lemma references from a proof using value.constants + text parsing."""
+        ...
+    
+    def get_theorem_context(self, file_path: str, theorem_id: str) -> TheoremContext:
+        """Get full context for a theorem including scope and hypotheses."""
+        ...
 ```
 
-#### Enhanced SearchAnnotationsResult
+**Implementation Strategy**:
+- Use `FileCommand(declarations=True)` for declaration extraction
+- Primary: Use `declaration.value.constants` for proof references
+- Fallback: Parse `declaration.value.pp` text for additional references
+- Validate all references against `response.declarations`
 
+#### ProofStateInspector
+
+**Purpose**: Inspect proof states and apply tactics using LeanInteract.
+
+**Interface**:
 ```python
 @dataclass(frozen=True)
-class SearchAnnotationsResult:
-    """
-    Final result from search-annotations execution (enhanced).
+class ProofState:
+    goal: str
+    hypotheses: list[str]
+    type_context: str
+    goals_remaining: int
+
+@dataclass(frozen=True)
+class TacticResult:
+    success: bool
+    new_proof_state: ProofState | None
+    error_message: str | None
+
+class ProofStateInspector(Protocol):
+    def get_initial_proof_state(self, theorem: Declaration) -> ProofState:
+        """Get initial proof state using Command with sorry."""
+        ...
     
-    Requirements: 6.1, 6.2, 6.4, 6.5, 7.1, 7.2, 7.3
-    """
-    # Existing fields (unchanged)
-    api_version: str
-    status: Literal["success", "fail", "timeout", "error"]
-    run_id: str
-    file: str
-    theorem_id: str
-    viability: dict[str, Any]
-    baseline: dict[str, Any]
-    search_result: SearchResult | None
-    minimized_hint_set: HintSet | None
-    proof_patch: ProofPatch | None
-    global_suggestions: list[GlobalSuggestion] | None
-    timing: dict[str, float]
-    artifacts: dict[str, str]
-    metadata: dict[str, Any]
-    workflow_recommendation: str | None = None
-    
-    # New optional fields (omitted from JSON when None)
-    subgoal_state: SubgoalState | None = None
-    case_analysis: CaseAnalysis | None = None
-    dependency_analysis: DependencyAnalysis | None = None
-    progress_metrics: ProgressMetrics | None = None
+    def apply_tactic(self, proof_state_id: int, tactic: str) -> TacticResult:
+        """Apply a tactic using ProofStep."""
+        ...
 ```
 
-### 2. Core Services
+**Implementation Strategy**:
+- Use `Command` with `sorry` to get initial proof state
+- Use `ProofStep(tactic=..., proof_state=...)` for tactic application
+- Parse proof state from response to extract goals and hypotheses
 
-#### SubgoalAnalyzer
+#### ProofValidator
 
-Analyzes partial outcomes to extract subgoal state.
+**Purpose**: Validate proof attempts using LeanInteract.
 
+**Interface**:
 ```python
-class SubgoalAnalyzer:
-    """
-    Analyzes partial outcomes to extract remaining subgoal state.
+@dataclass(frozen=True)
+class ValidationResult:
+    status: str  # "success" | "error" | "incomplete" | "timeout"
+    error_message: str | None
+    error_location: tuple[int, int] | None  # (line, column)
+    proof_state: ProofState | None
+    suggestions: list[str]
+
+class ProofValidator(Protocol):
+    def validate_proof(
+        self, 
+        theorem_statement: str, 
+        proof_attempt: str,
+        timeout_s: float = 10.0
+    ) -> ValidationResult:
+        """Validate a proof attempt using Command."""
+        ...
+```
+
+**Implementation Strategy**:
+- Use `Command` to validate proof
+- Parse error messages for location and suggestions
+- Extract proof state if incomplete
+- Return structured result with actionable feedback
+
+#### ServerManager
+
+**Purpose**: Manage LeanInteract server lifecycle.
+
+**Interface**:
+```python
+class ServerManager(Protocol):
+    def get_server(self, file_path: str) -> LeanInteractServer:
+        """Get or create server instance for file."""
+        ...
     
-    Requirements: 1.1, 1.2, 1.3, 1.5
-    """
+    def restart_server(self, file_path: str) -> None:
+        """Restart crashed server."""
+        ...
     
-    def __init__(self, lean_runner: LeanInteractRunner):
-        """
-        Initialize with Lean execution dependency.
-        
-        Args:
-            lean_runner: Runner for executing Lean commands
-        """
-        self.lean_runner = lean_runner
+    def shutdown_all(self) -> None:
+        """Shutdown all server instances."""
+        ...
+```
+
+**Implementation Strategy**:
+- Maintain one server instance per file to avoid startup overhead
+- Detect crashes and restart automatically
+- Use lean-interact-runner as execution wrapper
+- Log all interactions for debugging
+
+### Core Domain Layer
+
+#### CandidateGenerator (Refactored)
+
+**Purpose**: Generate hint candidates from multiple sources using LeanInteract.
+
+**Interface**:
+```python
+@dataclass(frozen=True)
+class Candidate:
+    name: str
+    hint_type: str  # "add_safe" | "add_simp" | "add_unfold" | "add_unsafe"
+    source: str  # "goal_symbols" | "local_context" | "same_namespace" | "original_proof_refs"
+    rank: float
+
+class CandidateGenerator:
+    def __init__(self, querier: LeanInteractQuerier):
+        self.querier = querier
     
-    def analyze(
+    def generate_candidates(
         self,
+        file_path: str,
         theorem_id: str,
-        applied_hints: list[Hint],
-        execution_output: str,
-    ) -> SubgoalState:
-        """
-        Extract subgoal state from partial execution.
-        
-        Args:
-            theorem_id: Theorem being analyzed
-            applied_hints: Hints that were applied
-            execution_output: Output from Lean execution
-            
-        Returns:
-            SubgoalState with remaining goals and complexity metrics
-            
-        Requirements: 1.1, 1.2, 1.3, 1.5
-        """
-        pass  # Implementation details
+        sources: list[str],
+        max_per_source: int
+    ) -> list[Candidate]:
+        """Generate candidates from specified sources."""
+        ...
 ```
 
-#### CaseDetector
+**Implementation Strategy**:
+- **goal_symbols**: Extract from theorem type using LeanInteract + parsing
+- **local_context**: Extract from proof state hypotheses using LeanInteract
+- **same_namespace**: Extract from file declarations using LeanInteract
+- **original_proof_refs**: Extract from proof value.constants using LeanInteract
+- Infer hint types from declaration attributes (not names)
+- Rank candidates by relevance
 
-Detects induction structure and identifies cases.
+#### ContextExtractor (New)
 
-```python
-class CaseDetector:
-    """
-    Detects induction structure in theorems.
-    
-    Requirements: 2.2, 2.3, 2.4, 2.6
-    """
-    
-    def detect(self, theorem_decl: TheoremDeclaration) -> CaseAnalysis:
-        """
-        Detect induction structure in a theorem.
-        
-        Args:
-            theorem_decl: Theorem declaration to analyze
-            
-        Returns:
-            CaseAnalysis with detected structure
-            
-        Requirements: 2.2, 2.3
-        """
-        pass  # Implementation details
-    
-    def recommend_hints_for_case(
-        self,
-        case_info: CaseInfo,
-        available_hints: list[Hint],
-    ) -> list[Hint]:
-        """
-        Recommend hints specific to a case.
-        
-        Args:
-            case_info: Case to recommend hints for
-            available_hints: Pool of available hints
-            
-        Returns:
-            List of case-specific hint recommendations
-            
-        Requirements: 2.4
-        """
-        pass  # Implementation details
-```
+**Purpose**: Extract rich context for LLM reasoning.
 
-#### ProvenanceTracker
-
-Tracks hint provenance and relevance.
-
-```python
-class ProvenanceTracker:
-    """
-    Tracks provenance information for hints.
-    
-    Requirements: 3.1, 3.2, 3.3, 3.4
-    """
-    
-    def __init__(self, index: Index):
-        """
-        Initialize with theorem index.
-        
-        Args:
-            index: Index of theorems and definitions
-        """
-        self.index = index
-    
-    def track(
-        self,
-        hint: Hint,
-        goal_expression: str,
-        context: dict[str, Any],
-    ) -> HintProvenance:
-        """
-        Generate provenance information for a hint.
-        
-        Args:
-            hint: Hint to track provenance for
-            goal_expression: Current goal expression
-            context: Additional context for relevance scoring
-            
-        Returns:
-            HintProvenance with source and relevance information
-            
-        Requirements: 3.1, 3.2, 3.3, 3.4
-        """
-        pass  # Implementation details
-```
-
-#### DependencyAnalyzer
-
-Analyzes cross-file dependencies.
-
-```python
-class DependencyAnalyzer:
-    """
-    Analyzes cross-file dependencies.
-    
-    Requirements: 4.1, 4.2, 4.3, 4.4, 4.5
-    """
-    
-    def __init__(self, index: Index):
-        """
-        Initialize with theorem index.
-        
-        Args:
-            index: Index of theorems and definitions
-        """
-        self.index = index
-    
-    def analyze(
-        self,
-        theorem_decl: TheoremDeclaration,
-        current_file: str,
-    ) -> DependencyAnalysis:
-        """
-        Analyze cross-file dependencies for a theorem.
-        
-        Args:
-            theorem_decl: Theorem to analyze
-            current_file: Current file path
-            
-        Returns:
-            DependencyAnalysis with missing symbols and suggestions
-            
-        Requirements: 4.1, 4.2, 4.3, 4.4, 4.5
-        """
-        pass  # Implementation details
-```
-
-#### ProgressCalculator
-
-Calculates progress metrics.
-
-```python
-class ProgressCalculator:
-    """
-    Calculates progress metrics for iteration decisions.
-    
-    Requirements: 5.1, 5.2, 5.3, 5.4, 5.5
-    """
-    
-    def calculate(
-        self,
-        complexity_before: int,
-        complexity_after: int,
-        execution_output: str,
-    ) -> ProgressMetrics:
-        """
-        Calculate progress metrics.
-        
-        Args:
-            complexity_before: Goal complexity before hints
-            complexity_after: Goal complexity after hints
-            execution_output: Output from Lean execution
-            
-        Returns:
-            ProgressMetrics with reduction and recommendations
-            
-        Requirements: 5.1, 5.2, 5.3, 5.4, 5.5
-        """
-        pass  # Implementation details
-    
-    def identify_blockers(self, execution_output: str) -> list[str]:
-        """
-        Identify what is blocking progress.
-        
-        Args:
-            execution_output: Output from Lean execution
-            
-        Returns:
-            List of identified blockers
-            
-        Requirements: 5.4
-        """
-        pass  # Implementation details
-```
-
-### 3. Enhanced Command Configuration
-
+**Interface**:
 ```python
 @dataclass(frozen=True)
-class EnhancementsConfig:
-    """
-    Configuration for iterative orchestration enhancements.
-    
-    Requirements: 1.1, 2.1, 3.1, 4.1, 5.1
-    """
-    enable_subgoal_reporting: bool = False
-    enable_case_analysis: bool = False
-    enable_provenance_tracking: bool = False
-    enable_dependency_detection: bool = False
-    enable_progress_metrics: bool = False
-    target_case: str | None = None  # For case-specific search
-
+class ProofContext:
+    theorem_statement: str
+    original_proof: str
+    hypotheses: list[str]
+    in_scope: list[str]
+    namespace: str
+    similar_proofs: list[SimilarProof]
 
 @dataclass(frozen=True)
-class SearchAnnotationsCommand:
-    """
-    Enhanced command with enhancements configuration.
-    
-    Requirements: 1.1, 2.1, 3.1, 4.1, 5.1
-    """
-    # Existing fields (unchanged)
-    file: str
+class SimilarProof:
     theorem_id: str
-    mode: Literal["local_only", "suggest_global"]
-    automation: AutomationConfig
-    budgets: BudgetConfig
-    search: SearchConfig
-    candidates: CandidateConfig
-    skeleton: SkeletonConfig
-    style: StyleConfig
-    workspace: WorkspaceConfig
-    allow_global_edits: bool
-    run_id: str
+    similarity: float
+    theorem_statement: str
+    proof: str
+    hints_used: list[str]
+
+class ContextExtractor:
+    def __init__(self, querier: LeanInteractQuerier):
+        self.querier = querier
     
-    # New optional field
-    enhancements: EnhancementsConfig = EnhancementsConfig()
+    def extract_context(
+        self,
+        file_path: str,
+        theorem_id: str,
+        include_similar: bool = False
+    ) -> ProofContext:
+        """Extract full context for a theorem."""
+        ...
 ```
+
+**Implementation Strategy**:
+- Extract theorem statement and proof from declarations
+- Extract hypotheses from initial proof state
+- Extract in-scope declarations from file
+- Find similar proofs by comparing type signatures
+- Cache context for performance
+
+#### FeedbackBuilder (New)
+
+**Purpose**: Build structured feedback from search results.
+
+**Interface**:
+```python
+@dataclass(frozen=True)
+class SearchFeedback:
+    status: str  # "success" | "partial" | "fail"
+    hints_found: list[Candidate]
+    partial_progress: PartialProgress | None
+    current_goal: str | None
+    suggestions: list[Suggestion]
+
+@dataclass(frozen=True)
+class PartialProgress:
+    hints_that_helped: list[tuple[str, str]]  # (hint, impact)
+    goal_complexity_reduction: float
+    progress_score: float
+
+@dataclass(frozen=True)
+class Suggestion:
+    type: str  # "tactic" | "hint" | "strategy"
+    suggestion: str
+    confidence: float
+    reasoning: str
+
+class FeedbackBuilder:
+    def build_search_feedback(
+        self,
+        search_result: SearchResult,
+        proof_state: ProofState | None
+    ) -> SearchFeedback:
+        """Build structured feedback from search results."""
+        ...
+```
+
+**Implementation Strategy**:
+- Track which hints reduced goal complexity
+- Calculate progress score based on goal reduction
+- Generate tactical suggestions based on proof structure
+- Provide confidence scores for suggestions
+- Include reasoning for each suggestion
+
+#### SearchOrchestrator (Enhanced)
+
+**Purpose**: Orchestrate search strategies with configurable parameters.
+
+**Interface**:
+```python
+@dataclass(frozen=True)
+class SearchConfig:
+    search_depth: str
+    search_budget_s: float
+    max_candidates: int
+    candidate_sources: list[str]
+    automation_mode: str
+    search_strategy: str
+    return_proof_states: bool
+    return_partial_progress: bool
+
+class SearchOrchestrator:
+    def __init__(
+        self,
+        candidate_gen: CandidateGenerator,
+        feedback_builder: FeedbackBuilder,
+        validator: ProofValidator
+    ):
+        self.candidate_gen = candidate_gen
+        self.feedback_builder = feedback_builder
+        self.validator = validator
+    
+    def search(
+        self,
+        file_path: str,
+        theorem_id: str,
+        config: SearchConfig
+    ) -> SearchResult:
+        """Execute search with given configuration."""
+        ...
+```
+
+**Implementation Strategy**:
+- Generate candidates from configured sources
+- Execute search strategy (greedy, beam, exhaustive)
+- Track partial progress during search
+- Build rich feedback for LLM
+- Support configurable timeouts and budgets
+
+### MCP Tool Layer
+
+#### search_automated_proof Tool
+
+**Purpose**: Enhanced search tool with LLM-controlled parameters.
+
+**Signature**:
+```python
+@mcp_tool
+def search_automated_proof(
+    file: str,
+    theorem_id: str,
+    search_depth: str = "normal",
+    search_budget_s: float = 30.0,
+    max_candidates: int = 50,
+    candidate_sources: list[str] = [
+        "goal_symbols",
+        "local_context", 
+        "same_namespace",
+        "original_proof_refs"
+    ],
+    automation_mode: str = "aesop",
+    return_proof_states: bool = True,
+    return_partial_progress: bool = True,
+    # ... additional parameters
+) -> dict:
+    """Search for automated proof with rich feedback."""
+    ...
+```
+
+**Implementation**:
+- Validate parameters
+- Build SearchConfig from parameters
+- Delegate to SearchOrchestrator
+- Format response with rich feedback
+- Note: search_annotations is removed and returns an error
+
+#### try_automated_proof Tool
+
+**Purpose**: Fast validation of LLM-generated proof attempts.
+
+**Signature**:
+```python
+@mcp_tool
+def try_automated_proof(
+    file: str,
+    theorem_id: str,
+    proof_attempt: str,
+    timeout_s: float = 10.0,
+    return_proof_state: bool = True
+) -> dict:
+    """Validate a proof attempt with detailed feedback."""
+    ...
+```
+
+**Implementation**:
+- Validate parameters
+- Delegate to ProofValidator
+- Format ValidationResult as JSON
+- Include tactical suggestions
+- Return within timeout
+
+#### get_proof_context Tool
+
+**Purpose**: Extract rich context for LLM reasoning.
+
+**Signature**:
+```python
+@mcp_tool
+def get_proof_context(
+    file: str,
+    theorem_id: str,
+    include_similar_proofs: bool = True
+) -> dict:
+    """Get rich context about a theorem."""
+    ...
+```
+
+**Implementation**:
+- Validate parameters
+- Delegate to ContextExtractor
+- Format ProofContext as JSON
+- Include similar proofs if requested
+- Cache results for performance
 
 ## Data Models
 
-### Complexity Calculation
-
-Goal complexity is calculated using a simple heuristic:
-- Count of symbols in goal expression
-- Nesting depth of expressions
-- Number of quantifiers
-- Number of function applications
+### Declaration Model
 
 ```python
-def calculate_complexity(goal_expression: str) -> int:
-    """
-    Calculate goal complexity metric.
+@dataclass(frozen=True)
+class Declaration:
+    """A Lean declaration (theorem, lemma, definition)."""
+    name: str  # Short name
+    full_name: str  # Fully qualified name
+    type: str  # Type signature
+    value: DeclValue | None  # Proof/definition body
+    attributes: list[str]  # [simp], [instance], etc.
+    range: Range  # Position in file
+    namespace: str  # Current namespace
     
-    Args:
-        goal_expression: Lean goal expression
-        
-    Returns:
-        Complexity score (higher = more complex)
-    """
-    # Simple heuristic: count symbols, depth, quantifiers
-    symbol_count = len(goal_expression.split())
-    depth = goal_expression.count('(') + goal_expression.count('[')
-    quantifiers = goal_expression.count('∀') + goal_expression.count('∃')
+    @property
+    def is_theorem(self) -> bool:
+        return "theorem" in self.type or "lemma" in self.type
     
-    return symbol_count + (depth * 2) + (quantifiers * 3)
+    @property
+    def has_simp_attribute(self) -> bool:
+        return "simp" in self.attributes
 ```
 
-### Case Detection Heuristics
-
-Induction structure is detected by:
-1. Scanning proof for `induction` tactic
-2. Extracting case labels from proof structure
-3. Identifying the induction variable
-4. Parsing case-specific goals
+### DeclValue Model
 
 ```python
-def detect_induction_structure(proof_text: str) -> tuple[bool, list[str], str | None]:
-    """
-    Detect induction structure in proof.
+@dataclass(frozen=True)
+class DeclValue:
+    """The value (proof/definition body) of a declaration."""
+    pp: str  # Pretty-printed text
+    constants: list[str]  # Constants/lemmas referenced
+    range: Range  # Position in file
     
-    Args:
-        proof_text: Proof text to analyze
-        
-    Returns:
-        Tuple of (has_induction, case_labels, induction_variable)
-    """
-    # Look for induction tactic
-    if 'induction' not in proof_text:
-        return (False, [], None)
-    
-    # Extract case labels (simplified)
-    case_labels = []
-    for line in proof_text.split('\n'):
-        if 'case' in line:
-            # Extract case label
-            label = line.split('case')[1].strip().split()[0]
-            case_labels.append(label)
-    
-    # Extract induction variable (simplified)
-    induction_var = None
-    for line in proof_text.split('\n'):
-        if 'induction' in line:
-            parts = line.split('induction')[1].strip().split()
-            if parts:
-                induction_var = parts[0]
-            break
-    
-    return (True, case_labels, induction_var)
+    def get_all_references(self) -> list[str]:
+        """Get all references (constants + parsed from pp)."""
+        # Primary: use constants list
+        refs = set(self.constants)
+        # Fallback: parse pp text
+        refs.update(self._parse_references_from_text())
+        return list(refs)
 ```
+
+### ProofState Model
+
+```python
+@dataclass(frozen=True)
+class ProofState:
+    """The state of a proof at a given point."""
+    goal: str  # Current goal
+    hypotheses: list[str]  # Available hypotheses
+    type_context: str  # Type context
+    goals_remaining: int  # Number of goals left
+    
+    def complexity_score(self) -> float:
+        """Estimate goal complexity (higher = more complex)."""
+        # Based on goal length, nesting depth, etc.
+        return len(self.goal) + self.goal.count("∀") * 10
+```
+
+### Candidate Model
+
+```python
+@dataclass(frozen=True)
+class Candidate:
+    """A hint candidate for automation."""
+    name: str  # Fully qualified name
+    hint_type: str  # "add_safe" | "add_simp" | "add_unfold" | "add_unsafe"
+    source: str  # Where it came from
+    rank: float  # Relevance score (higher = more relevant)
+    declaration: Declaration | None  # Full declaration if available
+    
+    def to_hint_annotation(self) -> str:
+        """Convert to Lean hint annotation."""
+        return f"{self.hint_type} {self.name}"
+```
+
+### SearchResult Model
+
+```python
+@dataclass(frozen=True)
+class SearchResult:
+    """Result of a search operation."""
+    outcome: str  # "closed" | "partial" | "not_closed"
+    best_hint_set: list[Candidate] | None
+    attempts: int  # Number of combinations tried
+    time_s: float  # Time taken
+    proof_states: tuple[ProofState, ProofState] | None  # (initial, after_hints)
+    partial_progress: PartialProgress | None
+    search_trace: list[SearchStep] | None
+```
+
+### ValidationResult Model
+
+```python
+@dataclass(frozen=True)
+class ValidationResult:
+    """Result of validating a proof attempt."""
+    status: str  # "success" | "error" | "incomplete" | "timeout"
+    error_message: str | None
+    error_location: tuple[int, int] | None  # (line, column)
+    proof_state: ProofState | None  # If incomplete
+    suggestions: list[Suggestion]
+    time_s: float
+```
+
+### TheoremContext Model
+
+```python
+@dataclass(frozen=True)
+class TheoremContext:
+    """Rich context about a theorem."""
+    theorem_statement: str
+    original_proof: str
+    hypotheses: list[str]
+    in_scope: list[str]  # Declarations in scope
+    namespace: str
+    similar_proofs: list[SimilarProof]
+```
+
+### Configuration Models
+
+```python
+@dataclass(frozen=True)
+class SearchConfig:
+    """Configuration for search operation."""
+    search_depth: str  # "quick" | "normal" | "deep" | "exhaustive"
+    search_budget_s: float
+    max_candidates: int
+    candidate_sources: list[str]
+    max_candidates_per_source: int
+    automation_mode: str  # "aesop" | "simp" | "omega" | "grind"
+    automation_secondary: str | None
+    search_strategy: str  # "greedy" | "beam" | "exhaustive"
+    beam_width: int
+    max_search_steps: int
+    max_hints_in_set: int
+    allow_simp_hints: bool
+    allow_unfold_hints: bool
+    allow_unsafe_hints: bool
+    minimize_hints: bool
+    minimize_budget_s: float
+    return_proof_states: bool
+    return_partial_progress: bool
+    return_context: bool
+    return_similar_proofs: bool
+    return_search_trace: bool
+    
+    @staticmethod
+    def from_depth(depth: str) -> "SearchConfig":
+        """Create config from depth preset."""
+        presets = {
+            "quick": (10.0, 20, 50, 5.0),
+            "normal": (30.0, 50, 100, 30.0),
+            "deep": (60.0, 100, 200, 60.0),
+            "exhaustive": (120.0, 200, 500, 120.0)
+        }
+        budget, candidates, steps, min_budget = presets[depth]
+        return SearchConfig(
+            search_depth=depth,
+            search_budget_s=budget,
+            max_candidates=candidates,
+            max_search_steps=steps,
+            minimize_budget_s=min_budget,
+            # ... other defaults
+        )
+```
+
 
 ## Correctness Properties
 
 *A property is a characteristic or behavior that should hold true across all valid executions of a system—essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-### Property 1: Subgoal State Completeness
-*For any* search result with `outcome="partial"`, the response should include a non-null `subgoal_state` with all required fields populated (remaining_goals, applied_hints, complexity metrics).
+### Property 1: Complete Declaration Extraction
+
+*For any* Lean file with declarations, extracting declarations using LeanInteract SHALL return all declarations with complete information including fully qualified name, type signature, proof value (if present with both pp text and constants list), attributes, position range, and namespace.
 
 **Validates: Requirements 1.1, 1.2, 1.3**
 
-### Property 2: Complexity Monotonicity
-*For any* `SubgoalState` or `ProgressMetrics`, the complexity_after should be less than or equal to complexity_before (hints should not increase complexity).
+### Property 2: Accurate Proof Reference Extraction
 
-**Validates: Requirements 1.2, 5.1, 5.2**
+*For any* declaration with a proof value, extracting proof references SHALL use value.constants as primary source with pp text parsing as fallback, validate all references against the file's declaration list, and return only valid references.
 
-### Property 3: Case-Specific Search Correctness
-*For any* theorem with induction structure, when searching with a specific `target_case`, all returned hints should be relevant to that case (verified by checking hint provenance and case labels).
+**Validates: Requirements 2.3**
 
-**Validates: Requirements 2.1, 2.4**
+### Property 3: Complete Context Extraction
 
-### Property 4: Induction Detection Accuracy
-*For any* theorem containing the `induction` tactic, the `CaseDetector` should correctly identify `has_induction=True` and extract at least one case label.
+*For any* theorem identifier in a file, extracting theorem context SHALL return the complete theorem statement from declaration.type, all hypotheses from the initial proof state, all declarations visible in scope, and the current namespace from declaration.scope.curr_namespace.
 
-**Validates: Requirements 2.2, 2.3**
+**Validates: Requirements 3.1, 3.2, 3.3, 3.4**
 
-### Property 5: Hint Provenance Completeness
-*For any* hint with provenance tracking enabled, the `provenance` field should be non-null and contain valid source_category, relevance_score in [0,1], and non-empty selection_reasoning.
+### Property 4: Search Depth Configuration Consistency
 
-**Validates: Requirements 3.1, 3.3, 3.4**
+*For any* search_depth value (quick, normal, deep, exhaustive), the system SHALL apply the corresponding preset parameters (search_budget_s, max_candidates, max_search_steps, minimize_budget_s) consistently, and allow individual parameter overrides to take precedence over presets.
 
-### Property 6: Dependency Detection Accuracy
-*For any* theorem referencing undefined symbols, the `DependencyAnalyzer` should correctly identify `has_missing_dependencies=True` and list those symbols in `missing_symbols`.
+**Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6, 4.7**
 
-**Validates: Requirements 4.1, 4.4**
+### Property 5: Candidate Source Extraction Accuracy
 
-### Property 7: Progress Reduction Calculation
-*For any* `ProgressMetrics`, the `reduction_percentage` should equal `(complexity_before - complexity_after) / complexity_before * 100` (within 0.01% tolerance).
+*For any* enabled candidate source (goal_symbols, local_context, same_namespace, original_proof_refs), the system SHALL extract candidates using LeanInteract-based methods and respect the max_candidates_per_source limit for each source.
 
-**Validates: Requirements 5.3**
+**Validates: Requirements 5.2, 5.3, 5.4, 5.5, 5.7**
 
-### Property 8: Backward Compatibility - Optional Fields
-*For any* `SearchAnnotationsResult`, when enhancement features are disabled, the new optional fields (subgoal_state, case_analysis, dependency_analysis, progress_metrics) should be None and omitted from JSON serialization.
+### Property 6: Conditional Return Value Completeness
 
-**Validates: Requirements 7.1, 7.2, 7.5**
+*For any* search result, when a return parameter (return_proof_states, return_partial_progress, return_context, return_similar_proofs, return_search_trace) is true, the system SHALL include the corresponding data in the response, and SHALL always include tactical suggestions with confidence scores and reasoning regardless of parameters.
 
-### Property 9: Backward Compatibility - Existing Fields
-*For any* `SearchAnnotationsResult`, all existing fields (api_version, status, run_id, file, theorem_id, etc.) should maintain their original types and names.
+**Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5, 6.6**
 
-**Validates: Requirements 7.3**
+### Property 7: Validation Result Structure Completeness
 
-### Property 10: Serialization Round-Trip
-*For any* valid instance of the new data structures (SubgoalState, CaseAnalysis, HintProvenance, DependencyAnalysis, ProgressMetrics), serializing to JSON then deserializing should produce an equivalent object.
+*For any* proof validation attempt, the system SHALL return a ValidationResult with status (success/error/incomplete/timeout), and SHALL include appropriate additional data based on status: error_message and location for errors, proof_state and remaining goals for incomplete, partial results for timeout, and verification confirmation for success, plus tactical suggestions in all cases.
 
-**Validates: Requirements 9.6**
+**Validates: Requirements 7.3, 7.4, 7.5, 7.6, 7.7, 17.1, 17.2, 17.3, 17.4, 17.5**
 
-### Property 11: Artifact Logging Completeness
-*For any* `SearchAnnotationsResult` with enhancement fields populated, storing via `ArtifactStore` and then loading the result.json file should contain all enhancement data (subgoal_state, case_analysis, dependency_analysis, progress_metrics, hint provenance).
+### Property 8: Proof State Completeness
 
-**Validates: Requirements 10.1, 10.2, 10.3, 10.4, 10.5, 10.6**
+*For any* proof state extraction or tactic application, the system SHALL return a ProofState containing the current goal, all hypotheses, type context, and number of goals remaining, with all goals and their indices when multiple goals exist.
+
+**Validates: Requirements 16.1, 16.2, 16.3, 16.4**
+
+### Property 9: Similar Proof Discovery Accuracy
+
+*For any* theorem when similar proofs are requested, the system SHALL compute similarity scores based on theorem structure and type signatures, return only proofs with scores ≥ 0.7, include theorem statement, proof body, and hints used for each, and rank them by similarity score in descending order.
+
+**Validates: Requirements 18.1, 18.2, 18.3, 18.4**
+
+### Property 10: Search Strategy Behavior Consistency
+
+*For any* search strategy (greedy, beam, exhaustive), the system SHALL execute the strategy according to its specification: greedy explores in rank order stopping at first success, beam maintains beam_width parallel paths, and exhaustive tries all combinations up to max_search_steps.
+
+**Validates: Requirements 19.2, 19.3, 19.4**
+
+### Property 11: Automation Mode Selection
+
+*For any* automation_mode value (aesop, simp, omega, grind), the system SHALL use the specified automation for proof attempts, and SHALL use automation_secondary as fallback when primary automation fails and secondary is configured.
+
+**Validates: Requirements 20.2, 20.3, 20.4, 20.5, 20.6**
+
+### Property 12: Hint Type Filtering
+
+*For any* hint type parameter (allow_simp_hints, allow_unfold_hints, allow_unsafe_hints), when disabled, the system SHALL exclude candidates of that type from search, and SHALL infer hint types from declaration attributes obtained via LeanInteract.
+
+**Validates: Requirements 21.4, 21.5**
+
+### Property 13: Hint Set Minimization Correctness
+
+*For any* successful search result when minimize_hints is true, the system SHALL attempt to reduce the hint set by removing hints one at a time, validate that the proof still closes after each removal, complete within minimize_budget_s, and preserve proof correctness throughout minimization.
+
+**Validates: Requirements 22.2, 22.3, 22.5**
+
+### Property 14: Metadata Completeness
+
+*For any* search result, the system SHALL return complete metadata including Lean version, Lake version, workspace mode, search_depth, candidate_sources, automation_mode, and timing information for all phases (viability check, baseline probe, candidate generation, search execution, minimization).
+
+**Validates: Requirements 23.1, 23.2, 23.3**
+
+### Property 15: Error Handling Without Crashes
+
+*For any* invalid input, timeout condition, or LeanInteract failure, the system SHALL return a descriptive error message or partial results with appropriate status, and SHALL NOT crash or raise unhandled exceptions.
+
+**Validates: Requirements 11.2, 11.3**
+
+### Property 16: Feedback Builder Completeness
+
+*For any* search result with partial progress, the Feedback_Builder SHALL identify which hints helped and their impact, calculate goal complexity reduction as a percentage, generate tactical suggestions with confidence scores between 0.0 and 1.0, and provide reasoning for all suggestions.
+
+**Validates: Requirements 13.2, 13.3, 13.4, 13.5**
+
+### Property 17: Original Proof Preservation
+
+*For any* theorem that cannot be refactored, the system SHALL preserve the original proof unchanged and return a result indicating the refactoring was not successful.
+
+**Validates: Requirements 14.5**
+
+### Property 18: LeanInteract Foundation Consistency
+
+*For all* Lean interactions across all components, the system SHALL route interactions through the LeanInteract Adapter Layer, SHALL NOT use direct Lean CLI calls or regex parsing of Lean output, and SHALL use lean-interact-runner as the execution wrapper.
+
+**Validates: Requirements 28.1, 28.2, 28.3**
+
+### Property 19: Server Instance Reuse
+
+*For any* file being processed, the system SHALL maintain a single LeanInteract server instance for that file across multiple operations, detect server crashes and restart automatically, and log all LeanInteract requests and responses.
+
+**Validates: Requirements 10.6, 28.4, 28.5, 28.6**
+
+### Property 20: Dependency Injection Architecture
+
+*For all* Core Domain Layer components, dependencies SHALL be received through constructor injection, SHALL depend only on abstract interfaces (protocols), and SHALL NOT instantiate their own dependencies or depend on MCP tool interfaces or LeanInteract implementation details.
+
+**Validates: Requirements 9.2, 9.5**
 
 ## Error Handling
 
-### Artifact Logging Integration
-
-The existing `ArtifactStore` interface already handles storing `SearchAnnotationsResult` objects. Since all enhancement fields are part of the `SearchAnnotationsResult` dataclass, they will automatically be included in the stored artifacts when present.
-
-**Key Points:**
-1. No changes needed to `ArtifactStore` interface
-2. Enhancement fields are serialized via existing `to_json_serializable()` function
-3. The `_store_artifacts_and_update_result()` method in `SearchAnnotationsCommandHandler` already handles storing the complete result
-4. Artifact structure remains unchanged:
-   - `request.json`: Contains the command (including `EnhancementsConfig`)
-   - `result.json`: Contains the result (including all enhancement fields when present)
-   - `lean_output.log`: Contains execution logs
-
-**Example Artifact Structure with Enhancements:**
-
-```json
-{
-  "api_version": "0.1.0",
-  "status": "success",
-  "run_id": "search-20260128-abc123-def456",
-  "file": "MyTheorem.lean",
-  "theorem_id": "my_theorem",
-  "subgoal_state": {
-    "remaining_goals": ["∀ n, eval₂_sum n = ..."],
-    "applied_hints": [{"name": "R", "type": "add_safe", "source": "goal_symbols"}],
-    "complexity_before": 45,
-    "complexity_after": 32
-  },
-  "case_analysis": {
-    "has_induction": true,
-    "cases": [
-      {
-        "case_label": "base",
-        "goal_expression": "eval₂_sum 0 = ...",
-        "recommended_hints": [...],
-        "complexity": 15
-      },
-      {
-        "case_label": "succ",
-        "goal_expression": "eval₂_sum (n + 1) = ...",
-        "recommended_hints": [...],
-        "complexity": 30
-      }
-    ],
-    "induction_variable": "n"
-  },
-  "dependency_analysis": {
-    "has_missing_dependencies": false,
-    "missing_symbols": [],
-    "suggested_imports": [],
-    "suggest_global_mode": false,
-    "confidence": 0.95
-  },
-  "progress_metrics": {
-    "complexity_before": 45,
-    "complexity_after": 32,
-    "reduction_percentage": 28.89,
-    "blockers": [],
-    "iteration_recommendation": "Good progress. Try adding 'sum' hint based on domain knowledge."
-  },
-  "minimized_hint_set": {
-    "hints": [
-      {
-        "name": "R",
-        "type": "add_safe",
-        "source": "goal_symbols",
-        "provenance": {
-          "source_category": "goal_symbols",
-          "source_theorem": null,
-          "relevance_score": 0.85,
-          "selection_reasoning": "Symbol 'R' appears in goal expression"
-        }
-      }
-    ]
-  },
-  ...
-}
-```
-
 ### Error Categories
 
-1. **Analysis Errors**: Failures in subgoal/case/dependency analysis
-   - Log warning and continue without enhancement data
-   - Return partial result with available information
+**1. LeanInteract Errors**:
+- Server crashes: Detect and restart automatically
+- Timeouts: Return partial results with timeout status
+- Communication failures: Retry with exponential backoff
+- Invalid responses: Log and return structured error
 
-2. **Performance Timeout**: Enhancement computation exceeds budget
-   - Log warning and skip remaining enhancements
-   - Return result with completed enhancements only
+**2. Validation Errors**:
+- Syntax errors: Return error message with location
+- Type errors: Return error message with context
+- Incomplete proofs: Return proof state with remaining goals
+- Timeouts: Return partial validation result
 
-3. **Validation Errors**: Invalid enhancement configuration
-   - Return error response with clear message
-   - Do not proceed with search
+**3. Input Validation Errors**:
+- Invalid file paths: Return descriptive error
+- Invalid theorem IDs: Return error with suggestions
+- Invalid parameters: Return error with valid ranges
+- Missing dependencies: Return error with installation instructions
+
+**4. Search Errors**:
+- No candidates found: Return empty result with suggestions
+- All candidates fail: Return best partial result
+- Search timeout: Return best result found so far
+- Minimization timeout: Return best minimized set found
 
 ### Error Handling Strategy
 
+**Result/Either Pattern**:
+All operations that can fail return Result types:
 ```python
-def handle_enhancement_error(
-    enhancement_name: str,
-    error: Exception,
-    result: SearchAnnotationsResult,
-) -> SearchAnnotationsResult:
-    """
-    Handle enhancement errors gracefully.
-    
-    Strategy:
-    1. Log warning with error details
-    2. Set enhancement field to None
-    3. Add error to metadata
-    4. Continue with remaining enhancements
-    
-    Requirements: 12.1, 12.2, 12.3
-    """
-    logger.warning(f"{enhancement_name} failed: {error}")
-    
-    # Add error to metadata
-    metadata = dict(result.metadata)
-    metadata[f"{enhancement_name}_error"] = str(error)
-    
-    # Return result with updated metadata
-    return SearchAnnotationsResult(
-        **{**asdict(result), "metadata": metadata}
-    )
+@dataclass(frozen=True)
+class Ok:
+    value: T
+
+@dataclass(frozen=True)
+class Err:
+    error: ErrorInfo
+
+Result = Ok | Err
 ```
+
+**Error Propagation**:
+- Adapter Layer: Catch LeanInteract exceptions, convert to Result types
+- Core Domain Layer: Propagate Result types, no exceptions
+- MCP Tool Layer: Convert Result types to JSON error responses
+
+**Graceful Degradation**:
+1. Try primary approach (e.g., value.constants for references)
+2. Fall back to secondary approach (e.g., pp text parsing)
+3. If both fail, return partial results with error information
+4. Never crash, always return structured response
+
+**Logging**:
+- Log all LeanInteract interactions (request/response)
+- Log all errors with full context
+- Log performance metrics (timing, candidates tried)
+- Log deprecation warnings
 
 ## Testing Strategy
 
-### Unit Tests
+### Dual Testing Approach
 
-Unit tests focus on:
-- Individual service behavior (SubgoalAnalyzer, CaseDetector, etc.)
-- Data model validation (invalid inputs raise ValueError)
-- Error handling paths
-- Edge cases (empty hints, no induction, etc.)
-- Artifact logging integration (verify enhancement data in artifacts)
+The system requires both unit tests and property-based tests for comprehensive coverage:
 
-### Property-Based Tests
+**Unit Tests**:
+- Specific examples demonstrating correct behavior
+- Edge cases (empty proofs, no references, no similar proofs)
+- Error conditions (crashes, timeouts, invalid input)
+- Integration points between layers
+- Tool registration and parameter validation
+- Deprecation warnings and redirects
 
-Property tests verify universal properties across randomized inputs:
-
-1. **Complexity Monotonicity** (Property 2)
-   - Generate random SubgoalState instances
-   - Verify complexity_after <= complexity_before
-   - Tag: **Feature: iterative-orchestration-enhancements, Property 2**
-
-2. **Progress Calculation** (Property 7)
-   - Generate random complexity values
-   - Calculate ProgressMetrics
-   - Verify reduction_percentage formula
-   - Tag: **Feature: iterative-orchestration-enhancements, Property 7**
-
-3. **Serialization Round-Trip** (Property 10)
-   - Generate random instances of all new data structures
-   - Serialize to JSON, deserialize, compare
-   - Verify equivalence
-   - Tag: **Feature: iterative-orchestration-enhancements, Property 10**
-
-4. **Backward Compatibility** (Properties 8, 9)
-   - Generate random SearchAnnotationsResult with/without enhancements
-   - Verify optional fields omitted when None
-   - Verify existing fields unchanged
-   - Tag: **Feature: iterative-orchestration-enhancements, Property 8, Property 9**
-
-5. **Artifact Logging Completeness** (Property 11)
-   - Generate random SearchAnnotationsResult with enhancements
-   - Store via ArtifactStore
-   - Load result.json and verify all enhancement fields present
-   - Tag: **Feature: iterative-orchestration-enhancements, Property 11**
-
-### Integration Tests
-
-Integration tests verify:
-- End-to-end enhancement workflow
-- Interaction between services
-- Real Lean execution with enhancements
-- Artifact storage with enhanced results
-- Artifact retrieval and inspection
-
-### Test Configuration
-
+**Property-Based Tests**:
+- Universal properties across all inputs
+- Comprehensive input coverage through randomization
 - Minimum 100 iterations per property test
-- Use Hypothesis library for property-based testing
-- Mock LeanInteractRunner for unit tests
-- Use real Lean for integration tests
-- Verify artifact files after each integration test
+- Each test references its design document property
+
+### Property-Based Testing Configuration
+
+**Library Selection**:
+- Python: Use `hypothesis` library
+- Configure 100+ iterations per test
+- Use appropriate strategies for Lean-specific types
+
+**Test Tagging**:
+Each property test must include a comment tag:
+```python
+# Feature: iterative-orchestration-enhancements, Property 1: Complete Declaration Extraction
+@given(lean_file=lean_file_strategy())
+def test_complete_declaration_extraction(lean_file):
+    ...
+```
+
+### Test Organization
+
+**Adapter Layer Tests**:
+- Mock LeanInteract responses
+- Test error handling and retries
+- Test server lifecycle management
+- Test timeout handling
+
+**Core Domain Layer Tests**:
+- Test with mock adapters (no real LeanInteract)
+- Test business logic in isolation
+- Test candidate generation and ranking
+- Test feedback building
+- Test search orchestration
+
+**MCP Tool Layer Tests**:
+- Test parameter validation
+- Test JSON response formatting
+- Test deprecation warnings
+- Test error response structure
+
+**Integration Tests**:
+- Test end-to-end workflows with real LeanInteract
+- Test on real mathlib theorems
+- Measure success rates by complexity tier
+- Validate refactored proofs with Lean
+
+**Benchmark Tests**:
+- Test accuracy targets (95%+ for hint extraction)
+- Test success rate targets (20-35% overall)
+- Test performance targets (search times, iteration cycles)
+- Test false positive rate (< 5%)
+
+### Test Coverage Requirements
+
+- Minimum 80% code coverage
+- 100% coverage of error handling paths
+- All 20 correctness properties have property-based tests
+- All edge cases have unit tests
+- All tools have integration tests
+
+### Migration Testing
+
+**Regression Tests**:
+- All existing tests for probe, probe_file, verify must pass after migration
+- All existing search_annotations tests must be updated and pass
+- No functionality regressions
+
+**Static Analysis Tests**:
+- Verify no regex-based parsing in candidate generation
+- Verify no direct Lean CLI calls
+- Verify all Lean interaction goes through adapter layer
+- Verify dependency injection is used correctly
+- Verify no forbidden dependencies (Core → MCP, Core → LeanInteract impl)
+
+**Performance Regression Tests**:
+- Verify performance is not worse than before migration
+- Verify server reuse reduces startup overhead
+- Verify iteration cycles meet timing requirements
 
 ## Implementation Notes
 
-### Phase 1: Core Data Models (Week 1)
-- Implement SubgoalState, CaseAnalysis, HintProvenance, DependencyAnalysis, ProgressMetrics
-- Add optional fields to SearchAnnotationsResult
-- Implement JSON serialization with omit-when-None behavior
-- Write property tests for serialization round-trip
+### Phase 1: LeanInteract Adapter Layer
 
-### Phase 2: Subgoal Analysis (Week 1-2)
-- Implement SubgoalAnalyzer
-- Integrate into SearchAnnotationsCommandHandler
-- Add enable_subgoal_reporting configuration
-- Write unit and property tests
+**Priority**: P0 (Critical)
 
-### Phase 3: Provenance Tracking (Week 2)
-- Implement ProvenanceTracker
-- Enhance Hint model with provenance field
-- Integrate into candidate generation
-- Write unit and property tests
+**Components**:
+1. LeanInteractQuerier implementation
+2. ProofStateInspector implementation
+3. ProofValidator implementation
+4. ServerManager implementation
 
-### Phase 4: Dependency Detection (Week 3)
-- Implement DependencyAnalyzer
-- Integrate into viability check phase
-- Add mode switch suggestions
-- Write unit and property tests
+**Key Decisions**:
+- Use `FileCommand(declarations=True)` not `extract_decls=True`
+- Primary: value.constants, Fallback: pp text parsing
+- One server instance per file
+- Automatic crash detection and restart
 
-### Phase 5: Case Analysis (Month 2)
-- Implement CaseDetector
-- Add target_case parameter support
-- Integrate case-specific search
-- Write unit and property tests
+**Testing**:
+- Mock LeanInteract for unit tests
+- Integration tests with real LeanInteract
+- Test all error conditions
 
-### Phase 6: Progress Metrics (Month 2)
-- Implement ProgressCalculator
-- Integrate into result building
-- Add iteration recommendations
-- Write unit and property tests
+### Phase 2: Core Domain Refactoring
 
-### Backward Compatibility Strategy
+**Priority**: P0 (Critical)
 
-1. All new fields are optional (default to None)
-2. JSON serialization omits None fields
-3. API version remains "0.1.0"
-4. Existing clients see no changes
-5. New clients opt-in via EnhancementsConfig
+**Components**:
+1. Refactor CandidateGenerator to use LeanInteractQuerier
+2. Implement ContextExtractor
+3. Implement FeedbackBuilder
+4. Enhance SearchOrchestrator
 
-### Performance Considerations
+**Key Decisions**:
+- Remove all regex-based parsing
+- Infer hint types from attributes
+- Build rich feedback with suggestions
+- Support all four candidate sources
 
-- Subgoal analysis: Parse Lean output once, cache results
-- Case detection: Scan proof text once during viability check
-- Provenance tracking: Compute relevance scores lazily
-- Dependency analysis: Reuse existing index, no additional Lean calls
-- Progress metrics: Compute from cached complexity values
+**Testing**:
+- Unit tests with mock querier
+- Property tests for candidate generation
+- Test feedback building logic
 
-Target overhead: < 500ms total for all enhancements combined
+### Phase 3: MCP Tool Enhancement
+
+**Priority**: P0 (Critical)
+
+**Components**:
+1. Enhance search_automated_proof (replace search_annotations)
+2. Implement try_automated_proof
+3. Implement get_proof_context
+4. Add deprecation handling
+
+**Key Decisions**:
+- Maintain backward compatibility
+- Log deprecation warnings
+- Support all new parameters
+- Return rich feedback
+
+**Testing**:
+- Test parameter validation
+- Test JSON response format
+- Test deprecation warnings
+- Integration tests
+
+### Phase 4: Existing Tool Migration
+
+**Priority**: P1 (High)
+
+**Components**:
+1. Migrate probe to use LeanInteract
+2. Migrate probe_file to use LeanInteract
+3. Migrate verify to use LeanInteract
+
+**Key Decisions**:
+- Maintain existing interfaces
+- Route through adapter layer
+- Preserve functionality
+
+**Testing**:
+- Regression tests
+- Verify no functionality loss
+
+### Phase 5: Test Suite Migration
+
+**Priority**: P1 (High)
+
+**Components**:
+1. Update search_annotations tests
+2. Remove regex-based tests
+3. Add LeanInteract-based tests
+4. Add property-based tests
+
+**Key Decisions**:
+- Mock adapter layer, not LeanInteract directly
+- Test all 20 correctness properties
+- Maintain 80%+ coverage
+
+**Testing**:
+- Meta-tests for coverage
+- Static analysis tests
+
+## Dependencies
+
+### External Dependencies
+
+- **LeanInteract**: Python library for Lean 4 interaction (required)
+- **lean-interact-runner**: Execution wrapper for LeanInteract (required)
+- **Lean 4**: Version 4.26.0-rc1 or later (required)
+- **Lake**: Version 5.0.0 or later (required)
+- **hypothesis**: Property-based testing library (dev dependency)
+
+### Internal Dependencies
+
+- **Current MCP server infrastructure**: Must integrate with existing MCP server
+- **Current workspace configuration**: Must support existing workspace formats
+- **Current minimization engine**: Will be reused with new candidate generator
+
+### Dependency Management
+
+- Use dependency injection throughout
+- Abstract all external dependencies behind protocols
+- Enable testing without real dependencies
+- Support graceful degradation when dependencies unavailable
+
+## Performance Considerations
+
+### Optimization Strategies
+
+**1. Server Reuse**:
+- Maintain one LeanInteract server per file
+- Avoid repeated startup overhead (seconds per file)
+- Cache server instances in ServerManager
+
+**2. Parallel Processing**:
+- Validate multiple proof attempts in parallel
+- Process multiple theorems in parallel for batch operations
+- Use asyncio for concurrent LeanInteract operations
+
+**3. Caching**:
+- Cache declaration extraction results per file
+- Cache theorem context for repeated access
+- Cache similar proof computations
+
+**4. Early Termination**:
+- Stop search on first success for greedy strategy
+- Respect time budgets strictly
+- Return partial results on timeout
+
+### Performance Targets
+
+- Quick search: ≤ 15 seconds
+- Normal search: ≤ 40 seconds
+- Deep search: ≤ 90 seconds
+- Validation: ≤ 10 seconds
+- Full iteration cycle: ≤ 50 seconds (normal depth)
+- Server startup amortized across operations
+
+### Performance Monitoring
+
+- Log timing for all phases
+- Track candidate generation time
+- Track search execution time
+- Track minimization time
+- Monitor server startup overhead
+- Alert on performance regressions
+
+## Security Considerations
+
+### Input Validation
+
+- Validate all file paths (no path traversal)
+- Validate theorem IDs (no injection)
+- Validate proof attempts (no arbitrary code execution)
+- Sanitize all user input before passing to LeanInteract
+
+### Resource Limits
+
+- Enforce timeouts on all operations
+- Limit maximum candidates per source
+- Limit maximum search steps
+- Limit maximum hint set size
+- Prevent resource exhaustion
+
+### Error Information Disclosure
+
+- Don't expose internal paths in errors
+- Don't expose system information in errors
+- Sanitize error messages for external consumption
+- Log full details internally only
+
+## Deployment Considerations
+
+### Backward Compatibility
+
+- Maintain existing tool interfaces
+- Provide deprecation warnings for old tools
+- Support gradual migration
+- Document migration path
+
+### Rollout Strategy
+
+1. Deploy with feature flag (disabled by default)
+2. Enable for internal testing
+3. Gradual rollout to users
+4. Monitor success rates and performance
+5. Full deployment after validation
+
+### Monitoring
+
+- Track success rates by complexity tier
+- Track iteration counts
+- Track performance metrics
+- Track error rates
+- Alert on anomalies
+
+### Rollback Plan
+
+- Keep old implementation available
+- Support instant rollback via feature flag
+- Maintain compatibility with old data formats
+- Document rollback procedure

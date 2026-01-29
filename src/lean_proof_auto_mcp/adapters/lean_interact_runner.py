@@ -367,7 +367,7 @@ class LeanInteractRunner:
         if not full_path.exists():
             raise ValueError(f"File not found: {file_path}")
 
-        file_content = full_path.read_text()
+        file_content = full_path.read_text(encoding="utf-8")
 
         # Parse file to find theorem
         source = SourceText(path=file_path, text=file_content)

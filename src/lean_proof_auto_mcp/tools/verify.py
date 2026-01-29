@@ -195,11 +195,17 @@ def _create_handler(file_path: str) -> VerifyCommandHandler:
     artifacts_dir = Path(os.getenv("LPAM_ARTIFACTS_DIR", ".artifacts"))
     artifact_store = FilesystemArtifactStore(artifacts_dir)
 
+    # Create metadata collector
+    from ..observability import SubprocessMetadataCollector
+
+    metadata_collector = SubprocessMetadataCollector()
+
     # Wire dependencies into handler
     return VerifyCommandHandler(
         lean_runner=lean_runner,
         workspace_provider=workspace_provider,
         artifact_store=artifact_store,
+        metadata_collector=metadata_collector,
     )
 
 

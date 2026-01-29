@@ -135,6 +135,8 @@ class LeanInteractRunner:
                     # Detect Lean version from lean-toolchain file
                     lean_version = self._detect_lean_version(workspace_path)
                     config = LeanREPLConfig(lean_version=lean_version)
+                    server = LeanServer(config)
+                    return ReusableLeanServer(server, workspace_path, self)
             else:
                 # No Lake project - use standalone mode with detected version
                 logger.info("Created reusable server in standalone mode")

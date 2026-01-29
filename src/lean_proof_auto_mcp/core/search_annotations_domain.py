@@ -12,6 +12,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Literal
 
+if TYPE_CHECKING:
+    from ..observability.ports import MetadataCollector
+
 logger = logging.getLogger(__name__)
 
 

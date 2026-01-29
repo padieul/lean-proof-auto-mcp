@@ -10,9 +10,10 @@ Requirements: 1.1, 1.3, 2.1, 2.2, 4.2, 4.3, 4.4
 import logging
 import os
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from ..core.verify_domain import LeanRunResult
 
@@ -125,7 +126,8 @@ class LeanInteractRunner:
                         server = LeanServer(config)
                     
                     logger.info(
-                        f"Created reusable server with Lake project context from {workspace_path}, Lean version: {lean_version}"
+                        f"Created reusable server with Lake project context from "
+                        f"{workspace_path}, Lean version: {lean_version}"
                     )
                     return ReusableLeanServer(server, workspace_path, self)
                 except Exception as e:
@@ -133,6 +135,8 @@ class LeanInteractRunner:
                     # Detect Lean version from lean-toolchain file
                     lean_version = self._detect_lean_version(workspace_path)
                     config = LeanREPLConfig(lean_version=lean_version)
+                    server = LeanServer(config)
+                    return ReusableLeanServer(server, workspace_path, self)
             else:
                 # No Lake project - use standalone mode with detected version
                 logger.info("Created reusable server in standalone mode")
@@ -229,7 +233,10 @@ class LeanInteractRunner:
                     config = LeanREPLConfig(project=project)
                     server = LeanServer(config)
                     
-                    logger.info(f"Using Lake project context from {workspace_path}, Lean version: {lean_version}")
+                    logger.info(
+                        f"Using Lake project context from {workspace_path}, "
+                        f"Lean version: {lean_version}"
+                    )
                 except Exception as e:
                     # If project initialization fails, fall back to standalone with detected version
                     logger.warning(f"Failed to initialize Lake project, using standalone mode: {e}")

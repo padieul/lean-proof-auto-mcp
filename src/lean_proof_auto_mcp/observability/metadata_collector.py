@@ -155,12 +155,14 @@ class SubprocessMetadataCollector:
             )
 
             # Read output in separate thread to avoid blocking
-            stdout_data = []
+            stdout_data: list[str] = []
 
-            def read_stdout():
+            def read_stdout() -> None:
                 """Thread target: Read stdout until EOF."""
                 try:
-                    stdout_data.append(proc.stdout.read())
+                    assert proc.stdout is not None  # For mypy
+                    data = proc.stdout.read()
+                    stdout_data.append(data)
                 except Exception as e:
                     logger.debug(f"Error reading stdout from {cmd[0]}: {e}")
 

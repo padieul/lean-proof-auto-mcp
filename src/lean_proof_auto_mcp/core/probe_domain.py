@@ -16,7 +16,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from ..observability.ports import MetadataCollector
 
 logger = logging.getLogger(__name__)
 
@@ -440,9 +443,9 @@ class ProbeCommandHandler:
                 )
 
             # 5. Parse and classify outcome
-            logger.info(f"Processing Lean result...")
+            logger.info("Processing Lean result...")
             result = self._process_lean_result(cmd, run_id, lean_result, start_time, workspace)
-            logger.info(f"Lean result processed, preparing to return...")
+            logger.info("Lean result processed, preparing to return...")
 
             # 6. Store artifacts if artifact_store is configured (async to not block response)
             if self.artifact_store is not None:
@@ -455,14 +458,14 @@ class ProbeCommandHandler:
                 
                 thread = threading.Thread(target=store_async, daemon=True)
                 thread.start()
-                logger.info(f"Started background thread for artifact storage")
+                logger.info("Started background thread for artifact storage")
 
-            logger.info(f"About to return result from handle()")
+            logger.info("About to return result from handle()")
             return result
 
         finally:
             # 7. Cleanup harness file and workspace (always runs)
-            logger.info(f"Entering finally block for cleanup...")
+            logger.info("Entering finally block for cleanup...")
             if harness_file_path:
                 try:
                     harness_path = workspace.path / harness_file_path
@@ -471,7 +474,7 @@ class ProbeCommandHandler:
                         logger.debug(f"Cleaned up harness file: {harness_file_path}")
                 except Exception as e:
                     logger.warning(f"Harness file cleanup failed: {e}")
-            logger.info(f"Finally block completed")
+            logger.info("Finally block completed")
 
             if workspace:
                 try:
@@ -577,7 +580,7 @@ class ProbeCommandHandler:
         Requirements: 3.2-3.8
         """
         # Normalize diagnostics
-        logger.info(f"Normalizing diagnostics...")
+        logger.info("Normalizing diagnostics...")
         diagnostics = self._normalize_diagnostics(lean_result.diagnostics)
 
         # Determine raw outcome
@@ -599,13 +602,13 @@ class ProbeCommandHandler:
         logger.info(f"Classification complete: {classification}")
 
         # Extract suggested script for aesop? mode
-        logger.info(f"Extracting suggested script...")
+        logger.info("Extracting suggested script...")
         suggested_script = None
         if cmd.mode == "aesop?" and outcome == "closed":
             suggested_script = self._extract_suggested_script(lean_result.full_logs)
 
         # Build structured result
-        logger.info(f"Building result...")
+        logger.info("Building result...")
         return self._build_result(
             cmd,
             run_id,
@@ -997,9 +1000,9 @@ class ProbeCommandHandler:
         }
 
         # Build metadata
-        logger.info(f"Building metadata...")
+        logger.info("Building metadata...")
         metadata = self._build_metadata(lean_result)
-        logger.info(f"Metadata built, creating ProbeResult...")
+        logger.info("Metadata built, creating ProbeResult...")
 
         result = ProbeResult(
             api_version="0.1.0",
@@ -1010,7 +1013,7 @@ class ProbeCommandHandler:
             timing=timing,
             metadata=metadata,
         )
-        logger.info(f"ProbeResult created successfully")
+        logger.info("ProbeResult created successfully")
         return result
 
     def _build_error_result(

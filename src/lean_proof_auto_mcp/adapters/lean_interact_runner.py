@@ -8,9 +8,11 @@ Requirements: 1.1, 1.3, 2.1, 2.2, 4.2, 4.3, 4.4
 """
 
 import logging
+import os
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from ..core.verify_domain import LeanRunResult
 
@@ -54,6 +56,29 @@ class LeanInteractRunner:
         """
         self.timeout_buffer_ms = timeout_buffer_ms
 
+    @staticmethod
+    @contextmanager
+    def _working_directory(path: Path) -> Iterator[None]:
+        """
+        Context manager to temporarily change working directory.
+
+        This ensures elan can find the lean-toolchain file in the project directory.
+
+        Args:
+            path: Directory to change to
+
+        Yields:
+            None
+
+        Requirements: 1.1, 1.3
+        """
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(path)
+            yield
+        finally:
+            os.chdir(original_cwd)
+
     def create_server(self, workspace_path: Path) -> "ReusableLeanServer":
         """
         Create a reusable Lean server for the given workspace.
@@ -86,21 +111,35 @@ class LeanInteractRunner:
             if lakefile_path.exists() or lakefile_lean_path.exists():
                 # Has Lake project - use it
                 try:
-                    project = LocalProject(directory=str(workspace_path), auto_build=False)
-                    config = LeanREPLConfig(project=project)
+                    # Detect Lean version for logging purposes
+                    lean_version = self._detect_lean_version(workspace_path)
+                    
+                    # Set working directory to workspace so elan can find lean-toolchain
+                    # This is critical because elan walks up from CWD to find lean-toolchain
+                    # When using LocalProject, lean-interact infers the version from the project
+                    # IMPORTANT: We must create BOTH the config AND the server inside the context
+                    # because LeanServer spawns subprocesses that need to see the correct CWD
+                    with self._working_directory(workspace_path):
+                        project = LocalProject(directory=str(workspace_path), auto_build=False)
+                        config = LeanREPLConfig(project=project)
+                        server = LeanServer(config)
+                    
                     logger.info(
-                        f"Created reusable server with Lake project context from {workspace_path}"
+                        f"Created reusable server with Lake project context from {workspace_path}, Lean version: {lean_version}"
                     )
+                    return ReusableLeanServer(server, workspace_path, self)
                 except Exception as e:
                     logger.warning(f"Failed to initialize Lake project, using standalone mode: {e}")
-                    config = LeanREPLConfig(lean_version="v4.15.0")
+                    # Detect Lean version from lean-toolchain file
+                    lean_version = self._detect_lean_version(workspace_path)
+                    config = LeanREPLConfig(lean_version=lean_version)
             else:
-                # No Lake project - use standalone mode
+                # No Lake project - use standalone mode with detected version
                 logger.info("Created reusable server in standalone mode")
-                config = LeanREPLConfig(lean_version="v4.15.0")
-
-            server = LeanServer(config)
-            return ReusableLeanServer(server, workspace_path, self)
+                lean_version = self._detect_lean_version(workspace_path)
+                config = LeanREPLConfig(lean_version=lean_version)
+                server = LeanServer(config)
+                return ReusableLeanServer(server, workspace_path, self)
 
         except Exception as e:
             raise RuntimeError(f"Failed to create Lean server: {e}") from e
@@ -140,6 +179,13 @@ class LeanInteractRunner:
         Requirements: 1.1, 1.3, 2.1, 2.2, 4.2, 4.3
         """
         start_time = time.time()
+        
+        # CRITICAL: Change to workspace directory so elan can find lean-toolchain
+        # This must happen BEFORE any LeanServer operations because subprocesses
+        # spawned by lean-interact will inherit this working directory
+        original_cwd = os.getcwd()
+        os.chdir(workspace_path)
+        logger.info(f"Changed working directory to {workspace_path} for elan toolchain resolution")
 
         # Determine verification scope and theorem line range
         theorem_line_range = None
@@ -156,6 +202,7 @@ class LeanInteractRunner:
 
         # Check if LeanInteract is available
         if not LEAN_INTERACT_AVAILABLE or LeanServer is None:
+            os.chdir(original_cwd)  # Restore before raising
             raise RuntimeError(
                 "LeanInteract library not installed. Install with: pip install lean-interact"
             )
@@ -175,21 +222,26 @@ class LeanInteractRunner:
                 # Has Lake project - try to use it
                 try:
                     # CRITICAL: auto_build=False prevents rebuilding
-                    # But LocalProject still validates and may trigger builds
-                    # if .lake/ is incomplete. Ensure .lake/ is complete first.
+                    # Detect Lean version for logging purposes
+                    lean_version = self._detect_lean_version(workspace_path)
+                    
                     project = LocalProject(directory=str(workspace_path), auto_build=False)
                     config = LeanREPLConfig(project=project)
-                    logger.info(f"Using Lake project context from {workspace_path}")
+                    server = LeanServer(config)
+                    
+                    logger.info(f"Using Lake project context from {workspace_path}, Lean version: {lean_version}")
                 except Exception as e:
-                    # If project initialization fails, fall back to standalone
+                    # If project initialization fails, fall back to standalone with detected version
                     logger.warning(f"Failed to initialize Lake project, using standalone mode: {e}")
-                    config = LeanREPLConfig(lean_version="v4.15.0")
+                    lean_version = self._detect_lean_version(workspace_path)
+                    config = LeanREPLConfig(lean_version=lean_version)
+                    server = LeanServer(config)
             else:
-                # No Lake project - use standalone mode
+                # No Lake project - use standalone mode with detected version
                 logger.info("No lakefile found, using standalone mode")
-                config = LeanREPLConfig(lean_version="v4.15.0")
-
-            server = LeanServer(config)
+                lean_version = self._detect_lean_version(workspace_path)
+                config = LeanREPLConfig(lean_version=lean_version)
+                server = LeanServer(config)
 
             # Run file verification with timeout
             command = FileCommand(path=target_file)
@@ -263,6 +315,10 @@ class LeanInteractRunner:
 
                 with suppress(Exception):
                     server.kill()
+            
+            # Restore original working directory
+            os.chdir(original_cwd)
+            logger.info(f"Restored working directory to {original_cwd}")
 
     def _prepare_theorem_verification(
         self,
@@ -466,6 +522,36 @@ class LeanInteractRunner:
                 logs.append(f"[sorry] {sorry.goal}")
 
         return "\n".join(logs) if logs else ""
+
+    def _detect_lean_version(self, workspace_path: Path) -> str:
+        """
+        Detect Lean version from lean-toolchain file in workspace.
+
+        This method searches for a lean-toolchain file in the workspace and
+        extracts the Lean version. If not found, falls back to a default version.
+
+        Args:
+            workspace_path: Path to workspace directory
+
+        Returns:
+            Lean version string (e.g., "v4.15.0" or "leanprover/lean4:v4.27.0")
+
+        Requirements: 1.1, 1.3
+        """
+        toolchain_path = workspace_path / "lean-toolchain"
+
+        if toolchain_path.exists():
+            try:
+                toolchain_content = toolchain_path.read_text().strip()
+                logger.info(f"Detected Lean version from lean-toolchain: {toolchain_content}")
+                return toolchain_content
+            except Exception as e:
+                logger.warning(f"Failed to read lean-toolchain file: {e}")
+
+        # Fallback to default version
+        default_version = "v4.15.0"
+        logger.info(f"No lean-toolchain found, using default version: {default_version}")
+        return default_version
 
 
 class ReusableLeanServer:

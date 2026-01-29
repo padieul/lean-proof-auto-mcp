@@ -195,12 +195,17 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
     # Create artifact store
     artifact_store = FilesystemArtifactStore(ARTIFACTS_DIR)
 
+    # Create metadata collector
+    from ..observability import SubprocessMetadataCollector
+    metadata_collector = SubprocessMetadataCollector()
+
     # Wire dependencies into handler
     return ProbeCommandHandler(
         lean_runner=lean_runner,
         workspace_provider=workspace_provider,
         classifier=classifier,
         artifact_store=artifact_store,
+        metadata_collector=metadata_collector,
     )
 
 

@@ -344,11 +344,16 @@ def _create_handler(file_path: str) -> SearchAnnotationsCommandHandler:
     artifacts_dir = Path(os.getenv("LPAM_ARTIFACTS_DIR", ".artifacts"))
     artifact_store = FilesystemArtifactStore(artifacts_dir)
 
+    # Create metadata collector
+    from ..observability import SubprocessMetadataCollector
+    metadata_collector = SubprocessMetadataCollector()
+
     # Create probe handler (reuse existing)
     probe_handler = ProbeCommandHandler(
         lean_runner=lean_runner,
         workspace_provider=workspace_provider,
         classifier=classifier,
+        metadata_collector=metadata_collector,
     )
 
     # Create search-specific components
@@ -378,6 +383,7 @@ def _create_handler(file_path: str) -> SearchAnnotationsCommandHandler:
         proof_patch_builder=proof_patch_builder,
         artifact_store=artifact_store,
         workspace_provider=workspace_provider,
+        metadata_collector=metadata_collector,
     )
 
 

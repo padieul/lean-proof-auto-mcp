@@ -307,6 +307,7 @@ class ProbeCommandHandler:
         workspace_provider: "WorkspaceProvider",
         classifier: AutomationClassifier,
         artifact_store: ArtifactStore | None = None,
+        metadata_collector: "MetadataCollector | None" = None,
     ):
         """
         Initialize handler with dependency injection.
@@ -316,6 +317,7 @@ class ProbeCommandHandler:
             workspace_provider: Port for workspace isolation
             classifier: Port for classifying automation outcomes
             artifact_store: Optional port for artifact storage
+            metadata_collector: Optional port for collecting environment metadata
 
         Requirements: 1.1, 6.1, 6.2
         """
@@ -323,6 +325,7 @@ class ProbeCommandHandler:
         self.workspace_provider = workspace_provider
         self.classifier = classifier
         self.artifact_store = artifact_store
+        self.metadata_collector = metadata_collector
 
     def handle(self, cmd: ProbeCommand, lean_server: "LeanServer | None" = None) -> ProbeResult:
         """
@@ -437,19 +440,29 @@ class ProbeCommandHandler:
                 )
 
             # 5. Parse and classify outcome
+            logger.info(f"Processing Lean result...")
             result = self._process_lean_result(cmd, run_id, lean_result, start_time, workspace)
+            logger.info(f"Lean result processed, preparing to return...")
 
-            # 6. Store artifacts if artifact_store is configured
+            # 6. Store artifacts if artifact_store is configured (async to not block response)
             if self.artifact_store is not None:
-                try:
-                    self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
-                except Exception as e:
-                    logger.warning(f"Failed to store artifacts for {run_id}: {e}")
+                import threading
+                def store_async():
+                    try:
+                        self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
+                    except Exception as e:
+                        logger.warning(f"Failed to store artifacts for {run_id}: {e}")
+                
+                thread = threading.Thread(target=store_async, daemon=True)
+                thread.start()
+                logger.info(f"Started background thread for artifact storage")
 
+            logger.info(f"About to return result from handle()")
             return result
 
         finally:
             # 7. Cleanup harness file and workspace (always runs)
+            logger.info(f"Entering finally block for cleanup...")
             if harness_file_path:
                 try:
                     harness_path = workspace.path / harness_file_path
@@ -458,6 +471,7 @@ class ProbeCommandHandler:
                         logger.debug(f"Cleaned up harness file: {harness_file_path}")
                 except Exception as e:
                     logger.warning(f"Harness file cleanup failed: {e}")
+            logger.info(f"Finally block completed")
 
             if workspace:
                 try:
@@ -522,12 +536,17 @@ class ProbeCommandHandler:
         # Process the result (no workspace object in server reuse mode)
         result = self._process_lean_result(cmd, run_id, lean_result, start_time, workspace=None)
 
-        # Store artifacts if artifact_store is configured
+        # Store artifacts if artifact_store is configured (async to not block response)
         if self.artifact_store is not None:
-            try:
-                self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
-            except Exception as e:
-                logger.warning(f"Failed to store artifacts for {run_id}: {e}")
+            import threading
+            def store_async():
+                try:
+                    self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
+                except Exception as e:
+                    logger.warning(f"Failed to store artifacts for {run_id}: {e}")
+            
+            thread = threading.Thread(target=store_async, daemon=True)
+            thread.start()
 
         return result
 
@@ -558,9 +577,11 @@ class ProbeCommandHandler:
         Requirements: 3.2-3.8
         """
         # Normalize diagnostics
+        logger.info(f"Normalizing diagnostics...")
         diagnostics = self._normalize_diagnostics(lean_result.diagnostics)
 
         # Determine raw outcome
+        logger.info(f"Determining outcome from status={lean_result.status}...")
         if lean_result.status == "timeout":
             outcome = "timeout"
         elif lean_result.status == "error":
@@ -571,16 +592,20 @@ class ProbeCommandHandler:
             outcome = "not_closed"
 
         # Classify outcome
+        logger.info(f"Calling classifier.classify() with outcome={outcome}...")
         classification = self.classifier.classify(
             outcome, diagnostics, lean_result.timing, cmd.budget_s
         )
+        logger.info(f"Classification complete: {classification}")
 
         # Extract suggested script for aesop? mode
+        logger.info(f"Extracting suggested script...")
         suggested_script = None
         if cmd.mode == "aesop?" and outcome == "closed":
             suggested_script = self._extract_suggested_script(lean_result.full_logs)
 
         # Build structured result
+        logger.info(f"Building result...")
         return self._build_result(
             cmd,
             run_id,
@@ -972,9 +997,11 @@ class ProbeCommandHandler:
         }
 
         # Build metadata
+        logger.info(f"Building metadata...")
         metadata = self._build_metadata(lean_result)
+        logger.info(f"Metadata built, creating ProbeResult...")
 
-        return ProbeResult(
+        result = ProbeResult(
             api_version="0.1.0",
             status=status,
             run_id=run_id,
@@ -983,6 +1010,8 @@ class ProbeCommandHandler:
             timing=timing,
             metadata=metadata,
         )
+        logger.info(f"ProbeResult created successfully")
+        return result
 
     def _build_error_result(
         self,
@@ -1101,62 +1130,27 @@ class ProbeCommandHandler:
 
     def _build_metadata(self, lean_result: Any) -> dict[str, Any]:
         """
-        Build metadata section with workspace and version information.
+        Build metadata section with version information.
+
+        Uses the injected MetadataCollector port to gather environment
+        metadata (git commit, lean version, lake version). If no collector
+        is provided, returns an empty dictionary.
 
         Args:
             lean_result: Result from Lean execution
 
         Returns:
-            Metadata dict
+            Metadata dict with version information
 
         Requirements: 3.8
         """
-        import subprocess
+        if self.metadata_collector is None:
+            logger.debug("No metadata collector configured, skipping metadata collection")
+            return {}
 
-        metadata: dict[str, Any] = {}
-
-        # Detect repo commit
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                capture_output=True,
-                text=True,
-                timeout=1.0,
-                check=False,
-            )
-            if result.returncode == 0:
-                metadata["repo_commit"] = result.stdout.strip()
-        except Exception:
-            pass  # Git not available or not a git repo
-
-        # Detect Lean version
-        try:
-            result = subprocess.run(
-                ["lean", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=1.0,
-                check=False,
-            )
-            if result.returncode == 0:
-                metadata["lean_version"] = result.stdout.strip()
-        except Exception:
-            pass  # Lean not available
-
-        # Detect Lake version
-        try:
-            result = subprocess.run(
-                ["lake", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=1.0,
-                check=False,
-            )
-            if result.returncode == 0:
-                metadata["lake_version"] = result.stdout.strip()
-        except Exception:
-            pass  # Lake not available
-
+        logger.info("Building metadata...")
+        metadata = self.metadata_collector.collect_version_info()
+        logger.info("Metadata built, creating ProbeResult...")
         return metadata
 
 

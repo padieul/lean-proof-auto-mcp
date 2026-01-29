@@ -700,6 +700,7 @@ class SearchAnnotationsCommandHandler:
         proof_patch_builder: "ProofPatchBuilder",
         artifact_store: "ArtifactStore",
         workspace_provider: "WorkspaceProvider",
+        metadata_collector: "MetadataCollector | None" = None,
     ):
         """
         Initialize handler with dependency injection.
@@ -712,6 +713,7 @@ class SearchAnnotationsCommandHandler:
             proof_patch_builder: Service for building proof patches
             artifact_store: Port for artifact storage
             workspace_provider: Port for workspace isolation
+            metadata_collector: Optional port for collecting environment metadata
 
         Requirements: 1.1, 6.1, 6.2, 8.1
         """
@@ -722,6 +724,7 @@ class SearchAnnotationsCommandHandler:
         self.proof_patch_builder = proof_patch_builder
         self.artifact_store = artifact_store
         self.workspace_provider = workspace_provider
+        self.metadata_collector = metadata_collector
 
     def handle(self, cmd: SearchAnnotationsCommand) -> SearchAnnotationsResult:
         """
@@ -1388,56 +1391,18 @@ class SearchAnnotationsCommandHandler:
         """
         Build metadata section with environment information.
 
+        Uses the injected MetadataCollector port to gather environment
+        metadata (git commit, lean version, lake version). If no collector
+        is provided, returns an empty dictionary.
+
         Returns:
             Metadata dictionary
         """
-        import subprocess
+        if self.metadata_collector is None:
+            logger.debug("No metadata collector configured, skipping metadata collection")
+            return {}
 
-        metadata: dict[str, Any] = {}
-
-        # Detect repo commit
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                capture_output=True,
-                text=True,
-                timeout=1.0,
-                check=False,
-            )
-            if result.returncode == 0:
-                metadata["repo_commit"] = result.stdout.strip()
-        except Exception:
-            pass
-
-        # Detect Lean version
-        try:
-            result = subprocess.run(
-                ["lean", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=1.0,
-                check=False,
-            )
-            if result.returncode == 0:
-                metadata["lean_version"] = result.stdout.strip()
-        except Exception:
-            pass
-
-        # Detect Lake version
-        try:
-            result = subprocess.run(
-                ["lake", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=1.0,
-                check=False,
-            )
-            if result.returncode == 0:
-                metadata["lake_version"] = result.stdout.strip()
-        except Exception:
-            pass
-
-        return metadata
+        return self.metadata_collector.collect_version_info()
 
     def _collect_logs(
         self,

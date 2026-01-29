@@ -8,13 +8,15 @@ Requirements: 1.1, 1.2, 1.5, 6.1, 7.1
 """
 
 import hashlib
-import subprocess
+import logging
 import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Command and Result Data Structures (Immutable)
@@ -334,6 +336,7 @@ class VerifyCommandHandler:
         lean_runner: LeanRunner,
         workspace_provider: WorkspaceProvider,
         artifact_store: ArtifactStore,
+        metadata_collector: "MetadataCollector | None" = None,
     ):
         """
         Initialize handler with dependency injection.
@@ -342,12 +345,14 @@ class VerifyCommandHandler:
             lean_runner: Port for running Lean verification
             workspace_provider: Port for workspace isolation
             artifact_store: Port for artifact storage
+            metadata_collector: Optional port for collecting environment metadata
 
         Requirements: 1.1
         """
         self.lean_runner = lean_runner
         self.workspace_provider = workspace_provider
         self.artifact_store = artifact_store
+        self.metadata_collector = metadata_collector
 
     def handle(self, cmd: VerifyCommand) -> VerifyResult:
         """
@@ -711,6 +716,10 @@ class VerifyCommandHandler:
         """
         Build metadata section with workspace and version information.
 
+        Uses the injected MetadataCollector port to gather environment
+        metadata (git commit, lean version, lake version). If no collector
+        is provided, returns only workspace information.
+
         Args:
             workspace: Workspace metadata
             lean_result: Result from Lean execution
@@ -725,47 +734,12 @@ class VerifyCommandHandler:
             "workspace_id": workspace.workspace_id,
         }
 
-        # Detect repo commit
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                capture_output=True,
-                text=True,
-                timeout=1.0,
-                check=False,
-            )
-            if result.returncode == 0:
-                metadata["repo_commit"] = result.stdout.strip()
-        except Exception:
-            pass  # Git not available or not a git repo
-
-        # Detect Lean version
-        try:
-            result = subprocess.run(
-                ["lean", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=1.0,
-                check=False,
-            )
-            if result.returncode == 0:
-                metadata["lean_version"] = result.stdout.strip()
-        except Exception:
-            pass  # Lean not available
-
-        # Detect Lake version
-        try:
-            result = subprocess.run(
-                ["lake", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=1.0,
-                check=False,
-            )
-            if result.returncode == 0:
-                metadata["lake_version"] = result.stdout.strip()
-        except Exception:
-            pass  # Lake not available
+        # Collect version information if metadata collector is available
+        if self.metadata_collector is not None:
+            version_info = self.metadata_collector.collect_version_info()
+            metadata.update(version_info)
+        else:
+            logger.debug("No metadata collector configured, skipping version metadata collection")
 
         return metadata
 

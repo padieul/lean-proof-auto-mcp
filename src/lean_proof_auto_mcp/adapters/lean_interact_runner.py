@@ -114,7 +114,7 @@ class LeanInteractRunner:
                 try:
                     # Detect Lean version for logging purposes
                     lean_version = self._detect_lean_version(workspace_path)
-                    
+
                     # Set working directory to workspace so elan can find lean-toolchain
                     # This is critical because elan walks up from CWD to find lean-toolchain
                     # When using LocalProject, lean-interact infers the version from the project
@@ -124,7 +124,7 @@ class LeanInteractRunner:
                         project = LocalProject(directory=str(workspace_path), auto_build=False)
                         config = LeanREPLConfig(project=project)
                         server = LeanServer(config)
-                    
+
                     logger.info(
                         f"Created reusable server with Lake project context from "
                         f"{workspace_path}, Lean version: {lean_version}"
@@ -183,7 +183,7 @@ class LeanInteractRunner:
         Requirements: 1.1, 1.3, 2.1, 2.2, 4.2, 4.3
         """
         start_time = time.time()
-        
+
         # CRITICAL: Change to workspace directory so elan can find lean-toolchain
         # This must happen BEFORE any LeanServer operations because subprocesses
         # spawned by lean-interact will inherit this working directory
@@ -228,7 +228,7 @@ class LeanInteractRunner:
                     # CRITICAL: auto_build=False prevents rebuilding
                     # Detect Lean version for logging purposes
                     lean_version = self._detect_lean_version(workspace_path)
-                    
+
                     project = LocalProject(directory=str(workspace_path), auto_build=False)
                     config = LeanREPLConfig(project=project)
                     server = LeanServer(config)
@@ -322,7 +322,7 @@ class LeanInteractRunner:
 
                 with suppress(Exception):
                     server.kill()
-            
+
             # Restore original working directory
             os.chdir(original_cwd)
             logger.info(f"Restored working directory to {original_cwd}")

@@ -346,6 +346,7 @@ def _create_handler(file_path: str) -> SearchAnnotationsCommandHandler:
 
     # Create metadata collector
     from ..observability import SubprocessMetadataCollector
+
     metadata_collector = SubprocessMetadataCollector()
 
     # Create probe handler (reuse existing)

@@ -450,12 +450,13 @@ class ProbeCommandHandler:
             # 6. Store artifacts if artifact_store is configured (async to not block response)
             if self.artifact_store is not None:
                 import threading
+
                 def store_async():
                     try:
                         self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
                     except Exception as e:
                         logger.warning(f"Failed to store artifacts for {run_id}: {e}")
-                
+
                 thread = threading.Thread(target=store_async, daemon=True)
                 thread.start()
                 logger.info("Started background thread for artifact storage")
@@ -542,12 +543,13 @@ class ProbeCommandHandler:
         # Store artifacts if artifact_store is configured (async to not block response)
         if self.artifact_store is not None:
             import threading
+
             def store_async():
                 try:
                     self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
                 except Exception as e:
                     logger.warning(f"Failed to store artifacts for {run_id}: {e}")
-            
+
             thread = threading.Thread(target=store_async, daemon=True)
             thread.start()
 

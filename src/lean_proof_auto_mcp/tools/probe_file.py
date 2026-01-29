@@ -206,6 +206,7 @@ def _create_handler(file_path: str) -> ProbeFileCommandHandler:
 
     # Create metadata collector
     from ..observability import SubprocessMetadataCollector
+
     metadata_collector = SubprocessMetadataCollector()
 
     # Create ProbeCommandHandler

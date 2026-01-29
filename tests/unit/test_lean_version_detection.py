@@ -8,8 +8,6 @@ reads lean-toolchain files and falls back to defaults when needed.
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from lean_proof_auto_mcp.adapters.lean_interact_runner import LeanInteractRunner
 
 

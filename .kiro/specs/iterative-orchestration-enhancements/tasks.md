@@ -127,13 +127,13 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - **Property 10: Search Strategy Behavior Consistency**
     - **Validates: Requirements 19.2, 19.3, 19.4**
 
-- [ ] 4. Checkpoint - Verify Core Domain Layer
+- [x] 4. Checkpoint - Verify Core Domain Layer
   - Ensure all core domain tests pass
   - Verify candidate generation achieves 95%+ accuracy on test set
   - Ask the user if questions arise
 
-- [ ] 5. Implement Enhanced MCP Tools
-  - [ ] 5.1 Implement search_automated_proof tool
+- [-] 5. Implement Enhanced MCP Tools
+  - [x] 5.1 Implement search_automated_proof tool
     - Define tool signature with all parameters
     - Validate input parameters
     - Build SearchConfig from parameters
@@ -144,17 +144,17 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Support all return options (proof_states, partial_progress, context, similar_proofs, search_trace)
     - _Requirements: 4.1, 4.8, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 29.5, 29.6_
   
-  - [ ]* 5.2 Write property test for conditional return values
+  - [x] 5.2 Write property test for conditional return values
     - **Property 6: Conditional Return Value Completeness**
     - **Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5, 6.6**
   
-  - [ ]* 5.3 Write unit tests for search_automated_proof
+  - [x] 5.3 Write unit tests for search_automated_proof
     - Test parameter validation
     - Test JSON response format
     - Test all search depth presets
     - _Requirements: 4.2, 4.3, 4.4, 4.5, 4.6, 4.7_
   
-  - [ ] 5.4 Implement try_automated_proof tool
+  - [x] 5.4 Implement try_automated_proof tool
     - Define tool signature
     - Validate input parameters
     - Create SubprocessMetadataCollector at composition root
@@ -165,14 +165,14 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Enforce timeout
     - _Requirements: 7.1, 7.2, 7.8, 29.5, 29.6_
   
-  - [ ]* 5.5 Write unit tests for try_automated_proof
+  - [x] 5.5 Write unit tests for try_automated_proof
     - Test validation success case
     - Test validation error case
     - Test validation incomplete case
     - Test validation timeout case
     - _Requirements: 7.3, 7.4, 7.5, 7.6_
   
-  - [ ] 5.6 Implement get_proof_context tool
+  - [x] 5.6 Implement get_proof_context tool
     - Define tool signature
     - Validate input parameters
     - Create SubprocessMetadataCollector at composition root
@@ -182,7 +182,7 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Include similar proofs if requested
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 29.5, 29.6_
   
-  - [ ]* 5.7 Write unit tests for get_proof_context
+  - [x] 5.7 Write unit tests for get_proof_context
     - Test context extraction
     - Test similar proof inclusion
     - Test JSON response format
@@ -194,12 +194,12 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Do NOT provide backward compatibility or parameter mapping
     - _Requirements: 4.8, 26.5_
   
-  - [ ]* 5.9 Write unit test for deprecation error
+  - [ ] 5.9 Write unit test for deprecation error
     - Test that search_annotations is not available
     - Test error message is clear and helpful
     - _Requirements: 4.8, 26.5_
   
-  - [ ]* 5.10 Write unit tests for metadata collection
+  - [ ] 5.10 Write unit tests for metadata collection
     - Test that all new tools include metadata in responses
     - Test metadata format matches existing tools (probe, verify, search_annotations)
     - Test graceful handling when MetadataCollector is None

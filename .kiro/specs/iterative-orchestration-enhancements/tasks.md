@@ -13,15 +13,15 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Implement `get_theorem_context()` with scope and hypothesis extraction
     - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4_
   
-  - [ ]* 1.2 Write property test for LeanInteractQuerier
+  - [ ] 1.2 Write property test for LeanInteractQuerier
     - **Property 1: Complete Declaration Extraction**
     - **Validates: Requirements 1.1, 1.2, 1.3**
   
-  - [ ]* 1.3 Write property test for proof reference extraction
+  - [ ] 1.3 Write property test for proof reference extraction
     - **Property 2: Accurate Proof Reference Extraction**
     - **Validates: Requirements 2.3**
   
-  - [ ]* 1.4 Write property test for context extraction
+  - [ ] 1.4 Write property test for context extraction
     - **Property 3: Complete Context Extraction**
     - **Validates: Requirements 3.1, 3.2, 3.3, 3.4**
   
@@ -115,7 +115,9 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Support all four candidate sources
     - Build rich feedback using FeedbackBuilder
     - Track partial progress during search
-    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 5.1, 5.6, 5.7_
+    - Accept MetadataCollector as optional parameter
+    - Include metadata in SearchResult
+    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 5.1, 5.6, 5.7, 29.2, 29.3_
   
   - [ ]* 3.9 Write property test for search configuration
     - **Property 4: Search Depth Configuration Consistency**
@@ -135,10 +137,12 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Define tool signature with all parameters
     - Validate input parameters
     - Build SearchConfig from parameters
+    - Create SubprocessMetadataCollector at composition root
+    - Wire MetadataCollector into SearchOrchestrator
     - Delegate to SearchOrchestrator
-    - Format response with rich feedback
+    - Format response with rich feedback including metadata
     - Support all return options (proof_states, partial_progress, context, similar_proofs, search_trace)
-    - _Requirements: 4.1, 4.8, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
+    - _Requirements: 4.1, 4.8, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 29.5, 29.6_
   
   - [ ]* 5.2 Write property test for conditional return values
     - **Property 6: Conditional Return Value Completeness**
@@ -153,11 +157,13 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
   - [ ] 5.4 Implement try_automated_proof tool
     - Define tool signature
     - Validate input parameters
+    - Create SubprocessMetadataCollector at composition root
+    - Wire MetadataCollector into ProofValidator or handler
     - Delegate to ProofValidator
-    - Format ValidationResult as JSON
+    - Format ValidationResult as JSON including metadata
     - Include tactical suggestions
     - Enforce timeout
-    - _Requirements: 7.1, 7.2, 7.8_
+    - _Requirements: 7.1, 7.2, 7.8, 29.5, 29.6_
   
   - [ ]* 5.5 Write unit tests for try_automated_proof
     - Test validation success case
@@ -169,10 +175,12 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
   - [ ] 5.6 Implement get_proof_context tool
     - Define tool signature
     - Validate input parameters
+    - Create SubprocessMetadataCollector at composition root
+    - Wire MetadataCollector into ContextExtractor or handler
     - Delegate to ContextExtractor
-    - Format ProofContext as JSON
+    - Format ProofContext as JSON including metadata
     - Include similar proofs if requested
-    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
+    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 29.5, 29.6_
   
   - [ ]* 5.7 Write unit tests for get_proof_context
     - Test context extraction
@@ -190,6 +198,12 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Test that search_annotations is not available
     - Test error message is clear and helpful
     - _Requirements: 4.8, 26.5_
+  
+  - [ ]* 5.10 Write unit tests for metadata collection
+    - Test that all new tools include metadata in responses
+    - Test metadata format matches existing tools (probe, verify, search_annotations)
+    - Test graceful handling when MetadataCollector is None
+    - _Requirements: 29.3, 29.4, 29.7_
 
 - [ ] 6. Checkpoint - Verify MCP Tools
   - Ensure all MCP tool tests pass
@@ -307,6 +321,10 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
   - [ ]* 10.7 Write property test for dependency injection
     - **Property 20: Dependency Injection Architecture**
     - **Validates: Requirements 9.2, 9.5**
+  
+  - [ ]* 10.8 Write property test for metadata collection consistency
+    - **Property 21: Metadata Collection Consistency**
+    - **Validates: Requirements 29.2, 29.3, 29.4, 29.7**
 
 - [ ] 11. Add Integration and Benchmark Tests
   - [ ]* 11.1 Create integration test suite

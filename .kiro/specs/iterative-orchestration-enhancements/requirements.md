@@ -375,3 +375,17 @@ The key innovation is replacing regex-based hint extraction with LeanInteract fo
 4. WHEN LeanInteract server crashes, THE System SHALL detect the failure and restart automatically
 5. THE System SHALL maintain a single LeanInteract server instance per file to avoid startup overhead
 6. THE System SHALL log all LeanInteract requests and responses for debugging purposes
+
+### Requirement 29: Metadata Collection Protocol
+
+**User Story:** As a system maintainer, I want consistent metadata collection across all tools, so that all results include environment information for debugging and reproducibility.
+
+#### Acceptance Criteria
+
+1. THE System SHALL use the MetadataCollector port for all environment metadata collection
+2. ALL new command handlers (SearchAutomatedProofHandler, TryAutomatedProofHandler, GetProofContextHandler) SHALL accept MetadataCollector as an optional constructor parameter
+3. WHEN MetadataCollector is provided, THE System SHALL collect version information (repo_commit, lean_version, lake_version) and include it in result metadata
+4. WHEN MetadataCollector is None, THE System SHALL return empty metadata without errors
+5. THE System SHALL use the existing SubprocessMetadataCollector implementation for all tools
+6. ALL MCP tools SHALL wire the SubprocessMetadataCollector into their handlers at the composition root
+7. THE System SHALL maintain consistency with existing tools (probe, probe_file, verify, search_annotations) in how metadata is collected and returned

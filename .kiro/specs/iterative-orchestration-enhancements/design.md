@@ -102,7 +102,114 @@ The Core Domain Layer depends only on abstract interfaces (protocols), not concr
 - Swapping LeanInteract for alternative implementations
 - Clear separation of concerns
 
+### Metadata Collection Integration
+
+All command handlers in the Core Domain Layer accept an optional `MetadataCollector` port for collecting environment metadata (git commit, lean version, lake version). This follows the existing pattern used by probe, probe_file, verify, and search_annotations handlers.
+
+**Pattern**:
+```python
+class SearchAutomatedProofHandler:
+    def __init__(
+        self,
+        candidate_gen: CandidateGenerator,
+        feedback_builder: FeedbackBuilder,
+        validator: ProofValidator,
+        metadata_collector: MetadataCollector | None = None,  # Optional
+    ):
+        self.metadata_collector = metadata_collector
+        # ...
+    
+    def _build_metadata(self) -> dict[str, str]:
+        """Build metadata section with version information."""
+        if self.metadata_collector is None:
+            return {}
+        return self.metadata_collector.collect_version_info()
+```
+
+**Wiring at Composition Root** (in MCP tool layer):
+```python
+from ...observability import SubprocessMetadataCollector
+
+# Create metadata collector
+metadata_collector = SubprocessMetadataCollector()
+
+# Wire into handler
+handler = SearchAutomatedProofHandler(
+    candidate_gen=candidate_gen,
+    feedback_builder=feedback_builder,
+    validator=validator,
+    metadata_collector=metadata_collector,  # Inject here
+)
+```
+
+This ensures:
+- Consistent metadata across all tools
+- Testability (easy to mock MetadataCollector)
+- Graceful degradation (works without metadata collector)
+- Reusability (same implementation for all tools)
+
 ## Components and Interfaces
+
+### Observability Module (Existing)
+
+The system uses the existing observability module for metadata collection. This module follows hexagonal architecture principles and is already used by probe, probe_file, verify, and search_annotations tools.
+
+#### MetadataCollector Port
+
+**Purpose**: Abstract interface for collecting environment metadata.
+
+**Interface** (from `src/lean_proof_auto_mcp/observability/ports.py`):
+```python
+from typing import Protocol
+
+class MetadataCollector(Protocol):
+    """Port for collecting environment metadata."""
+    
+    def collect_version_info(self) -> dict[str, str]:
+        """
+        Collect version metadata from the environment.
+        
+        Returns:
+            Dictionary with optional keys:
+            - repo_commit: Git commit hash (if in a git repository)
+            - lean_version: Lean version string (if lean is available)
+            - lake_version: Lake version string (if lake is available)
+        
+        Note:
+            This method never raises exceptions. If a tool is not
+            available or a command fails, the corresponding key is
+            simply omitted from the returned dictionary.
+        """
+        ...
+```
+
+#### SubprocessMetadataCollector Adapter
+
+**Purpose**: Collect metadata using subprocess commands with threading to avoid Windows pipe deadlock.
+
+**Implementation** (from `src/lean_proof_auto_mcp/observability/metadata_collector.py`):
+- Runs `git rev-parse HEAD`, `lean --version`, `lake --version`
+- Uses threading to read subprocess output asynchronously
+- 1-second timeout per command
+- Thread-safe implementation
+- Never raises exceptions - missing tools result in missing keys
+
+**Key Features**:
+- **Windows Compatibility**: Uses threading to avoid pipe buffer deadlock when MCP server runs as subprocess
+- **Graceful Degradation**: Missing tools (git, lean, lake) result in missing keys, not errors
+- **Performance**: 1-second timeout per command ensures fast execution
+- **Reliability**: Thread-safe, handles all error conditions
+
+**Usage Pattern**:
+All new handlers SHALL follow the existing pattern:
+1. Accept `MetadataCollector | None` as optional constructor parameter
+2. Store as instance variable
+3. Call `collect_version_info()` in `_build_metadata()` method
+4. Return empty dict if collector is None
+5. Include metadata in result structure
+
+**Wiring**:
+All MCP tools SHALL create `SubprocessMetadataCollector()` at composition root and inject into handlers.
 
 ### LeanInteract Adapter Layer
 
@@ -390,11 +497,13 @@ class SearchOrchestrator:
         self,
         candidate_gen: CandidateGenerator,
         feedback_builder: FeedbackBuilder,
-        validator: ProofValidator
+        validator: ProofValidator,
+        metadata_collector: MetadataCollector | None = None,  # Optional
     ):
         self.candidate_gen = candidate_gen
         self.feedback_builder = feedback_builder
         self.validator = validator
+        self.metadata_collector = metadata_collector
     
     def search(
         self,
@@ -404,6 +513,12 @@ class SearchOrchestrator:
     ) -> SearchResult:
         """Execute search with given configuration."""
         ...
+    
+    def _build_metadata(self) -> dict[str, str]:
+        """Build metadata section with version information."""
+        if self.metadata_collector is None:
+            return {}
+        return self.metadata_collector.collect_version_info()
 ```
 
 **Implementation Strategy**:
@@ -412,6 +527,7 @@ class SearchOrchestrator:
 - Track partial progress during search
 - Build rich feedback for LLM
 - Support configurable timeouts and budgets
+- Collect metadata using MetadataCollector port
 
 ### MCP Tool Layer
 
@@ -589,6 +705,7 @@ class SearchResult:
     proof_states: tuple[ProofState, ProofState] | None  # (initial, after_hints)
     partial_progress: PartialProgress | None
     search_trace: list[SearchStep] | None
+    metadata: dict[str, str]  # Version info from MetadataCollector
 ```
 
 ### ValidationResult Model
@@ -603,6 +720,7 @@ class ValidationResult:
     proof_state: ProofState | None  # If incomplete
     suggestions: list[Suggestion]
     time_s: float
+    metadata: dict[str, str]  # Version info from MetadataCollector
 ```
 
 ### TheoremContext Model
@@ -617,6 +735,7 @@ class TheoremContext:
     in_scope: list[str]  # Declarations in scope
     namespace: str
     similar_proofs: list[SimilarProof]
+    metadata: dict[str, str]  # Version info from MetadataCollector
 ```
 
 ### Configuration Models
@@ -752,9 +871,9 @@ class SearchConfig:
 
 ### Property 14: Metadata Completeness
 
-*For any* search result, the system SHALL return complete metadata including Lean version, Lake version, workspace mode, search_depth, candidate_sources, automation_mode, and timing information for all phases (viability check, baseline probe, candidate generation, search execution, minimization).
+*For any* search result, the system SHALL return complete metadata including Lean version, Lake version, workspace mode, search_depth, candidate_sources, automation_mode, and timing information for all phases (viability check, baseline probe, candidate generation, search execution, minimization), collected using the MetadataCollector port.
 
-**Validates: Requirements 23.1, 23.2, 23.3**
+**Validates: Requirements 23.1, 23.2, 23.3, 29.1, 29.3**
 
 ### Property 15: Error Handling Without Crashes
 
@@ -791,6 +910,12 @@ class SearchConfig:
 *For all* Core Domain Layer components, dependencies SHALL be received through constructor injection, SHALL depend only on abstract interfaces (protocols), and SHALL NOT instantiate their own dependencies or depend on MCP tool interfaces or LeanInteract implementation details.
 
 **Validates: Requirements 9.2, 9.5**
+
+### Property 21: Metadata Collection Consistency
+
+*For all* command handlers (SearchAutomatedProofHandler, TryAutomatedProofHandler, GetProofContextHandler, and existing handlers), when MetadataCollector is provided, the handler SHALL call collect_version_info() and include the result in the response metadata section, and when MetadataCollector is None, the handler SHALL return empty metadata without errors, maintaining consistency with existing tools (probe, probe_file, verify, search_annotations).
+
+**Validates: Requirements 29.2, 29.3, 29.4, 29.7**
 
 ## Error Handling
 
@@ -966,6 +1091,7 @@ def test_complete_declaration_extraction(lean_file):
 - Primary: value.constants, Fallback: pp text parsing
 - One server instance per file
 - Automatic crash detection and restart
+- Reuse existing SubprocessMetadataCollector from observability module
 
 **Testing**:
 - Mock LeanInteract for unit tests
@@ -987,11 +1113,14 @@ def test_complete_declaration_extraction(lean_file):
 - Infer hint types from attributes
 - Build rich feedback with suggestions
 - Support all four candidate sources
+- Accept MetadataCollector as optional parameter in all handlers
+- Follow existing pattern from probe/verify/search_annotations
 
 **Testing**:
 - Unit tests with mock querier
 - Property tests for candidate generation
 - Test feedback building logic
+- Test metadata collection with and without collector
 
 ### Phase 3: MCP Tool Enhancement
 
@@ -1008,12 +1137,15 @@ def test_complete_declaration_extraction(lean_file):
 - Log deprecation warnings
 - Support all new parameters
 - Return rich feedback
+- Wire SubprocessMetadataCollector at composition root for all tools
+- Ensure metadata format matches existing tools
 
 **Testing**:
 - Test parameter validation
 - Test JSON response format
 - Test deprecation warnings
 - Integration tests
+- Test metadata inclusion in all responses
 
 ### Phase 4: Existing Tool Migration
 

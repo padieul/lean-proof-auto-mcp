@@ -4,7 +4,7 @@ LeanInteractRunner adapter for Lean verification.
 This module implements the LeanRunner port using the LeanInteract library,
 which provides programmatic access to Lean 4 through the Lean REPL.
 
-Requirements: 1.1, 1.3, 2.1, 2.2, 4.2, 4.3, 4.4
+Requirements: 1.1, 1.3, 2.1, 2.2, 4.2, 4.3, 4.4, 10.6, 28.4, 28.5
 """
 
 import logging
@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.verify_domain import LeanRunResult
+from ..lean.server_manager import ServerManagerImpl
 
 logger = logging.getLogger(__name__)
 
@@ -42,19 +43,23 @@ class LeanInteractRunner:
 
     This adapter uses LeanInteract to execute Lean verification in a project
     context with timeout enforcement and structured diagnostic parsing.
+    
+    Server lifecycle is managed by ServerManager for efficient reuse.
 
-    Requirements: 1.1, 1.3, 2.1, 2.2
+    Requirements: 1.1, 1.3, 2.1, 2.2, 10.6, 28.4, 28.5
     """
 
-    def __init__(self, timeout_buffer_ms: int = 100):
+    def __init__(self, server_manager: ServerManagerImpl, timeout_buffer_ms: int = 100):
         """
-        Initialize LeanInteractRunner with timeout buffer.
+        Initialize LeanInteractRunner with ServerManager and timeout buffer.
 
         Args:
+            server_manager: ServerManager instance for server lifecycle management
             timeout_buffer_ms: Buffer time in milliseconds for timeout enforcement
 
-        Requirements: 1.1
+        Requirements: 1.1, 10.6, 28.4
         """
+        self.server_manager = server_manager
         self.timeout_buffer_ms = timeout_buffer_ms
 
     @staticmethod
@@ -80,74 +85,6 @@ class LeanInteractRunner:
         finally:
             os.chdir(original_cwd)
 
-    def create_server(self, workspace_path: Path) -> "ReusableLeanServer":
-        """
-        Create a reusable Lean server for the given workspace.
-
-        This method creates a long-lived server that can be reused across
-        multiple verification requests, avoiding repeated initialization overhead.
-
-        Args:
-            workspace_path: Path to isolated workspace
-
-        Returns:
-            ReusableLeanServer instance that can be reused
-
-        Raises:
-            RuntimeError: If server creation fails or LeanInteract not available
-
-        Requirements: Performance optimization for batch operations
-        """
-        if not LEAN_INTERACT_AVAILABLE or LeanServer is None:
-            raise RuntimeError(
-                "LeanInteract library not installed. Install with: pip install lean-interact"
-            )
-
-        # Initialize LeanServer with project context
-        try:
-            # Check if workspace has lakefile
-            lakefile_path = workspace_path / "lakefile.toml"
-            lakefile_lean_path = workspace_path / "lakefile.lean"
-
-            if lakefile_path.exists() or lakefile_lean_path.exists():
-                # Has Lake project - use it
-                try:
-                    # Detect Lean version for logging purposes
-                    lean_version = self._detect_lean_version(workspace_path)
-
-                    # Set working directory to workspace so elan can find lean-toolchain
-                    # This is critical because elan walks up from CWD to find lean-toolchain
-                    # When using LocalProject, lean-interact infers the version from the project
-                    # IMPORTANT: We must create BOTH the config AND the server inside the context
-                    # because LeanServer spawns subprocesses that need to see the correct CWD
-                    with self._working_directory(workspace_path):
-                        project = LocalProject(directory=str(workspace_path), auto_build=False)
-                        config = LeanREPLConfig(project=project)
-                        server = LeanServer(config)
-
-                    logger.info(
-                        f"Created reusable server with Lake project context from "
-                        f"{workspace_path}, Lean version: {lean_version}"
-                    )
-                    return ReusableLeanServer(server, workspace_path, self)
-                except Exception as e:
-                    logger.warning(f"Failed to initialize Lake project, using standalone mode: {e}")
-                    # Detect Lean version from lean-toolchain file
-                    lean_version = self._detect_lean_version(workspace_path)
-                    config = LeanREPLConfig(lean_version=lean_version)
-                    server = LeanServer(config)
-                    return ReusableLeanServer(server, workspace_path, self)
-            else:
-                # No Lake project - use standalone mode with detected version
-                logger.info("Created reusable server in standalone mode")
-                lean_version = self._detect_lean_version(workspace_path)
-                config = LeanREPLConfig(lean_version=lean_version)
-                server = LeanServer(config)
-                return ReusableLeanServer(server, workspace_path, self)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to create Lean server: {e}") from e
-
     def verify_file(
         self,
         workspace_path: Path,
@@ -160,12 +97,12 @@ class LeanInteractRunner:
 
         This method implements the core verification logic:
         1. If theorem_id provided, find theorem's line range for filtering
-        2. Initialize LeanServer in workspace context (lake env)
+        2. Get or create LeanServer via ServerManager
         3. Use FileCommand to check full file
         4. Filter diagnostics to theorem's line range if theorem-level
         5. Parse response for errors, warnings, sorries
         6. Enforce timeout with process tree kill
-        6. Return structured result
+        7. Return structured result
 
         Args:
             workspace_path: Path to isolated workspace
@@ -180,7 +117,7 @@ class LeanInteractRunner:
             ValueError: If theorem_id is invalid or not found
             RuntimeError: If Lean process fails unexpectedly
 
-        Requirements: 1.1, 1.3, 2.1, 2.2, 4.2, 4.3
+        Requirements: 1.1, 1.3, 2.1, 2.2, 4.2, 4.3, 10.6, 28.4, 28.5
         """
         start_time = time.time()
 
@@ -211,48 +148,18 @@ class LeanInteractRunner:
                 "LeanInteract library not installed. Install with: pip install lean-interact"
             )
 
-        # Initialize LeanServer with project context
-        server = None
+        # Get or create server via ServerManager
         try:
-            # For workspace isolation, we need to decide:
-            # - If workspace has a Lake project (lakefile.toml), use it for import resolution
-            # - But DON'T let LocalProject rebuild - it should use existing .lake/
-            #
-            # Strategy: Check if workspace has lakefile, if so try to use project context
-            lakefile_path = workspace_path / "lakefile.toml"
-            lakefile_lean_path = workspace_path / "lakefile.lean"
-
-            if lakefile_path.exists() or lakefile_lean_path.exists():
-                # Has Lake project - try to use it
-                try:
-                    # CRITICAL: auto_build=False prevents rebuilding
-                    # Detect Lean version for logging purposes
-                    lean_version = self._detect_lean_version(workspace_path)
-
-                    project = LocalProject(directory=str(workspace_path), auto_build=False)
-                    config = LeanREPLConfig(project=project)
-                    server = LeanServer(config)
-
-                    logger.info(
-                        f"Using Lake project context from {workspace_path}, "
-                        f"Lean version: {lean_version}"
-                    )
-                except Exception as e:
-                    # If project initialization fails, fall back to standalone with detected version
-                    logger.warning(f"Failed to initialize Lake project, using standalone mode: {e}")
-                    lean_version = self._detect_lean_version(workspace_path)
-                    config = LeanREPLConfig(lean_version=lean_version)
-                    server = LeanServer(config)
-            else:
-                # No Lake project - use standalone mode with detected version
-                logger.info("No lakefile found, using standalone mode")
-                lean_version = self._detect_lean_version(workspace_path)
-                config = LeanREPLConfig(lean_version=lean_version)
-                server = LeanServer(config)
+            # Use file_path as server key for reuse
+            server = self.server_manager.get_server(target_file)
+            logger.info(f"Using server for {target_file}")
 
             # Run file verification with timeout
             command = FileCommand(path=target_file)
-            response = server.run(command, timeout=budget_s)
+            response = server.run(command, timeout=budget_s)  # type: ignore[attr-defined]
+
+            # Log request for debugging
+            self.server_manager.log_request(target_file, f"FileCommand({target_file})", response)
 
             # Check if response indicates an error (including timeout)
             if isinstance(response, LeanError):
@@ -316,14 +223,8 @@ class LeanInteractRunner:
             )
 
         finally:
-            # Always close server to cleanup Lean process
-            if server is not None:
-                from contextlib import suppress
-
-                with suppress(Exception):
-                    server.kill()
-
             # Restore original working directory
+            # Note: We don't kill the server here - ServerManager handles lifecycle
             os.chdir(original_cwd)
             logger.info(f"Restored working directory to {original_cwd}")
 
@@ -559,159 +460,3 @@ class LeanInteractRunner:
         default_version = "v4.15.0"
         logger.info(f"No lean-toolchain found, using default version: {default_version}")
         return default_version
-
-
-class ReusableLeanServer:
-    """
-    Reusable Lean server wrapper for batch operations.
-
-    This class wraps a LeanServer instance and provides the LeanServer protocol
-    interface, enabling efficient batch verification by reusing the same server
-    across multiple theorems.
-
-    Requirements: Performance optimization for batch operations
-    """
-
-    def __init__(
-        self,
-        server: Any,  # LeanServer from lean_interact
-        workspace_path: Path,
-        runner: LeanInteractRunner,
-    ):
-        """
-        Initialize reusable server wrapper.
-
-        Args:
-            server: LeanServer instance from lean_interact
-            workspace_path: Path to workspace
-            runner: Parent LeanInteractRunner for helper methods
-        """
-        self.server = server
-        self.workspace_path = workspace_path
-        self.runner = runner
-
-    def verify_file(
-        self,
-        file_path: str,
-        theorem_id: str | None,
-        budget_s: float,
-    ) -> LeanRunResult:
-        """
-        Run Lean verification using this server instance.
-
-        This method reuses the existing server instead of creating a new one,
-        avoiding the LocalProject/LeanServer initialization overhead.
-
-        Args:
-            file_path: Path to Lean file (relative to workspace)
-            theorem_id: Optional theorem identifier for theorem-level verification
-            budget_s: Time budget in seconds
-
-        Returns:
-            LeanRunResult with status, diagnostics, logs, timing
-
-        Raises:
-            TimeoutError: If verification exceeds budget
-            ValueError: If theorem_id is invalid or not found
-            RuntimeError: If Lean process fails unexpectedly
-
-        Requirements: Performance optimization for batch operations
-        """
-        start_time = time.time()
-
-        # Determine verification scope and theorem line range
-        theorem_line_range = None
-        if theorem_id:
-            # Theorem-level: get theorem's line range for filtering
-            target_file, theorem_line_range = self.runner._prepare_theorem_verification(
-                self.workspace_path, file_path, theorem_id
-            )
-            scope_used = "theorem"
-        else:
-            # File-level: verify entire file
-            target_file = file_path
-            scope_used = "file"
-
-        try:
-            # Run file verification with timeout using the reusable server
-            command = FileCommand(path=target_file)
-            response = self.server.run(command, timeout=budget_s)
-
-            # Check if response indicates an error (including timeout)
-            if isinstance(response, LeanError):
-                # LeanError response - could be timeout or other error
-                elapsed = time.time() - start_time
-                error_msg = str(response)
-
-                # Check if it's a timeout error
-                if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-                    return LeanRunResult(
-                        status="timeout",
-                        diagnostics=[],
-                        scope_used=scope_used,
-                        full_logs=error_msg,
-                        timing={"lean_execution_s": elapsed},
-                        exit_code=-1,
-                    )
-                else:
-                    # Other error
-                    return LeanRunResult(
-                        status="error",
-                        diagnostics=[],
-                        scope_used=scope_used,
-                        full_logs=error_msg,
-                        timing={"lean_execution_s": elapsed},
-                        exit_code=1,
-                    )
-
-            # Parse diagnostics from response
-            diagnostics = self.runner._parse_diagnostics(response)
-
-            # Filter diagnostics to theorem's line range if theorem-level verification
-            if theorem_id and theorem_line_range:
-                start_line, end_line = theorem_line_range
-                diagnostics = self.runner._filter_diagnostics_by_range(
-                    diagnostics, start_line, end_line
-                )
-
-            elapsed = time.time() - start_time
-
-            # Determine status based on diagnostics
-            has_errors = any(d["severity"] == "error" for d in diagnostics)
-            status = "fail" if has_errors else "success"
-
-            return LeanRunResult(
-                status=status,
-                diagnostics=diagnostics,
-                scope_used=scope_used,
-                full_logs=self.runner._capture_logs(response),
-                timing={"lean_execution_s": elapsed},
-                exit_code=0,
-            )
-
-        except TimeoutError:
-            elapsed = time.time() - start_time
-            return LeanRunResult(
-                status="timeout",
-                diagnostics=[],
-                scope_used="theorem" if theorem_id else "file",
-                full_logs="Verification timed out",
-                timing={"lean_execution_s": elapsed},
-                exit_code=-1,
-            )
-
-    def close(self) -> None:
-        """
-        Close the server and cleanup resources.
-
-        This method kills the Lean server process and cleans up resources.
-        It does not raise exceptions - cleanup errors are logged.
-
-        Requirements: Performance optimization for batch operations
-        """
-        if self.server is not None:
-            from contextlib import suppress
-
-            with suppress(Exception):
-                self.server.kill()
-                logger.info("Closed reusable Lean server")

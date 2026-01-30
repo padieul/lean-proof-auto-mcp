@@ -170,22 +170,27 @@ class ServerManagerImpl:
         Requirements: 28.3, 28.4
         """
         try:
+            # Determine workspace path from file_path
+            # If workspace_path was provided, use it; otherwise use file's directory
             if self.workspace_path:
-                # Use project context if available
-                try:
-                    # Check if workspace has lakefile
-                    lakefile_path = self.workspace_path / "lakefile.toml"
-                    lakefile_lean_path = self.workspace_path / "lakefile.lean"
+                workspace = self.workspace_path
+            else:
+                workspace = Path(file_path).parent
 
-                    if lakefile_path.exists() or lakefile_lean_path.exists():
-                        # Has Lake project - use it
-                        project = LocalProject(
-                            directory=str(self.workspace_path), auto_build=False
-                        )
-                        config = LeanREPLConfig(project=project)
-                        server = LeanServer(config)
-                        logger.info(f"Created server with Lake project context for {file_path}")
-                        return server
+            # Check if workspace has lakefile
+            lakefile_path = workspace / "lakefile.toml"
+            lakefile_lean_path = workspace / "lakefile.lean"
+
+            if lakefile_path.exists() or lakefile_lean_path.exists():
+                # Has Lake project - use it
+                try:
+                    project = LocalProject(
+                        directory=str(workspace), auto_build=False
+                    )
+                    config = LeanREPLConfig(project=project)
+                    server = LeanServer(config)
+                    logger.info(f"Created server with Lake project context for {file_path}")
+                    return server
                 except Exception as e:
                     logger.warning(f"Failed to create project context, using standalone: {e}")
 

@@ -27,10 +27,14 @@ class TestLeanInteractIntegration:
     @pytest.fixture
     def querier(self):
         """Create a LeanInteractQuerier instance."""
-        querier = LeanInteractQuerierImpl()
+        from ..lean.server_manager import ServerManagerImpl
+        from pathlib import Path
+        
+        server_manager = ServerManagerImpl(workspace_path=Path.cwd())
+        querier = LeanInteractQuerierImpl(server_manager=server_manager)
         yield querier
         # Cleanup
-        querier.close()
+        server_manager.shutdown_all()
 
     @pytest.fixture
     def server_manager(self):

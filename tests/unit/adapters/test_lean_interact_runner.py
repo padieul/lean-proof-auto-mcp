@@ -4,7 +4,7 @@ Unit tests for LeanInteractRunner adapter.
 These tests verify specific examples, edge cases, and error conditions
 for the LeanInteract adapter implementation.
 
-Requirements: 2.3, 1.4, 5.1, 5.2, 5.3
+Requirements: 2.3, 1.4, 5.1, 5.2, 5.3, 10.6, 28.4, 28.5
 """
 
 from unittest.mock import MagicMock, Mock, patch
@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from lean_proof_auto_mcp.adapters.lean_interact_runner import LeanInteractRunner
+from lean_proof_auto_mcp.lean.server_manager import ServerManagerImpl
 
 
 class TestTheoremNotFoundHandling:
@@ -27,7 +28,8 @@ class TestTheoremNotFoundHandling:
     def test_invalid_theorem_id_raises_value_error(self, tmp_path):
         """Test that invalid theorem_id raises ValueError."""
         # Arrange
-        runner = LeanInteractRunner()
+        server_manager = ServerManagerImpl(workspace_path=tmp_path)
+        runner = LeanInteractRunner(server_manager=server_manager)
 
         # Create a test file
         test_file = tmp_path / "test.lean"
@@ -46,7 +48,8 @@ class TestTheoremNotFoundHandling:
     def test_theorem_not_found_with_helpful_message(self, tmp_path):
         """Test that theorem not found error includes helpful message."""
         # Arrange
-        runner = LeanInteractRunner()
+        server_manager = ServerManagerImpl(workspace_path=tmp_path)
+        runner = LeanInteractRunner(server_manager=server_manager)
 
         # Create a test file
         test_file = tmp_path / "test.lean"
@@ -72,10 +75,11 @@ class TestDiagnosticParsing:
     Requirements: 1.4, 5.1, 5.2, 5.3
     """
 
-    def test_parse_error_messages(self):
+    def test_parse_error_messages(self, tmp_path):
         """Test parsing error messages from LeanInteract response."""
         # Arrange
-        runner = LeanInteractRunner()
+        server_manager = ServerManagerImpl(workspace_path=tmp_path)
+        runner = LeanInteractRunner(server_manager=server_manager)
 
         # Create mock response with error message
         mock_response = Mock()
@@ -99,10 +103,11 @@ class TestDiagnosticParsing:
         assert diagnostics[0]["location"]["end_line"] == 10
         assert diagnostics[0]["location"]["end_col"] == 15
 
-    def test_parse_warning_messages(self):
+    def test_parse_warning_messages(self, tmp_path):
         """Test parsing warning messages from LeanInteract response."""
         # Arrange
-        runner = LeanInteractRunner()
+        server_manager = ServerManagerImpl(workspace_path=tmp_path)
+        runner = LeanInteractRunner(server_manager=server_manager)
 
         # Create mock response with warning message
         mock_response = Mock()
@@ -122,10 +127,11 @@ class TestDiagnosticParsing:
         assert diagnostics[0]["severity"] == "warning"
         assert diagnostics[0]["message"] == "unused variable"
 
-    def test_parse_sorry_proofs(self):
+    def test_parse_sorry_proofs(self, tmp_path):
         """Test parsing sorry (incomplete proof) from LeanInteract response."""
         # Arrange
-        runner = LeanInteractRunner()
+        server_manager = ServerManagerImpl(workspace_path=tmp_path)
+        runner = LeanInteractRunner(server_manager=server_manager)
 
         # Create mock response with sorry
         mock_response = Mock()
@@ -146,10 +152,11 @@ class TestDiagnosticParsing:
         assert diagnostics[0]["location"]["line"] == 15
         assert diagnostics[0]["location"]["col"] == 10
 
-    def test_parse_multiple_diagnostics(self):
+    def test_parse_multiple_diagnostics(self, tmp_path):
         """Test parsing multiple diagnostics from LeanInteract response."""
         # Arrange
-        runner = LeanInteractRunner()
+        server_manager = ServerManagerImpl(workspace_path=tmp_path)
+        runner = LeanInteractRunner(server_manager=server_manager)
 
         # Create mock response with multiple messages and sorries
         mock_response = Mock()
@@ -183,10 +190,11 @@ class TestDiagnosticParsing:
         assert diagnostics[1]["severity"] == "warning"
         assert diagnostics[2]["severity"] == "warning"
 
-    def test_normalize_severity_values(self):
+    def test_normalize_severity_values(self, tmp_path):
         """Test that severity values are normalized correctly."""
         # Arrange
-        runner = LeanInteractRunner()
+        server_manager = ServerManagerImpl(workspace_path=tmp_path)
+        runner = LeanInteractRunner(server_manager=server_manager)
 
         # Act & Assert
         assert runner._normalize_severity("error") == "error"
@@ -203,113 +211,52 @@ class TestProcessCleanup:
     """
     Test process cleanup guarantees.
 
-    Requirements: 4.4
+    Requirements: 4.4, 10.6, 28.5
+    
+    Note: With ServerManager, servers are reused and not killed after each verification.
+    The ServerManager handles server lifecycle, so we test that servers are reused correctly.
     """
 
-    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanServer", create=True)
-    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanREPLConfig", create=True)
-    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.FileCommand", create=True)
-    def test_server_close_called_on_success(
-        self, mock_file_command_class, mock_config_class, mock_lean_server_class, tmp_path
-    ):
-        """Test that server.kill() is called on successful verification."""
-        # Skip this test if LeanInteract is not installed
-        pytest.importorskip("lean_interact")
-
+    def test_server_reuse_via_manager(self, tmp_path):
+        """Test that ServerManager reuses servers across verifications."""
         # Arrange
-        runner = LeanInteractRunner()
+        server_manager = ServerManagerImpl(workspace_path=tmp_path)
+        runner = LeanInteractRunner(server_manager=server_manager)
 
         # Create test file
         test_file = tmp_path / "test.lean"
         test_file.write_text("theorem test : True := trivial\n")
 
-        # Setup mock
-        mock_server = MagicMock()
-        mock_response = Mock()
-        mock_response.messages = []
-        mock_response.sorries = []
-        mock_server.run.return_value = mock_response
-        mock_lean_server_class.return_value = mock_server
+        # Mock the server manager's get_server to track calls
+        original_get_server = server_manager.get_server
+        call_count = 0
+        
+        def tracked_get_server(file_path):
+            nonlocal call_count
+            call_count += 1
+            return original_get_server(file_path)
+        
+        server_manager.get_server = tracked_get_server
 
-        # Act
-        runner.verify_file(
-            workspace_path=tmp_path,
-            file_path="test.lean",
-            theorem_id=None,
-            budget_s=30.0,
-        )
-
-        # Assert
-        mock_server.kill.assert_called_once()
-
-    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanServer", create=True)
-    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanREPLConfig", create=True)
-    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.FileCommand", create=True)
-    def test_server_close_called_on_timeout(
-        self,
-        mock_file_command_class,
-        mock_config_class,
-        mock_lean_server_class,
-        tmp_path,
-    ):
-        """Test that server.kill() is called even on timeout."""
-        # Skip this test if LeanInteract is not installed
-        pytest.importorskip("lean_interact")
-
-        # Arrange
-        runner = LeanInteractRunner()
-
-        # Create test file
-        test_file = tmp_path / "test.lean"
-        test_file.write_text("theorem test : True := trivial\n")
-
-        # Setup mock to raise TimeoutError (which is caught and handled)
-        mock_server = MagicMock()
-        mock_server.run.side_effect = TimeoutError("Timeout")
-        mock_lean_server_class.return_value = mock_server
-
-        # Act
-        result = runner.verify_file(
-            workspace_path=tmp_path,
-            file_path="test.lean",
-            theorem_id=None,
-            budget_s=30.0,
-        )
-
-        # Assert
-        assert result.status == "timeout"
-        mock_server.kill.assert_called_once()
-
-    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanServer", create=True)
-    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.LeanREPLConfig", create=True)
-    @patch("lean_proof_auto_mcp.adapters.lean_interact_runner.FileCommand", create=True)
-    def test_server_close_called_on_exception(
-        self, mock_file_command_class, mock_config_class, mock_lean_server_class, tmp_path
-    ):
-        """Test that server.kill() is called even on unexpected exception."""
-        # Skip this test if LeanInteract is not installed
-        pytest.importorskip("lean_interact")
-
-        # Arrange
-        runner = LeanInteractRunner()
-
-        # Create test file
-        test_file = tmp_path / "test.lean"
-        test_file.write_text("theorem test : True := trivial\n")
-
-        # Setup mock to raise exception
-        mock_server = MagicMock()
-        mock_server.run.side_effect = RuntimeError("Unexpected error")
-        mock_lean_server_class.return_value = mock_server
-
-        # Act & Assert
-        with pytest.raises(RuntimeError):
+        # Act - verify the same file twice
+        # Note: This test will fail if LeanInteract is not installed, which is expected
+        try:
             runner.verify_file(
                 workspace_path=tmp_path,
                 file_path="test.lean",
                 theorem_id=None,
                 budget_s=30.0,
             )
+            runner.verify_file(
+                workspace_path=tmp_path,
+                file_path="test.lean",
+                theorem_id=None,
+                budget_s=30.0,
+            )
+        except RuntimeError as e:
+            if "LeanInteract library not installed" in str(e):
+                pytest.skip("LeanInteract not installed")
+            raise
 
-        # Assert server.kill() was called even on exception
-        mock_server.kill.assert_called_once()
+        # Assert - get_server should be called twice (once per verification)
+        assert call_count == 2

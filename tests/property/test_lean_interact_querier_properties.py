@@ -111,16 +111,15 @@ def test_property_1_complete_declaration_extraction(num_declarations):
         
         mock_declarations.append(mock_decl)
     
-    # Create querier with mocked server
-    querier = LeanInteractQuerierImpl()
-    
-    # Mock the server response
+    # Create querier with mocked ServerManager
+    mock_server_manager = Mock()
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = mock_declarations
     mock_server.run.return_value = mock_response
+    mock_server_manager.get_server.return_value = mock_server
     
-    querier._server_cache["test.lean"] = mock_server
+    querier = LeanInteractQuerierImpl(server_manager=mock_server_manager)
     
     # Execute
     declarations = querier.extract_declarations("test.lean")

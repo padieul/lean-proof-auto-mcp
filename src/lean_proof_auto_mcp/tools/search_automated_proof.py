@@ -337,15 +337,17 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
     if project_root is None:
         project_root = file_path_obj.parent
 
-    # Create LeanInteractQuerier
-    querier = LeanInteractQuerierImpl(workspace_path=project_root)
+    # Create ServerManager with workspace context
+    from ..lean.server_manager import ServerManagerImpl
+    server_manager = ServerManagerImpl(workspace_path=project_root)
+
+    # Create LeanInteractQuerier with ServerManager
+    querier = LeanInteractQuerierImpl(server_manager=server_manager)
 
     # Create ProofStateInspector (doesn't need workspace_path)
     proof_state_inspector = ProofStateInspectorImpl()
 
-    # Create ServerManager to get server instance
-    from ..lean.server_manager import ServerManagerImpl
-    server_manager = ServerManagerImpl(workspace_path=project_root)
+    # Get server instance from ServerManager
     server = server_manager.get_server(file_path)
 
     # Create ProofValidator with server (doesn't need workspace_path)

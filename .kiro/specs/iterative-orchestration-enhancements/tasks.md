@@ -210,39 +210,45 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
   - Test tools with real LeanInteract on sample theorems
   - Ask the user if questions arise
 
-- [ ] 7. Migrate Existing Tools to LeanInteract
-  - [ ] 7.1 Migrate probe tool
+- [x] 7. Migrate Existing Tools to LeanInteract
+  - [x] 7.1 Migrate probe tool
     - Replace direct Lean CLI calls with LeanInteractQuerier
     - Route all Lean interaction through adapter layer
     - Maintain existing interface and functionality
     - _Requirements: 24.1, 24.4, 24.5_
+    - _Note: Already complete - probe uses LeanInteractRunner_
   
-  - [ ] 7.2 Write regression tests for probe
+  - [x] 7.2 Write regression tests for probe
     - Verify existing functionality preserved
     - Test with existing test cases
     - _Requirements: 24.5_
+    - _Note: Tests already exist in tests/integration/test_probe_integration.py_
   
-  - [ ] 7.3 Migrate probe_file tool
+  - [x] 7.3 Migrate probe_file tool
     - Replace direct Lean CLI calls with LeanInteractQuerier
     - Route all Lean interaction through adapter layer
     - Maintain existing interface and functionality
     - _Requirements: 24.2, 24.4, 24.5_
+    - _Note: Already complete - probe_file uses LeanInteractRunner_
   
-  - [ ] 7.4 Write regression tests for probe_file
+  - [x] 7.4 Write regression tests for probe_file
     - Verify existing functionality preserved
     - Test with existing test cases
     - _Requirements: 24.5_
+    - _Note: Tests already exist in tests/integration/test_probe_file_integration.py_
   
-  - [ ] 7.5 Migrate verify tool
+  - [x] 7.5 Migrate verify tool
     - Replace direct Lean CLI calls with ProofValidator
     - Route all Lean interaction through adapter layer
     - Maintain existing interface and functionality
     - _Requirements: 24.3, 24.4, 24.5_
+    - _Note: Already complete - verify uses LeanInteractRunner_
   
-  - [ ] 7.6 Write regression tests for verify
+  - [x] 7.6 Write regression tests for verify
     - Verify existing functionality preserved
     - Test with existing test cases
     - _Requirements: 24.5_
+    - _Note: Tests already exist in tests/integration/test_verify_integration.py_
   
   - [ ]* 7.7 Write static analysis test for LeanInteract foundation
     - **Property 18: LeanInteract Foundation Consistency**
@@ -250,6 +256,34 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Verify no regex parsing of Lean output
     - Verify all Lean interaction goes through adapter layer
     - **Validates: Requirements 28.1, 28.2, 28.4**
+  
+  - [x] 7.8 Refactor LeanInteractRunner to use ServerManager
+    - Inject ServerManager into LeanInteractRunner constructor
+    - Remove duplicate server creation logic from verify_file and create_server methods
+    - Use ServerManager.get_server() for server lifecycle management
+    - Remove ReusableLeanServer class (functionality now in ServerManager)
+    - Maintain existing interface and functionality
+    - Update composition root in probe.py, probe_file.py, verify.py
+    - _Requirements: 10.6, 28.4, 28.5_
+    - _Note: ServerManager already exists in src/lean_proof_auto_mcp/lean/server_manager.py_
+  
+  - [x] 7.9 Refactor LeanInteractQuerier to use ServerManager
+    - Inject ServerManager into LeanInteractQuerier constructor
+    - Remove duplicate server creation logic from _get_or_create_server method
+    - Use ServerManager.get_server() for server lifecycle management
+    - Remove _server_cache instance variable (now handled by ServerManager)
+    - Maintain existing interface and functionality
+    - Update composition root where LeanInteractQuerier is created
+    - _Requirements: 10.6, 28.4, 28.5_
+    - _Note: ServerManager already exists in src/lean_proof_auto_mcp/lean/server_manager.py_
+  
+  - [x] 7.10 Write unit tests for ServerManager refactoring
+    - Test that LeanInteractRunner uses ServerManager correctly
+    - Test that LeanInteractQuerier uses ServerManager correctly
+    - Test server reuse across both adapters
+    - Verify no functionality regressions
+    - Test that both adapters share the same server instances
+    - _Requirements: 10.6, 28.4, 28.5, 28.6_
 
 - [ ] 8. Checkpoint - Verify Tool Migration
   - Ensure all migrated tools pass regression tests

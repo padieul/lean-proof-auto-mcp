@@ -4,13 +4,14 @@ LeanInteractQuerier implementation.
 This module implements the LeanInteractQuerier port using the LeanInteract library.
 It extracts declarations, proof references, and theorem context from Lean files.
 
-Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 12.1, 12.2
+Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 10.6, 12.1, 12.2, 28.4, 28.5
 """
 
 import logging
 from pathlib import Path
 
 from .ports import Declaration, DeclValue, Range, TheoremContext
+from .server_manager import ServerManagerImpl
 
 logger = logging.getLogger(__name__)
 
@@ -37,21 +38,22 @@ class LeanInteractQuerierImpl:
 
     This adapter uses LeanInteract to extract declarations and references from
     Lean files, achieving 95%+ accuracy by using value.constants instead of regex.
+    
+    Server lifecycle is managed by ServerManager for efficient reuse.
 
-    Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 12.1, 12.2
+    Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 10.6, 12.1, 12.2, 28.4, 28.5
     """
 
-    def __init__(self, workspace_path: Path | None = None):
+    def __init__(self, server_manager: ServerManagerImpl):
         """
-        Initialize LeanInteractQuerier.
+        Initialize LeanInteractQuerier with ServerManager.
 
         Args:
-            workspace_path: Optional workspace path for project context
+            server_manager: ServerManager instance for server lifecycle management
 
-        Requirements: 1.1
+        Requirements: 1.1, 10.6, 28.4
         """
-        self.workspace_path = workspace_path
-        self._server_cache: dict[str, object] = {}  # Cache servers per file
+        self.server_manager = server_manager
 
     def extract_declarations(self, file_path: str) -> list[Declaration]:
         """
@@ -75,7 +77,7 @@ class LeanInteractQuerierImpl:
         Raises:
             RuntimeError: If LeanInteract fails or file not found
 
-        Requirements: 1.1, 1.2, 1.3
+        Requirements: 1.1, 1.2, 1.3, 10.6, 28.4, 28.5
         """
         if not LEAN_INTERACT_AVAILABLE or LeanServer is None:
             raise RuntimeError(
@@ -83,12 +85,15 @@ class LeanInteractQuerierImpl:
             )
 
         try:
-            # Create server for this file
-            server = self._get_or_create_server(file_path)
+            # Get server via ServerManager
+            server = self.server_manager.get_server(file_path)
 
             # Use FileCommand with declarations=True
             command = FileCommand(path=file_path, declarations=True)
-            response = server.run(command, timeout=30.0)
+            response = server.run(command, timeout=30.0)  # type: ignore[attr-defined]
+
+            # Log request for debugging
+            self.server_manager.log_request(file_path, f"FileCommand({file_path}, declarations=True)", response)
 
             # Check for errors
             if isinstance(response, LeanError):
@@ -285,44 +290,6 @@ class LeanInteractQuerierImpl:
         logger.info(f"Extracted context for {theorem_id}")
         return context
 
-    def _get_or_create_server(self, file_path: str) -> object:
-        """
-        Get or create a LeanServer for the given file.
-
-        This method caches servers per file to avoid repeated initialization.
-
-        Args:
-            file_path: Path to Lean file
-
-        Returns:
-            LeanServer instance
-
-        Requirements: 10.6, 28.4
-        """
-        if file_path in self._server_cache:
-            return self._server_cache[file_path]
-
-        # Create new server
-        if self.workspace_path:
-            # Use project context if available
-            try:
-                project = LocalProject(directory=str(self.workspace_path), auto_build=False)
-                config = LeanREPLConfig(project=project)
-                server = LeanServer(config)
-                logger.info(f"Created server with project context for {file_path}")
-            except Exception as e:
-                logger.warning(f"Failed to create project context, using standalone: {e}")
-                config = LeanREPLConfig()
-                server = LeanServer(config)
-        else:
-            # Use standalone mode
-            config = LeanREPLConfig()
-            server = LeanServer(config)
-            logger.info(f"Created standalone server for {file_path}")
-
-        self._server_cache[file_path] = server
-        return server
-
     def _extract_range(self, obj: object) -> Range:
         """
         Extract position range from LeanInteract object.
@@ -349,17 +316,3 @@ class LeanInteractQuerierImpl:
         else:
             # Default range if not available
             return Range(start_line=0, start_col=0, end_line=0, end_col=0)
-
-    def close(self) -> None:
-        """
-        Close all cached servers.
-
-        This method should be called when done with the querier to cleanup resources.
-        """
-        for server in self._server_cache.values():
-            try:
-                if hasattr(server, "kill"):
-                    server.kill()  # type: ignore[attr-defined]
-            except Exception as e:
-                logger.warning(f"Failed to close server: {e}")
-        self._server_cache.clear()

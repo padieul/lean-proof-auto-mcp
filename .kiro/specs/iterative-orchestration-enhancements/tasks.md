@@ -6,26 +6,26 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
 
 ## Tasks
 
-- [ ] 1. Implement LeanInteract Adapter Layer
-  - [ ] 1.1 Create LeanInteractQuerier component
+- [x] 1. Implement LeanInteract Adapter Layer
+  - [x] 1.1 Create LeanInteractQuerier component
     - Implement `extract_declarations()` using `FileCommand(declarations=True)`
     - Implement `get_proof_references()` using value.constants + pp text parsing fallback
     - Implement `get_theorem_context()` with scope and hypothesis extraction
     - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4_
   
-  - [ ] 1.2 Write property test for LeanInteractQuerier
+  - [x] 1.2 Write property test for LeanInteractQuerier
     - **Property 1: Complete Declaration Extraction**
     - **Validates: Requirements 1.1, 1.2, 1.3**
   
-  - [ ] 1.3 Write property test for proof reference extraction
+  - [x] 1.3 Write property test for proof reference extraction
     - **Property 2: Accurate Proof Reference Extraction**
     - **Validates: Requirements 2.3**
   
-  - [ ] 1.4 Write property test for context extraction
+  - [x] 1.4 Write property test for context extraction
     - **Property 3: Complete Context Extraction**
     - **Validates: Requirements 3.1, 3.2, 3.3, 3.4**
   
-  - [ ] 1.5 Create ProofStateInspector component
+  - [x] 1.5 Create ProofStateInspector component
     - Implement `get_initial_proof_state()` using Command with sorry
     - Implement `apply_tactic()` using ProofStep
     - Parse proof states to extract goals and hypotheses
@@ -35,7 +35,7 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - **Property 8: Proof State Completeness**
     - **Validates: Requirements 16.1, 16.2, 16.3, 16.4**
   
-  - [ ] 1.7 Create ProofValidator component
+  - [x] 1.7 Create ProofValidator component
     - Implement `validate_proof()` using Command with timeout
     - Parse error messages for location and suggestions
     - Extract proof state for incomplete proofs
@@ -46,18 +46,18 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - **Property 7: Validation Result Structure Completeness**
     - **Validates: Requirements 7.3, 7.4, 7.5, 7.6, 7.7, 17.1, 17.2, 17.3, 17.4, 17.5**
   
-  - [ ] 1.9 Create ServerManager component
+  - [x] 1.9 Create ServerManager component
     - Implement server instance management (one per file)
     - Implement crash detection and automatic restart
     - Implement request/response logging
     - Use lean-interact-runner as execution wrapper
     - _Requirements: 10.6, 28.3, 28.4, 28.5, 28.6_
   
-  - [ ]* 1.10 Write property test for server management
+  - [x] 1.10 Write property test for server management
     - **Property 19: Server Instance Reuse**
     - **Validates: Requirements 10.6, 28.4, 28.5, 28.6**
   
-  - [ ]* 1.11 Write unit tests for error handling
+  - [x] 1.11 Write unit tests for error handling
     - Test LeanInteract crash recovery
     - Test timeout handling
     - Test invalid input handling
@@ -78,7 +78,7 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Infer hint types from declaration attributes
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 5.2, 5.3, 5.4, 5.5_
   
-  - [ ]* 3.2 Write property test for candidate generation
+  - [ ] 3.2 Write property test for candidate generation
     - **Property 5: Candidate Source Extraction Accuracy**
     - **Validates: Requirements 5.2, 5.3, 5.4, 5.5, 5.7**
   
@@ -105,7 +105,7 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Provide reasoning for all suggestions
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
   
-  - [ ]* 3.7 Write property test for feedback building
+  - [ ] 3.7 Write property test for feedback building
     - **Property 16: Feedback Builder Completeness**
     - **Validates: Requirements 13.2, 13.3, 13.4, 13.5**
   
@@ -119,11 +119,11 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Include metadata in SearchResult
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 5.1, 5.6, 5.7, 29.2, 29.3_
   
-  - [ ]* 3.9 Write property test for search configuration
+  - [ ] 3.9 Write property test for search configuration
     - **Property 4: Search Depth Configuration Consistency**
     - **Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6, 4.7**
   
-  - [ ]* 3.10 Write property test for search strategies
+  - [ ] 3.10 Write property test for search strategies
     - **Property 10: Search Strategy Behavior Consistency**
     - **Validates: Requirements 19.2, 19.3, 19.4**
 

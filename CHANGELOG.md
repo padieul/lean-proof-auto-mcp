@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-30
+### Added
+- **Probe and Probe_File tools**: Empirical automation measurement primitives for controlled testing
+  - Single-theorem probe: runs one automation attempt (aesop, aesop?, grind) with deterministic classification
+  - Batch probe_file: generates automation heatmaps across multiple theorems for triage and prioritization
+  - Deterministic outcome classification: trivial (quick success), promising (shallow subgoals), failed (deep subgoals), timed_out
+  - Infrastructure reuse: leverages verify's workspace isolation, LeanInteract runner, and diagnostic parsing
+  - Configurable budgets: per-theorem time limits with hard timeout enforcement
+  - Ordering modes: file_order (sequential) or rank_targets (prioritized by automation potential)
+  - Partial success handling: continues processing remaining theorems even when some fail
+  - No side effects: measurement-only primitives that never modify source code
+- **Search Annotations tool**: Discovers minimal local proof hints to enable automation success
+  - Automated hint discovery: searches for optimal combinations of lemmas, definitions, and rules
+  - Multi-source candidate generation: extracts hints from goal symbols, local context, namespace, nearby declarations, and original proofs
+  - Configurable search strategies: beam search (explores multiple paths) or greedy search (incremental growth)
+  - Delta-debugging minimization: reduces hint sets to smallest stable configuration
+  - Ready-to-paste proof patches: generates valid Lean syntax with discovered hints
+  - Global annotation suggestions: optional analysis for project-wide @[aesop] or @[simp] attributes
+  - Workspace isolation: experiments in Git worktrees without modifying working directory
+  - Phase-based budgets: configurable time limits for viability, baseline, search, minimization, and verification
+- Observability module with MetadataCollector port and SubprocessMetadataCollector adapter
+- Threaded subprocess metadata collection to avoid Windows pipe deadlocks on nested subprocess execution
+- Optional metadata injection into all domain handlers via dependency injection
+
 ## [0.2.0] - 2026-01-26
 
 ### Added

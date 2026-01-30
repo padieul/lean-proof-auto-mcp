@@ -196,8 +196,8 @@ def _create_extractor(file_path: str) -> ContextExtractor:
     # Create LeanInteractQuerier
     querier = LeanInteractQuerierImpl(workspace_path=project_root)
 
-    # Create ProofStateInspector
-    proof_state_inspector = ProofStateInspectorImpl(workspace_path=project_root)
+    # Create ProofStateInspector (doesn't need workspace_path)
+    proof_state_inspector = ProofStateInspectorImpl()
 
     # Create ContextExtractor
     return ContextExtractor(querier=querier, proof_state_inspector=proof_state_inspector)

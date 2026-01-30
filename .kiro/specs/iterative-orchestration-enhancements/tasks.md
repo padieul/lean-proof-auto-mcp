@@ -205,7 +205,7 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Test graceful handling when MetadataCollector is None
     - _Requirements: 29.3, 29.4, 29.7_
 
-- [ ] 6. Checkpoint - Verify MCP Tools
+- [x] 6. Checkpoint - Verify MCP Tools
   - Ensure all MCP tool tests pass
   - Test tools with real LeanInteract on sample theorems
   - Ask the user if questions arise

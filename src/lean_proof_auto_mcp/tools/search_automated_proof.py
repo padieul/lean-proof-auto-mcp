@@ -340,11 +340,16 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
     # Create LeanInteractQuerier
     querier = LeanInteractQuerierImpl(workspace_path=project_root)
 
-    # Create ProofStateInspector
-    proof_state_inspector = ProofStateInspectorImpl(workspace_path=project_root)
+    # Create ProofStateInspector (doesn't need workspace_path)
+    proof_state_inspector = ProofStateInspectorImpl()
 
-    # Create ProofValidator
-    validator = ProofValidatorImpl(workspace_path=project_root)
+    # Create ServerManager to get server instance
+    from ..lean.server_manager import ServerManagerImpl
+    server_manager = ServerManagerImpl(workspace_path=project_root)
+    server = server_manager.get_server(file_path)
+
+    # Create ProofValidator with server (doesn't need workspace_path)
+    validator = ProofValidatorImpl(server=server)
 
     # Create CandidateGenerator
     # Read source for candidate generation

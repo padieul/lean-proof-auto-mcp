@@ -132,7 +132,7 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
   - Verify candidate generation achieves 95%+ accuracy on test set
   - Ask the user if questions arise
 
-- [-] 5. Implement Enhanced MCP Tools
+- [x] 5. Implement Enhanced MCP Tools
   - [x] 5.1 Implement search_automated_proof tool
     - Define tool signature with all parameters
     - Validate input parameters
@@ -188,18 +188,18 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Test JSON response format
     - _Requirements: 8.2, 8.3, 8.4, 8.5, 8.6_
   
-  - [ ] 5.8 Add deprecation error for search_annotations
+  - [x] 5.8 Add deprecation error for search_annotations
     - Remove search_annotations tool entirely
     - Return clear error message directing users to search_automated_proof
     - Do NOT provide backward compatibility or parameter mapping
     - _Requirements: 4.8, 26.5_
   
-  - [ ] 5.9 Write unit test for deprecation error
+  - [x] 5.9 Write unit test for deprecation error
     - Test that search_annotations is not available
     - Test error message is clear and helpful
     - _Requirements: 4.8, 26.5_
   
-  - [ ] 5.10 Write unit tests for metadata collection
+  - [x] 5.10 Write unit tests for metadata collection
     - Test that all new tools include metadata in responses
     - Test metadata format matches existing tools (probe, verify, search_annotations)
     - Test graceful handling when MetadataCollector is None

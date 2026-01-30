@@ -68,8 +68,8 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
   - Verify LeanInteract integration works with real Lean files
   - Ask the user if questions arise
 
-- [ ] 3. Refactor Core Domain Layer
-  - [ ] 3.1 Refactor CandidateGenerator to use LeanInteractQuerier
+- [x] 3. Refactor Core Domain Layer
+  - [x] 3.1 Refactor CandidateGenerator to use LeanInteractQuerier
     - Remove all regex-based parsing code
     - Implement goal_symbols extraction using LeanInteract + parsing
     - Implement local_context extraction using proof states
@@ -78,7 +78,7 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Infer hint types from declaration attributes
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 5.2, 5.3, 5.4, 5.5_
   
-  - [ ] 3.2 Write property test for candidate generation
+  - [x] 3.2 Write property test for candidate generation
     - **Property 5: Candidate Source Extraction Accuracy**
     - **Validates: Requirements 5.2, 5.3, 5.4, 5.5, 5.7**
   
@@ -86,7 +86,7 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Verify no regex patterns in CandidateGenerator
     - **Validates: Requirements 12.2**
   
-  - [ ] 3.4 Implement ContextExtractor component
+  - [x] 3.4 Implement ContextExtractor component
     - Extract theorem statement and original proof
     - Extract hypotheses from proof state
     - Extract in-scope declarations
@@ -98,18 +98,18 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - **Property 9: Similar Proof Discovery Accuracy**
     - **Validates: Requirements 18.1, 18.2, 18.3, 18.4**
   
-  - [ ] 3.6 Implement FeedbackBuilder component
+  - [x] 3.6 Implement FeedbackBuilder component
     - Track hints that helped and their impact
     - Calculate goal complexity reduction
     - Generate tactical suggestions with confidence scores
     - Provide reasoning for all suggestions
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
   
-  - [ ] 3.7 Write property test for feedback building
+  - [x] 3.7 Write property test for feedback building
     - **Property 16: Feedback Builder Completeness**
     - **Validates: Requirements 13.2, 13.3, 13.4, 13.5**
   
-  - [ ] 3.8 Enhance SearchOrchestrator
+  - [x] 3.8 Enhance SearchOrchestrator
     - Support configurable search parameters
     - Implement search depth presets
     - Support all four candidate sources
@@ -119,11 +119,11 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Include metadata in SearchResult
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 5.1, 5.6, 5.7, 29.2, 29.3_
   
-  - [ ] 3.9 Write property test for search configuration
+  - [x] 3.9 Write property test for search configuration
     - **Property 4: Search Depth Configuration Consistency**
     - **Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6, 4.7**
   
-  - [ ] 3.10 Write property test for search strategies
+  - [x] 3.10 Write property test for search strategies
     - **Property 10: Search Strategy Behavior Consistency**
     - **Validates: Requirements 19.2, 19.3, 19.4**
 

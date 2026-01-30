@@ -366,7 +366,13 @@ def _create_handler(file_path: str) -> SearchAnnotationsCommandHandler:
     source = SourceText(path=file_path, text=source_text)
     index = build_index(source)
 
-    candidate_generator = CandidateGenerator(source, index)
+    # Create LeanInteractQuerier for candidate generation
+    from ..lean.querier import LeanInteractQuerierImpl
+
+    querier = LeanInteractQuerierImpl(workspace_path=project_root)
+
+    # Create CandidateGenerator with LeanInteractQuerier
+    candidate_generator = CandidateGenerator(source, index, querier, proof_state_inspector=None)
 
     # Use greedy search by default (can be configured via command)
     search_strategy = GreedySearch()

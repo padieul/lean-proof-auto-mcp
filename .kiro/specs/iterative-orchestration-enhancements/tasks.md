@@ -360,14 +360,14 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - **Property 21: Metadata Collection Consistency**
     - **Validates: Requirements 29.2, 29.3, 29.4, 29.7**
 
-- [ ] 11. Add Integration and Benchmark Tests
-  - [ ] 11.1 Create integration test suite
+- [x] 11. Add Integration and Benchmark Tests
+  - [x] 11.1 Create integration test suite
     - Test end-to-end workflow on real mathlib theorems
     - Test search → validate → iterate cycle
     - Test all three MCP tools together
     - _Requirements: 27.3_
   
-  - [ ] 11.2 Create benchmark test for declaration extraction accuracy
+  - [x] 11.2 Create benchmark test for declaration extraction accuracy
     - Create ground truth dataset
     - Measure extraction accuracy
     - Verify 95%+ accuracy target

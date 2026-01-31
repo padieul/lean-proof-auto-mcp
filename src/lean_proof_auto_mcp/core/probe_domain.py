@@ -1247,24 +1247,23 @@ class ProbeFileCommandHandler:
 
         # 2. Create workspace and Lean server ONCE for all theorems
         workspace = None
-        lean_server = None
         try:
             # Create workspace
             workspace = self.probe_handler.workspace_provider.create_workspace(cmd.file_path)
             logger.info(f"Created workspace for batch probe: {workspace.workspace_id}")
 
-            # Create reusable Lean server
-            lean_server = self.probe_handler.lean_runner.create_server(workspace.path)
-            logger.info(f"Created reusable Lean server for {len(theorem_ids)} theorems")
+            # Note: ServerManager handles server lifecycle automatically
+            # No need to explicitly create server - it will be created on first use
+            logger.info(f"Workspace ready for {len(theorem_ids)} theorems")
 
         except Exception as e:
-            logger.error(f"Workspace/server creation failed: {e}")
+            logger.error(f"Workspace creation failed: {e}")
             # Cleanup if partially created
             if workspace:
                 with contextlib.suppress(Exception):
                     self.probe_handler.workspace_provider.cleanup_workspace(workspace)
             return self._build_error_result(
-                cmd, f"Failed to create workspace/server: {e}", start_time
+                cmd, f"Failed to create workspace: {e}", start_time
             )
 
         try:
@@ -1302,8 +1301,8 @@ class ProbeFileCommandHandler:
                         )
                         continue
 
-                    # Execute probe with server reuse
-                    probe_result = self.probe_handler.handle(probe_cmd, lean_server=lean_server)
+                    # Execute probe (ServerManager handles server reuse automatically)
+                    probe_result = self.probe_handler.handle(probe_cmd)
 
                     # Extract summary for this theorem
                     theorem_summary = self._extract_summary(probe_result, theorem_id)
@@ -1360,12 +1359,8 @@ class ProbeFileCommandHandler:
                 except Exception as e:
                     logger.warning(f"Harness file cleanup failed for {harness_file}: {e}")
 
-            if lean_server:
-                try:
-                    lean_server.close()
-                    logger.info("Closed reusable Lean server")
-                except Exception as e:
-                    logger.warning(f"Server cleanup failed: {e}")
+            # Note: ServerManager handles server cleanup automatically
+            # No need to explicitly close server
 
             if workspace:
                 try:

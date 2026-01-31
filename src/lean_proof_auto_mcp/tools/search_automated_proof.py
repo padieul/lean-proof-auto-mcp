@@ -438,12 +438,12 @@ def _format_response(
     if result.best_hint_set:
         best_hints = [
             {
-                "name": hint.name,
-                "hint_type": hint.hint_type,
-                "source": hint.source,
-                "rank": hint.rank,
+                "name": candidate.hint.name,
+                "hint_type": candidate.hint.type.value,
+                "source": candidate.hint.source.value,
+                "rank": candidate.rank,
             }
-            for hint in result.best_hint_set
+            for candidate in result.best_hint_set
         ]
 
     # Format feedback

@@ -285,43 +285,43 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - Test that both adapters share the same server instances
     - _Requirements: 10.6, 28.4, 28.5, 28.6_
 
-- [ ] 8. Checkpoint - Verify Tool Migration
+- [x] 8. Checkpoint - Verify Tool Migration
   - Ensure all migrated tools pass regression tests
   - Verify no direct Lean CLI calls remain
   - Ask the user if questions arise
 
-- [ ] 9. Migrate Test Suite
-  - [ ] 9.1 Update search_annotations tests
+- [x] 9. Migrate Test Suite
+  - [x] 9.1 Update search_annotations tests
     - Update tests to use search_automated_proof
     - Update parameter names and values
     - Update expected response format
     - _Requirements: 25.1_
   
-  - [ ] 9.2 Remove regex-based tests
+  - [x] 9.2 Remove regex-based tests
     - Identify tests that rely on regex parsing
     - Remove or update to use LeanInteract
     - _Requirements: 25.2_
   
-  - [ ] 9.3 Add LeanInteract-based candidate source tests
+  - [x] 9.3 Add LeanInteract-based candidate source tests
     - Test goal_symbols extraction
     - Test local_context extraction
     - Test same_namespace extraction
     - Test original_proof_refs extraction
     - _Requirements: 25.3_
   
-  - [ ] 9.4 Add original_proof_refs accuracy tests
+  - [x] 9.4 Add original_proof_refs accuracy tests
     - Create test dataset with known proof references
     - Measure extraction accuracy
     - Verify 95%+ accuracy target
     - _Requirements: 25.4, 2.4_
   
-  - [ ] 9.5 Update test mocking strategy
+  - [x] 9.5 Update test mocking strategy
     - Mock LeanInteract Adapter Layer interfaces
     - Remove mocks of Lean CLI
     - Update all tests to use new mocking approach
     - _Requirements: 25.5_
   
-  - [ ]* 9.6 Verify test coverage
+  - [x] 9.6 Verify test coverage
     - Run coverage analysis
     - Ensure 80%+ coverage maintained
     - Add tests for uncovered code
@@ -361,13 +361,13 @@ This plan implements the migration to LeanInteract as the sole foundation for Le
     - **Validates: Requirements 29.2, 29.3, 29.4, 29.7**
 
 - [ ] 11. Add Integration and Benchmark Tests
-  - [ ]* 11.1 Create integration test suite
+  - [ ] 11.1 Create integration test suite
     - Test end-to-end workflow on real mathlib theorems
     - Test search → validate → iterate cycle
     - Test all three MCP tools together
     - _Requirements: 27.3_
   
-  - [ ]* 11.2 Create benchmark test for declaration extraction accuracy
+  - [ ] 11.2 Create benchmark test for declaration extraction accuracy
     - Create ground truth dataset
     - Measure extraction accuracy
     - Verify 95%+ accuracy target

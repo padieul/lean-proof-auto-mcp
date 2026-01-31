@@ -27,7 +27,7 @@ class TestLeanInteractIntegration:
     @pytest.fixture
     def querier(self):
         """Create a LeanInteractQuerier instance."""
-        from ..lean.server_manager import ServerManagerImpl
+        from lean_proof_auto_mcp.lean.server_manager import ServerManagerImpl
         from pathlib import Path
         
         server_manager = ServerManagerImpl(workspace_path=Path.cwd())

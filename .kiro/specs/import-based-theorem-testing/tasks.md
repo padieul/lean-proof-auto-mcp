@@ -20,20 +20,20 @@
 
 ## Phase 2: Probe Tool Integration
 
-- [ ] 2. Integrate new harness constructor with probe tool
-  - [ ] 2.1 Update ProbeOrchestrator to use HarnessConstructor via dependency injection
-  - [ ] 2.2 Create composition root (build_probe_orchestrator function)
-  - [ ] 2.3 Update MCP tool entry points
-  - [ ] 2.4 Run integration tests with 14 bug report theorems
-  - [ ] 2.5 Verify 100% harness compilation rate (currently 0%)
+- [x] 2. Integrate new harness constructor with probe tool
+  - [x] 2.1 Update ProbeOrchestrator to use HarnessConstructor via dependency injection
+  - [x] 2.2 Create composition root (build_probe_orchestrator function)
+  - [x] 2.3 Update MCP tool entry points
+  - [x] 2.4 Run integration tests with 14 bug report theorems
+  - [x] 2.5 Verify 100% harness compilation rate (currently 0%)
 
 ## Phase 3: Property-Based Testing
 
-- [ ] 3. Implement correctness properties with property-based tests
-  - [ ] 3.1 Write property test: Import-First Invariant (imports always line 1)
-  - [ ] 3.2 Write property test: No Signature Reconstruction (uses example, not theorem)
-  - [ ] 3.3 Write property test: Type Preservation (type matches LeanInteract)
-  - [ ] 3.4 Run all property tests with 100+ examples each
+- [x] 3. Implement correctness properties with property-based tests
+  - [x] 3.1 Write property test: Import-First Invariant (imports always line 1)
+  - [x] 3.2 Write property test: No Signature Reconstruction (uses example, not theorem)
+  - [x] 3.3 Write property test: Type Preservation (type matches LeanInteract)
+  - [x] 3.4 Run all property tests with 100+ examples each
 
 ## Phase 4: Search Orchestrator
 

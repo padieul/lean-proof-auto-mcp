@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from ..observability.ports import MetadataCollector
+    from .harness_construction import HarnessConstructor
 
 logger = logging.getLogger(__name__)
 
@@ -290,12 +291,13 @@ class ProbeCommandHandler:
 
     This handler implements the core probe workflow following hexagonal
     architecture principles. It depends only on abstract ports (LeanRunner,
-    WorkspaceProvider, AutomationClassifier) and contains no infrastructure logic.
+    WorkspaceProvider, AutomationClassifier, HarnessConstructor) and contains 
+    no infrastructure logic.
 
     The workflow:
     1. Generate unique run_id
     2. Create isolated workspace
-    3. Construct automation harness
+    3. Construct automation harness (via HarnessConstructor)
     4. Run Lean with automation tactic
     5. Parse and classify outcome
     6. Build structured result
@@ -309,6 +311,7 @@ class ProbeCommandHandler:
         lean_runner: "LeanRunner",
         workspace_provider: "WorkspaceProvider",
         classifier: AutomationClassifier,
+        harness_constructor: "HarnessConstructor | None" = None,
         artifact_store: ArtifactStore | None = None,
         metadata_collector: "MetadataCollector | None" = None,
     ):
@@ -319,6 +322,7 @@ class ProbeCommandHandler:
             lean_runner: Port for running Lean verification
             workspace_provider: Port for workspace isolation
             classifier: Port for classifying automation outcomes
+            harness_constructor: Optional port for constructing test harnesses
             artifact_store: Optional port for artifact storage
             metadata_collector: Optional port for collecting environment metadata
 
@@ -327,6 +331,7 @@ class ProbeCommandHandler:
         self.lean_runner = lean_runner
         self.workspace_provider = workspace_provider
         self.classifier = classifier
+        self.harness_constructor = harness_constructor
         self.artifact_store = artifact_store
         self.metadata_collector = metadata_collector
 
@@ -680,24 +685,10 @@ class ProbeCommandHandler:
 
     def _construct_harness(self, cmd: ProbeCommand, workspace_path: Path) -> str:
         """
-        Build automation test harness by importing the original file.
+        Build automation test harness using the injected HarnessConstructor.
 
-        This approach preserves all context (type class instances, variables,
-        namespaces, notation) by importing the original file and testing the
-        theorem with automation tactics.
-
-        Format:
-        ```lean
-        import <original_file_path>
-        import Aesop  -- if needed
-
-        -- Optional trace configuration
-        set_option trace.aesop true
-
-        -- Test the theorem with automation
-        example : <theorem_type> := by
-          <automation_tactic>
-        ```
+        If a HarnessConstructor is provided, it will be used to construct the harness.
+        Otherwise, falls back to the legacy import-based approach for backward compatibility.
 
         Args:
             cmd: Probe command with file, theorem, mode
@@ -711,6 +702,59 @@ class ProbeCommandHandler:
 
         Requirements: 1.2, 3.2
         """
+        # If HarnessConstructor is provided, use it
+        if self.harness_constructor is not None:
+            from .harness_construction import HarnessConfig, HarnessError, HarnessSuccess
+            
+            # Determine additional imports based on mode
+            additional_imports = []
+            if cmd.mode in ("aesop", "aesop?"):
+                additional_imports.append("import Aesop")
+            
+            # Build harness config
+            config = HarnessConfig(
+                theorem_id=cmd.theorem_id,
+                file_path=cmd.file_path,
+                proof_attempt=cmd.mode,
+                additional_imports=additional_imports
+            )
+            
+            # Construct harness
+            result = self.harness_constructor.construct(config)
+            
+            # Handle result
+            if isinstance(result, HarnessError):
+                if result.error_type == "theorem_not_found":
+                    raise ValueError(result.message)
+                else:
+                    raise RuntimeError(f"Harness construction failed: {result.message}")
+            
+            # Extract code from success result
+            assert isinstance(result, HarnessSuccess)
+            harness_content = result.code
+            
+            # Add trace configuration if requested
+            if cmd.trace_config:
+                # Insert trace options after imports
+                lines = harness_content.split('\n')
+                import_end = 0
+                for i, line in enumerate(lines):
+                    if line.strip() and not line.strip().startswith("import"):
+                        import_end = i
+                        break
+                
+                trace_lines = []
+                for key, value in cmd.trace_config.items():
+                    trace_lines.append(f"set_option {key} {str(value).lower()}")
+                
+                # Insert trace options after imports
+                lines = lines[:import_end] + trace_lines + [""] + lines[import_end:]
+                harness_content = "\n".join(lines)
+            
+            return harness_content
+        
+        # Legacy fallback: inline import-based construction
+        # This code path is kept for backward compatibility
         # Read the original file
         file_path = workspace_path / cmd.file_path
         if not file_path.exists():

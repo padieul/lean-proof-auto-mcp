@@ -172,6 +172,7 @@ def _create_handler(file_path: str) -> ProbeFileCommandHandler:
     - LeanInteractRunner for Lean execution
     - GitWorktreeProvider or TempCopyProvider for workspace isolation
     - HeuristicClassifier for outcome classification
+    - ImportBasedHarnessConstructor for harness construction
 
     Args:
         file_path: Path to the file being probed (used to detect project root)
@@ -215,11 +216,15 @@ def _create_handler(file_path: str) -> ProbeFileCommandHandler:
 
     metadata_collector = SubprocessMetadataCollector()
 
+    # Build HarnessConstructor with its dependencies
+    harness_constructor = _build_harness_constructor(server_manager)
+
     # Create ProbeCommandHandler
     probe_handler = ProbeCommandHandler(
         lean_runner=lean_runner,
         workspace_provider=workspace_provider,
         classifier=classifier,
+        harness_constructor=harness_constructor,
         artifact_store=artifact_store,
         metadata_collector=metadata_collector,
     )
@@ -230,6 +235,48 @@ def _create_handler(file_path: str) -> ProbeFileCommandHandler:
         scan_file_fn=scan_file,
         rank_targets_fn=rank_targets,
     )
+
+
+def _build_harness_constructor(server_manager: "ServerManagerImpl") -> "ImportBasedHarnessConstructor | None":
+    """
+    Build ImportBasedHarnessConstructor with all dependencies.
+    
+    This is the composition root for harness construction - all wiring happens here.
+    
+    NOTE: Currently disabled because the HarnessConstructor needs to be created
+    per-workspace, not per-project. The legacy fallback in _construct_harness
+    handles this correctly by creating a new ServerManager with the workspace path.
+    
+    Args:
+        server_manager: ServerManager for LeanInteract querying
+        
+    Returns:
+        None (disabled for now)
+    """
+    # TODO: Re-enable once we refactor to create HarnessConstructor per-workspace
+    return None
+    
+    # from ..core.harness_construction import (
+    #     ImportBasedHarnessConstructor,
+    #     LeanInteractTheoremTypeExtractor,
+    #     StandardImportPathConverter,
+    # )
+    # from ..lean.querier import LeanInteractQuerierImpl
+    #
+    # # Build querier
+    # querier = LeanInteractQuerierImpl(server_manager=server_manager)
+    #
+    # # Build type extractor
+    # type_extractor = LeanInteractTheoremTypeExtractor(querier)
+    #
+    # # Build path converter
+    # path_converter = StandardImportPathConverter()
+    #
+    # # Build harness constructor
+    # return ImportBasedHarnessConstructor(
+    #     type_extractor=type_extractor,
+    #     path_converter=path_converter
+    # )
 
 
 def _build_error_response(

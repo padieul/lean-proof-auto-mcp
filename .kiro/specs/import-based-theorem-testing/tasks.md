@@ -11,12 +11,12 @@
 
 ## Phase 1: Core Infrastructure
 
-- [ ] 1. Implement core components for import-based harness construction
-  - [ ] 1.1 Create dataclasses (ImportPath, TheoremType, HarnessConfig, HarnessSuccess, HarnessError)
-  - [ ] 1.2 Implement ImportPathConverter (Protocol + StandardImportPathConverter)
-  - [ ] 1.3 Implement TheoremTypeExtractor (Protocol + LeanInteractTheoremTypeExtractor)
-  - [ ] 1.4 Implement ImportBasedHarnessConstructor with validation
-  - [ ] 1.5 Write unit tests for all components (>90% coverage)
+- [x] 1. Implement core components for import-based harness construction
+  - [x] 1.1 Create dataclasses (ImportPath, TheoremType, HarnessConfig, HarnessSuccess, HarnessError)
+  - [x] 1.2 Implement ImportPathConverter (Protocol + StandardImportPathConverter)
+  - [x] 1.3 Implement TheoremTypeExtractor (Protocol + LeanInteractTheoremTypeExtractor)
+  - [x] 1.4 Implement ImportBasedHarnessConstructor with validation
+  - [x] 1.5 Write unit tests for all components (>90% coverage)
 
 ## Phase 2: Probe Tool Integration
 

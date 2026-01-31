@@ -56,6 +56,8 @@ class ProofValidatorImpl:
         theorem_statement: str,
         proof_attempt: str,
         timeout_s: float = 10.0,
+        file_path: str | None = None,
+        theorem_id: str | None = None,
     ) -> ValidationResult:
         """
         Validate a proof attempt using Command.
@@ -63,10 +65,17 @@ class ProofValidatorImpl:
         This method validates a proof by constructing a complete theorem with
         the proof attempt and checking it with LeanInteract.
 
+        IMPORTANT: If file_path and theorem_id are provided, this method will
+        use an import-based approach to preserve all context (type class instances,
+        variables, namespaces, notation). Otherwise, it falls back to standalone
+        validation which may fail due to missing context.
+
         Args:
-            theorem_statement: Theorem statement
+            theorem_statement: Theorem statement (type only, not full signature)
             proof_attempt: Proof to validate
             timeout_s: Timeout in seconds
+            file_path: Optional path to original file (for context preservation)
+            theorem_id: Optional theorem identifier (for context preservation)
 
         Returns:
             ValidationResult with status and feedback
@@ -96,11 +105,22 @@ class ProofValidatorImpl:
         start_time = time.time()
 
         try:
-            # Construct complete theorem with proof attempt
-            code = f"theorem validation_theorem : {theorem_statement} := by\n{proof_attempt}\n"
+            # Construct validation code
+            if file_path and theorem_id:
+                # Import-based approach: preserves all context
+                code = self._construct_validation_with_import(
+                    file_path, theorem_id, theorem_statement, proof_attempt
+                )
+            else:
+                # Fallback: standalone validation (may fail due to missing context)
+                logger.warning(
+                    "Validating proof without file context - may fail due to missing "
+                    "type class instances, variables, or namespace context"
+                )
+                code = f"theorem validation_theorem : {theorem_statement} := by\n{proof_attempt}\n"
 
-            # Use Command to validate
-            command = Command(code=code)
+            # Use Command to validate (note: parameter is 'cmd' not 'code')
+            command = Command(cmd=code)
             response = self.server.run(command, timeout=timeout_s)  # type: ignore[attr-defined]
 
             elapsed = time.time() - start_time
@@ -376,3 +396,51 @@ class ProofValidatorImpl:
             suggestions.append("Check theorem statement")
 
         return suggestions
+
+    def _construct_validation_with_import(
+        self,
+        file_path: str,
+        theorem_id: str,
+        theorem_statement: str,
+        proof_attempt: str,
+    ) -> str:
+        """
+        Construct validation code using import-based approach.
+
+        This method creates a validation harness that imports the original file
+        to preserve all context (type class instances, variables, namespaces,
+        notation). It uses 'example' instead of 'theorem' to avoid "already
+        declared" errors.
+
+        Args:
+            file_path: Path to original file (e.g., "Fixtures/Algebra/Group.lean")
+            theorem_id: Theorem identifier
+            theorem_statement: Theorem type
+            proof_attempt: Proof to validate
+
+        Returns:
+            Validation code as string
+
+        Requirements: 7.2, 7.3
+        """
+        # Convert file path to import path
+        # e.g., "Fixtures/Algebra/Group/Subgroup/Basic.lean" -> "Fixtures.Algebra.Group.Subgroup.Basic"
+        import_path = file_path.replace("/", ".").replace("\\", ".").replace(".lean", "")
+
+        # Build validation harness
+        lines = []
+
+        # Import the original file (preserves all context)
+        lines.append(f"import {import_path}")
+        lines.append("")
+
+        # Test the theorem with the proof attempt using 'example'
+        # This avoids "already declared" errors and preserves all context
+        lines.append(f"-- Validate proof for {theorem_id}")
+        lines.append(f"example : {theorem_statement} := by")
+
+        # Indent proof attempt
+        for line in proof_attempt.splitlines():
+            lines.append(f"  {line}")
+
+        return "\n".join(lines)

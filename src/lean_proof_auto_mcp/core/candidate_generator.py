@@ -464,12 +464,16 @@ class CandidateGenerator:
             for identifier in references:
                 # Find declaration for this identifier
                 decl = self._find_declaration(identifier, declarations)
+                
+                # Requirement 2.3: Validate all references against declaration list
+                # Only include references that exist in the file's declarations
                 if decl is None:
-                    # Reference might be from imported module
-                    # Use name-based inference as fallback
-                    hint_type = self._infer_hint_type_from_name(identifier, config)
-                else:
-                    hint_type = self._infer_hint_type_from_declaration(decl, config)
+                    # Reference not found in declarations - skip it
+                    # This filters out invalid references and ensures accuracy
+                    logger.debug(f"Skipping reference '{identifier}' - not found in declarations")
+                    continue
+                
+                hint_type = self._infer_hint_type_from_declaration(decl, config)
 
                 if hint_type is None:
                     continue

@@ -14,7 +14,12 @@ from typing import List, Set
 
 from lean_proof_auto_mcp.lean.querier import LeanInteractQuerierImpl
 from lean_proof_auto_mcp.lean.server_manager import ServerManagerImpl
-from tests.fixtures.benchmark_ground_truth import (
+
+# Import from relative path instead of absolute 'tests' module
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from fixtures.benchmark_ground_truth import (
     ALL_GROUND_TRUTH_FILES,
     GroundTruthDeclaration,
     GroundTruthFile,

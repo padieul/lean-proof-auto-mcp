@@ -80,8 +80,8 @@ class ProofStateInspectorImpl:
             # Construct a proof harness with sorry
             harness = f"theorem {theorem.name} : {theorem.type} := by\n  sorry\n"
 
-            # Use Command to check the harness
-            command = Command(code=harness)
+            # Use Command to check the harness (note: parameter is 'cmd' not 'code')
+            command = Command(cmd=harness)
             response = self.server.run(command, timeout=10.0)  # type: ignore[attr-defined]
 
             # Check for errors

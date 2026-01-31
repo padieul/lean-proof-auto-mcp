@@ -680,19 +680,22 @@ class ProbeCommandHandler:
 
     def _construct_harness(self, cmd: ProbeCommand, workspace_path: Path) -> str:
         """
-        Build automation test harness.
+        Build automation test harness by importing the original file.
 
-        The harness imports the original file, extracts the theorem signature,
-        and replaces the proof with the automation tactic.
+        This approach preserves all context (type class instances, variables,
+        namespaces, notation) by importing the original file and testing the
+        theorem with automation tactics.
 
         Format:
         ```lean
-        import <original_file>
+        import <original_file_path>
+        import Aesop  -- if needed
 
         -- Optional trace configuration
         set_option trace.aesop true
 
-        theorem <theorem_name> : <theorem_type> := by
+        -- Test the theorem with automation
+        example : <theorem_type> := by
           <automation_tactic>
         ```
 
@@ -713,87 +716,46 @@ class ProbeCommandHandler:
         if not file_path.exists():
             raise ValueError(f"File not found: {cmd.file_path}")
 
-        # Use indexer to find theorem (single source of truth)
-        from .indexer import build_index, find_by_id
-        from .source import SourceText
+        # Use LeanInteract querier to extract theorem type
+        # This is more reliable than manual parsing
+        from ..lean.querier import LeanInteractQuerierImpl
+        from ..lean.server_manager import ServerManagerImpl
+        
+        # Create querier with workspace context
+        server_manager = ServerManagerImpl(workspace_path=workspace_path)
+        querier = LeanInteractQuerierImpl(server_manager=server_manager)
+        
+        try:
+            # Extract declarations from the file
+            declarations = querier.extract_declarations(str(file_path))
+            
+            # Find the theorem by ID
+            theorem = None
+            for decl in declarations:
+                if decl.full_name == cmd.theorem_id or decl.name == cmd.theorem_id:
+                    theorem = decl
+                    break
+            
+            if theorem is None:
+                raise ValueError(f"Theorem '{cmd.theorem_id}' not found in {cmd.file_path}")
+            
+            # Use the type from the declaration
+            theorem_type = theorem.type
+            
+        except Exception as e:
+            # If querier fails, fall back to error
+            raise ValueError(f"Failed to extract theorem type: {e}") from e
 
-        with open(file_path, encoding="utf-8") as f:
-            content = f.read()
-
-        source = SourceText(path=cmd.file_path, text=content)
-
-        # Check if we have a cached index for this file
-        # Cache key is (file_path, content_hash)
-        import hashlib
-
-        content_hash = hashlib.md5(content.encode()).hexdigest()
-        cache_key = (cmd.file_path, content_hash)
-
-        # Use instance-level cache (will be shared across probes in same handler instance)
-        if not hasattr(self, "_index_cache"):
-            from .indexer import FileIndex
-
-            self._index_cache: dict[tuple[str, str], FileIndex] = {}
-
-        if cache_key in self._index_cache:
-            index = self._index_cache[cache_key]
-        else:
-            index = build_index(source)
-            self._index_cache[cache_key] = index
-            # Limit cache size to prevent memory issues
-            if len(self._index_cache) > 10:
-                # Remove oldest entry
-                self._index_cache.pop(next(iter(self._index_cache)))
-
-        theorem_decl = find_by_id(index, cmd.theorem_id)
-
-        if theorem_decl is None:
-            raise ValueError(f"Theorem '{cmd.theorem_id}' not found in {cmd.file_path}")
-
-        # Extract theorem signature from the found location
-        # The indexer gives us the exact location, so we can extract precisely
-        lines = content.splitlines()
-
-        # Get the declaration span (includes signature)
-        decl_start_line = theorem_decl.decl_span.start_line - 1  # Convert to 0-indexed
-        decl_end_line = theorem_decl.decl_span.end_line - 1
-
-        # Find the ":=" that marks the end of the signature
-        signature_lines = []
-        found_assignment = False
-
-        for line_idx in range(decl_start_line, min(decl_end_line + 1, len(lines))):
-            line = lines[line_idx]
-
-            # Check if this line contains ":="
-            if ":=" in line:
-                # Take everything before ":="
-                before_assignment = line.split(":=")[0]
-                signature_lines.append(before_assignment)
-                found_assignment = True
-                break
-            else:
-                signature_lines.append(line)
-
-        if not found_assignment:
-            raise ValueError(f"Theorem '{cmd.theorem_id}' has no proof body (no ':=' found)")
-
-        theorem_signature = "\n".join(signature_lines).strip()
+        # Convert file path to import path
+        # e.g., "Fixtures/Algebra/Group/Subgroup/Basic.lean" -> "Fixtures.Algebra.Group.Subgroup.Basic"
+        import_path = cmd.file_path.replace("/", ".").replace("\\", ".").replace(".lean", "")
 
         # Build harness
-        # For standalone theorems (test fixtures), we don't need imports
-        # For real projects with Lake, we need to import the original file
-
-        # Build standalone harness (no imports)
-        # The harness should NOT import the original file because that would
-        # cause "already declared" errors. Instead, we write a standalone
-        # theorem with just the signature and automation tactic.
-        #
-        # For theorems that depend on definitions from the file, this won't work.
-        # In that case, we'd need to import only the dependencies (not the file itself).
-        # For now, we focus on simple theorems that don't need external dependencies.
-
         harness_lines = []
+
+        # Import the original file (preserves all context)
+        harness_lines.append(f"import {import_path}")
+        harness_lines.append("")
 
         # Import Aesop if using aesop mode (needed for the tactic)
         if cmd.mode in ("aesop", "aesop?"):
@@ -806,8 +768,10 @@ class ProbeCommandHandler:
                 harness_lines.append(f"set_option {key} {str(value).lower()}")
             harness_lines.append("")
 
-        # Add theorem with automation tactic
-        harness_lines.append(f"{theorem_signature} := by")
+        # Test the theorem with automation using 'example'
+        # This avoids "already declared" errors and preserves all context
+        harness_lines.append(f"-- Test {cmd.theorem_id} with {cmd.mode}")
+        harness_lines.append(f"example : {theorem_type} := by")
         harness_lines.append(f"  {cmd.mode}")
 
         return "\n".join(harness_lines)

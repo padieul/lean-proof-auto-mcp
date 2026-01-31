@@ -78,20 +78,40 @@ def try_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
     # Execute validation with error handling wrapper
     try:
         # Create validator with real adapters (composition root)
-        validator = _create_validator(file_path)
+        validator, querier = _create_validator(file_path)
 
         # Create SubprocessMetadataCollector at composition root
         metadata_collector = SubprocessMetadataCollector()
 
-        # Execute validation
-        # Note: We need to get the theorem statement first
-        # For now, use a placeholder - in real implementation, would extract from file
-        theorem_statement = "True"  # Placeholder
+        # Extract theorem statement from file
+        try:
+            declarations = querier.extract_declarations(file_path)
+            theorem = None
+            for decl in declarations:
+                if decl.full_name == theorem_id or decl.name == theorem_id:
+                    theorem = decl
+                    break
 
+            if theorem is None:
+                raise ValueError(f"Theorem not found: {theorem_id}")
+
+            theorem_statement = theorem.type
+        except Exception as e:
+            logger.error(f"Failed to extract theorem {theorem_id} from {file_path}: {e}")
+            return _build_error_response(
+                file=file_path,
+                theorem_id=theorem_id,
+                error_message=f"Failed to extract theorem: {str(e)}",
+                error_code="theorem_extraction_error",
+            )
+
+        # Execute validation
         result = validator.validate_proof(
             theorem_statement=theorem_statement,
             proof_attempt=proof_attempt,
             timeout_s=timeout_s,
+            file_path=file_path,
+            theorem_id=theorem_id,
         )
 
         # Collect metadata
@@ -166,25 +186,28 @@ def _validate_args(args: dict[str, Any]) -> tuple[str, str, str, float, bool, st
     return file_path, theorem_id, proof_attempt, timeout_s, return_proof_state, run_id
 
 
-def _create_validator(file_path: str) -> ProofValidatorImpl:
+def _create_validator(file_path: str) -> tuple[ProofValidatorImpl, object]:
     """
     Create ProofValidator with real adapters (composition root).
 
     This function wires together all dependencies:
     - ServerManager for LeanInteract server lifecycle
+    - LeanInteractQuerier for theorem extraction
     - ProofValidator for proof validation
 
     Args:
         file_path: Path to the file being validated (used to detect project root)
 
     Returns:
-        Configured ProofValidatorImpl
+        Tuple of (ProofValidatorImpl, LeanInteractQuerierImpl)
 
     Raises:
         FileNotFoundError: If the file does not exist
 
     Requirements: 29.5, 29.6
     """
+    from ..lean.querier import LeanInteractQuerierImpl
+
     # Detect project root from file path
     file_path_obj = Path(file_path).resolve()
 
@@ -198,14 +221,20 @@ def _create_validator(file_path: str) -> ProofValidatorImpl:
     if project_root is None:
         project_root = file_path_obj.parent
 
-    # Create ServerManager
-    server_manager = ServerManagerImpl()
+    # Create ServerManager WITH workspace_path for proper Lake project context
+    # This ensures all declarations are visible (fixes 116 vs 123 declaration issue)
+    server_manager = ServerManagerImpl(workspace_path=project_root)
+
+    # Create querier for theorem extraction
+    querier = LeanInteractQuerierImpl(server_manager)
 
     # Get or create server for file
     server = server_manager.get_server(file_path)
 
     # Create ProofValidator with server
-    return ProofValidatorImpl(server=server)
+    validator = ProofValidatorImpl(server=server)
+
+    return validator, querier
 
 
 def _find_lean_project_root(file_path: Path) -> Path | None:

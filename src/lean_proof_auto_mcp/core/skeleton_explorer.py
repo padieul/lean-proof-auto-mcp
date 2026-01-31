@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
-from .search_annotations_domain import (
+from .search_automated_proof_domain import (
     ExecutionOutcome,
     HintSet,
     SkeletonConfig,

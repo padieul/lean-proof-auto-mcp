@@ -12,7 +12,7 @@ import hypothesis.strategies as st
 from hypothesis import given, settings
 
 from lean_proof_auto_mcp.core.minimizer import Minimizer
-from lean_proof_auto_mcp.core.search_annotations_domain import (
+from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     CandidateSource,
     ExecutionOutcome,
     Hint,

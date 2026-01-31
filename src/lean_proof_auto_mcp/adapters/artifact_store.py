@@ -68,8 +68,8 @@ class FilesystemArtifactStore:
 
         Args:
             run_id: Unique identifier for this verification run
-            command: Original verification command (VerifyCommand or SearchAnnotationsCommand)
-            result: Verification result (VerifyResult or SearchAnnotationsResult)
+            command: Original command (VerifyCommand, ProbeCommand, etc.)
+            result: Result object (VerifyResult, ProbeResult, etc.)
             full_logs: Complete stdout/stderr logs
 
         Raises:

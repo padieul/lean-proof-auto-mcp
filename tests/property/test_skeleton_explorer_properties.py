@@ -10,7 +10,7 @@ Requirements: 14.1, 14.2, 14.3, 14.4
 import hypothesis.strategies as st
 from hypothesis import given, settings
 
-from lean_proof_auto_mcp.core.search_annotations_domain import (
+from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     ExecutionOutcome,
     HintSet,
     SkeletonConfig,

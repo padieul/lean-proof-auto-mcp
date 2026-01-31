@@ -927,7 +927,7 @@ class SearchAnnotationsCommandHandler:
                             "OPTIMIZATION: This theorem is trivial (plain automation works). "
                             "For better performance, use 'probe' or 'probe_file' tools first "
                             "to identify non-trivial theorems before calling "
-                            "'search_annotations'. This avoids redundant baseline checks and "
+                            "'search_automated_proof'. This avoids redundant baseline checks and "
                             f"saves ~{phase_timings.get('baseline_probe_s', 0):.1f}s per theorem."
                         ),
                     )
@@ -1002,7 +1002,7 @@ class SearchAnnotationsCommandHandler:
                                 "OPTIMIZATION: This theorem is trivial (plain automation works). "
                                 "For better performance, use 'probe' or 'probe_file' tools first "
                                 "to identify non-trivial theorems before calling "
-                                "'search_annotations'. This avoids redundant baseline checks and "
+                                "'search_automated_proof'. This avoids redundant baseline checks and "
                                 f"saves ~{phase_timings.get('baseline_probe_s', 0):.1f}s per "
                                 f"theorem."
                             ),

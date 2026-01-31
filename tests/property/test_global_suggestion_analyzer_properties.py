@@ -15,7 +15,7 @@ from lean_proof_auto_mcp.core.global_suggestion_analyzer import (
     AnalysisConfig,
     GlobalSuggestionAnalyzer,
 )
-from lean_proof_auto_mcp.core.search_annotations_domain import (
+from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     CandidateSource,
     Hint,
     HintSet,

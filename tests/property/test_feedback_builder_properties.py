@@ -13,7 +13,7 @@ import hypothesis.strategies as st
 from hypothesis import given, settings
 
 from lean_proof_auto_mcp.core.feedback_builder import FeedbackBuilder
-from lean_proof_auto_mcp.core.search_annotations_domain import (
+from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     Candidate,
     CandidateSource,
     ExecutionOutcome,

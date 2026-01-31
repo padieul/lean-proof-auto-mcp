@@ -17,7 +17,7 @@ from pathlib import Path
 
 from ..lean.ports import Declaration, LeanInteractQuerier, ProofState, ProofStateInspector
 from .indexer import FileIndex, TheoremDecl
-from .search_annotations_domain import Candidate, CandidateConfig, CandidateSource, Hint, HintType
+from .search_automated_proof_domain import Candidate, CandidateConfig, CandidateSource, Hint, HintType
 from .source import SourceText
 
 logger = logging.getLogger(__name__)

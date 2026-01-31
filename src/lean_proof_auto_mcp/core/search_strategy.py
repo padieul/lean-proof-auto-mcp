@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable
 from typing import Literal, Protocol
 
-from .search_annotations_domain import (
+from .search_automated_proof_domain import (
     Candidate,
     ExecutionOutcome,
     HintSet,

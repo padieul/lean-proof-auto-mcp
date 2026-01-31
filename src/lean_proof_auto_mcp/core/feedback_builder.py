@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass
 
 from ..lean.ports import ProofState
-from .search_annotations_domain import Candidate, HintSet, SearchResult
+from .search_automated_proof_domain import Candidate, HintSet, SearchResult
 
 logger = logging.getLogger(__name__)
 

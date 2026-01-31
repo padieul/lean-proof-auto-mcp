@@ -16,7 +16,7 @@ from ..lean.ports import ProofStateInspector, ProofValidator
 from ..observability.ports import MetadataCollector
 from .candidate_generator import CandidateGenerator
 from .feedback_builder import FeedbackBuilder, SearchFeedback
-from .search_annotations_domain import Candidate, CandidateSource, SearchResult
+from .search_automated_proof_domain import Candidate, CandidateSource, SearchResult
 
 logger = logging.getLogger(__name__)
 

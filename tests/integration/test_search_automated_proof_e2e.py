@@ -43,7 +43,7 @@ class TestCompleteWorkflow:
             SearchFeedback,
             Suggestion,
         )
-        from lean_proof_auto_mcp.core.search_annotations_domain import (
+        from lean_proof_auto_mcp.core.search_automated_proof_domain import (
             Candidate,
             Hint,
             HintType,
@@ -418,7 +418,7 @@ class TestDeterministicOutput:
         Requirements: 25.1
         """
         from lean_proof_auto_mcp.core.feedback_builder import SearchFeedback
-        from lean_proof_auto_mcp.core.search_annotations_domain import (
+        from lean_proof_auto_mcp.core.search_automated_proof_domain import (
             Candidate,
             Hint,
             HintType,

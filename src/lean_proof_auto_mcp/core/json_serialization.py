@@ -1,5 +1,5 @@
 """
-JSON serialization utilities for search-annotations domain objects.
+JSON serialization utilities for domain objects.
 
 This module provides custom JSON serialization for domain objects that contain
 enums, frozensets, and other non-JSON-serializable types.
@@ -79,7 +79,7 @@ def to_json_serializable(obj: Any) -> Any:
 
 def result_to_dict(result: Any) -> dict[str, Any]:
     """
-    Convert a SearchAnnotationsResult to a JSON-serializable dict.
+    Convert a domain result object to a JSON-serializable dict.
 
     This function ensures:
     - All enums are converted to values
@@ -88,7 +88,7 @@ def result_to_dict(result: Any) -> dict[str, Any]:
     - Output is deterministic and JSON-serializable
 
     Args:
-        result: SearchAnnotationsResult instance
+        result: Domain result instance (any dataclass)
 
     Returns:
         JSON-serializable dictionary
@@ -104,7 +104,7 @@ def result_to_dict(result: Any) -> dict[str, Any]:
 
 def command_to_dict(command: Any) -> dict[str, Any]:
     """
-    Convert a SearchAnnotationsCommand to a JSON-serializable dict.
+    Convert a domain command object to a JSON-serializable dict.
 
     This function ensures:
     - All enums are converted to values
@@ -112,7 +112,7 @@ def command_to_dict(command: Any) -> dict[str, Any]:
     - Output is deterministic and JSON-serializable
 
     Args:
-        command: SearchAnnotationsCommand instance
+        command: Domain command instance (any dataclass)
 
     Returns:
         JSON-serializable dictionary

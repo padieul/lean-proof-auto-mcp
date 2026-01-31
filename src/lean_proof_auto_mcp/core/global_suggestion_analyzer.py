@@ -11,7 +11,7 @@ Requirements: 7.1, 7.2, 7.3, 7.4
 from dataclasses import dataclass
 from typing import Literal
 
-from lean_proof_auto_mcp.core.search_annotations_domain import (
+from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     GlobalSuggestion,
     Hint,
     HintSet,

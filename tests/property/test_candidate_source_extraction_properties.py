@@ -16,7 +16,7 @@ from hypothesis import given, settings
 
 from lean_proof_auto_mcp.core.candidate_generator import CandidateGenerator
 from lean_proof_auto_mcp.core.indexer import build_index
-from lean_proof_auto_mcp.core.search_annotations_domain import (
+from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     CandidateConfig,
     CandidateSource,
 )

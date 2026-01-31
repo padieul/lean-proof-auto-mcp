@@ -19,7 +19,7 @@ from typing import Any, Literal, cast
 from ..core.candidate_generator import CandidateGenerator
 from ..core.context_extractor import ContextExtractor
 from ..core.feedback_builder import FeedbackBuilder
-from ..core.search_annotations_domain import CandidateSource
+from ..core.search_automated_proof_domain import CandidateSource
 from ..core.search_orchestrator import SearchConfig, SearchOrchestrator
 from ..lean.ports import ProofValidator
 from ..lean.proof_state import ProofStateInspectorImpl

@@ -24,7 +24,6 @@ from lean_proof_auto_mcp.core.search_automated_proof_domain import (
 )
 from lean_proof_auto_mcp.lean.ports import ProofState
 
-
 # ============================================================================
 # Hypothesis Strategies
 # ============================================================================
@@ -35,9 +34,7 @@ def valid_proof_state(draw):
     """Generate valid ProofState instances."""
     goal = draw(st.text(min_size=1, max_size=200))
     num_hypotheses = draw(st.integers(min_value=0, max_value=10))
-    hypotheses = [
-        draw(st.text(min_size=1, max_size=50)) for _ in range(num_hypotheses)
-    ]
+    hypotheses = [draw(st.text(min_size=1, max_size=50)) for _ in range(num_hypotheses)]
     type_context = draw(st.text(min_size=0, max_size=100))
     goals_remaining = draw(st.integers(min_value=0, max_value=5))
 
@@ -52,9 +49,15 @@ def valid_proof_state(draw):
 @st.composite
 def valid_candidate(draw):
     """Generate valid Candidate instances."""
-    name = draw(st.text(min_size=1, max_size=50, alphabet=st.characters(
-        whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="._"
-    )))
+    name = draw(
+        st.text(
+            min_size=1,
+            max_size=50,
+            alphabet=st.characters(
+                whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="._"
+            ),
+        )
+    )
     hint_type = draw(st.sampled_from(list(HintType)))
     source = draw(st.sampled_from(list(CandidateSource)))
     rank = draw(st.floats(min_value=0.0, max_value=10.0))
@@ -114,9 +117,7 @@ def valid_search_result(draw):
     final_state=valid_proof_state(),
 )
 @settings(max_examples=100)
-def test_property_16_partial_progress_completeness(
-    search_result, initial_state, final_state
-):
+def test_property_16_partial_progress_completeness(search_result, initial_state, final_state):
     """
     Feature: iterative-orchestration-enhancements, Property 16: Feedback Builder Completeness
 
@@ -133,14 +134,10 @@ def test_property_16_partial_progress_completeness(
     candidates = []
     if search_result.best_hint_set:
         for hint in search_result.best_hint_set.hints:
-            candidates.append(
-                Candidate(hint=hint, rank=5.0, metadata={})
-            )
+            candidates.append(Candidate(hint=hint, rank=5.0, metadata={}))
 
     # Build feedback
-    feedback = builder.build_search_feedback(
-        search_result, initial_state, final_state, candidates
-    )
+    feedback = builder.build_search_feedback(search_result, initial_state, final_state, candidates)
 
     # Verify: Feedback should have valid status
     assert feedback.status in ("success", "partial", "fail")
@@ -190,14 +187,10 @@ def test_property_16_suggestions_always_provided(search_result):
     candidates = []
     if search_result.best_hint_set:
         for hint in search_result.best_hint_set.hints:
-            candidates.append(
-                Candidate(hint=hint, rank=5.0, metadata={})
-            )
+            candidates.append(Candidate(hint=hint, rank=5.0, metadata={}))
 
     # Build feedback without proof states
-    feedback = builder.build_search_feedback(
-        search_result, None, None, candidates
-    )
+    feedback = builder.build_search_feedback(search_result, None, None, candidates)
 
     # Verify: Suggestions should always be provided
     assert isinstance(feedback.suggestions, list)
@@ -215,9 +208,7 @@ def test_property_16_suggestions_always_provided(search_result):
     candidates=st.lists(valid_candidate(), min_size=1, max_size=5),
 )
 @settings(max_examples=100)
-def test_property_16_hints_that_helped_identification(
-    initial_state, final_state, candidates
-):
+def test_property_16_hints_that_helped_identification(initial_state, final_state, candidates):
     """
     Feature: iterative-orchestration-enhancements, Property 16: Feedback Builder Completeness
 
@@ -247,9 +238,7 @@ def test_property_16_hints_that_helped_identification(
     )
 
     # Build feedback
-    feedback = builder.build_search_feedback(
-        search_result, initial_state, final_state, candidates
-    )
+    feedback = builder.build_search_feedback(search_result, initial_state, final_state, candidates)
 
     # Verify: Partial progress should exist
     assert feedback.partial_progress is not None
@@ -269,9 +258,7 @@ def test_property_16_hints_that_helped_identification(
     final_complexity=st.floats(min_value=0.0, max_value=1000.0),
 )
 @settings(max_examples=100)
-def test_property_16_complexity_reduction_calculation(
-    initial_complexity, final_complexity
-):
+def test_property_16_complexity_reduction_calculation(initial_complexity, final_complexity):
     """
     Feature: iterative-orchestration-enhancements, Property 16: Feedback Builder Completeness
 
@@ -311,9 +298,7 @@ def test_property_16_complexity_reduction_calculation(
     )
 
     # Build feedback
-    feedback = builder.build_search_feedback(
-        search_result, initial_state, final_state, []
-    )
+    feedback = builder.build_search_feedback(search_result, initial_state, final_state, [])
 
     # Verify: Partial progress should exist
     assert feedback.partial_progress is not None
@@ -343,14 +328,10 @@ def test_property_16_suggestion_confidence_bounds(search_result):
     candidates = []
     if search_result.best_hint_set:
         for hint in search_result.best_hint_set.hints:
-            candidates.append(
-                Candidate(hint=hint, rank=5.0, metadata={})
-            )
+            candidates.append(Candidate(hint=hint, rank=5.0, metadata={}))
 
     # Build feedback
-    feedback = builder.build_search_feedback(
-        search_result, None, None, candidates
-    )
+    feedback = builder.build_search_feedback(search_result, None, None, candidates)
 
     # Verify: All confidence scores should be in valid range
     for suggestion in feedback.suggestions:

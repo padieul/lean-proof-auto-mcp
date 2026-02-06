@@ -8,7 +8,6 @@ Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 10.6, 12.1, 12.2
 """
 
 import logging
-from pathlib import Path
 
 from .ports import Declaration, DeclValue, Range, TheoremContext
 from .server_manager import ServerManagerImpl
@@ -38,7 +37,7 @@ class LeanInteractQuerierImpl:
 
     This adapter uses LeanInteract to extract declarations and references from
     Lean files, achieving 95%+ accuracy by using value.constants instead of regex.
-    
+
     Server lifecycle is managed by ServerManager for efficient reuse.
 
     Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 10.6, 12.1, 12.2, 28.4, 28.5
@@ -93,7 +92,9 @@ class LeanInteractQuerierImpl:
             response = server.run(command, timeout=30.0)  # type: ignore[attr-defined]
 
             # Log request for debugging
-            self.server_manager.log_request(file_path, f"FileCommand({file_path}, declarations=True)", response)
+            self.server_manager.log_request(
+                file_path, f"FileCommand({file_path}, declarations=True)", response
+            )
 
             # Check for errors
             if isinstance(response, LeanError):
@@ -106,7 +107,7 @@ class LeanInteractQuerierImpl:
                     # Extract declaration information
                     name = getattr(decl, "name", "")
                     full_name = getattr(decl, "full_name", name)
-                    
+
                     # Extract type - handle both string and DeclType object
                     type_obj = getattr(decl, "type", "")
                     if hasattr(type_obj, "pp"):
@@ -281,9 +282,8 @@ class LeanInteractQuerierImpl:
         in_scope = []
         for decl in declarations:
             # Include if in same namespace or parent namespace
-            if (
-                decl.namespace == theorem.namespace
-                or theorem.namespace.startswith(decl.namespace + ".")
+            if decl.namespace == theorem.namespace or theorem.namespace.startswith(
+                decl.namespace + "."
             ):
                 in_scope.append(decl.full_name)
 

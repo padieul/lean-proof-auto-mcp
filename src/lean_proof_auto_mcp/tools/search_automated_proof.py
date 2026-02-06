@@ -14,14 +14,12 @@ import uuid
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any
 
 from ..core.candidate_generator import CandidateGenerator
-from ..core.context_extractor import ContextExtractor
 from ..core.feedback_builder import FeedbackBuilder
 from ..core.search_automated_proof_domain import CandidateSource
 from ..core.search_orchestrator import SearchConfig, SearchOrchestrator
-from ..lean.ports import ProofValidator
 from ..lean.proof_state import ProofStateInspectorImpl
 from ..lean.querier import LeanInteractQuerierImpl
 from ..lean.validator import ProofValidatorImpl
@@ -47,14 +45,17 @@ def search_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
         args: Dictionary with search parameters:
             - file: Path to Lean file (required)
             - theorem_id: Theorem identifier (required)
-            - search_depth: Search depth preset - "quick", "normal", "deep", "exhaustive" (default: "normal")
+            - search_depth: Search depth preset - "quick", "normal", "deep",
+              "exhaustive" (default: "normal")
             - search_budget_s: Override search budget in seconds (optional)
             - max_candidates: Override max candidates (optional)
             - candidate_sources: List of candidate sources to use (optional)
             - max_candidates_per_source: Max candidates per source (optional)
-            - automation_mode: Automation mode - "aesop", "simp", "omega", "grind" (default: "aesop")
+            - automation_mode: Automation mode - "aesop", "simp", "omega",
+              "grind" (default: "aesop")
             - automation_secondary: Secondary automation for fallback (optional)
-            - search_strategy: Search strategy - "greedy", "beam", "exhaustive" (default: "greedy")
+            - search_strategy: Search strategy - "greedy", "beam",
+              "exhaustive" (default: "greedy")
             - beam_width: Beam width for beam search (default: 3)
             - max_search_steps: Maximum search steps (optional)
             - max_hints_in_set: Maximum hints in a set (default: 10)
@@ -121,9 +122,7 @@ def search_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
         )
 
 
-def _build_search_config(
-    args: dict[str, Any]
-) -> tuple[SearchConfig, str, str, str]:
+def _build_search_config(args: dict[str, Any]) -> tuple[SearchConfig, str, str, str]:
     """
     Build SearchConfig from args dict with validation and coercion.
 
@@ -169,7 +168,7 @@ def _build_search_config(
     config = SearchConfig.from_depth(search_depth)
 
     # Apply overrides if provided
-    overrides = {}
+    overrides: dict[str, int | float | str | list | None] = {}
 
     # Search budget override
     if "search_budget_s" in args:
@@ -193,7 +192,9 @@ def _build_search_config(
         sources = []
         for source_str in sources_raw:
             if not isinstance(source_str, str):
-                raise ValueError(f"'candidate_sources' must contain strings, got {type(source_str)}")
+                raise ValueError(
+                    f"'candidate_sources' must contain strings, got {type(source_str)}"
+                )
             try:
                 sources.append(CandidateSource(source_str))
             except ValueError as e:
@@ -223,7 +224,9 @@ def _build_search_config(
             if not isinstance(secondary, str):
                 raise ValueError("'automation_secondary' must be a string or None")
             if secondary not in ("aesop", "simp", "omega", "grind"):
-                raise ValueError("'automation_secondary' must be 'aesop', 'simp', 'omega', 'grind', or None")
+                raise ValueError(
+                    "'automation_secondary' must be 'aesop', 'simp', 'omega', 'grind', or None"
+                )
         overrides["automation_secondary"] = secondary
 
     # Search strategy override
@@ -339,6 +342,7 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
 
     # Create ServerManager with workspace context
     from ..lean.server_manager import ServerManagerImpl
+
     server_manager = ServerManagerImpl(workspace_path=project_root)
 
     # Create LeanInteractQuerier with ServerManager
@@ -371,25 +375,21 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
     metadata_collector = SubprocessMetadataCollector()
 
     # Create HarnessConstructor for building test harnesses
+    from ..adapters.lean_interact_runner import LeanInteractRunner
     from ..core.harness_construction import (
         ImportBasedHarnessConstructor,
         LeanInteractTheoremTypeExtractor,
         StandardImportPathConverter,
     )
-    from ..adapters.lean_interact_runner import LeanInteractRunner
-    
+
     type_extractor = LeanInteractTheoremTypeExtractor(querier)
     path_converter = StandardImportPathConverter()
     harness_constructor = ImportBasedHarnessConstructor(
-        type_extractor=type_extractor,
-        path_converter=path_converter
+        type_extractor=type_extractor, path_converter=path_converter
     )
-    
+
     # Create LeanRunner for executing harnesses
-    lean_runner = LeanInteractRunner(
-        server_manager=server_manager,
-        timeout_buffer_ms=100
-    )
+    lean_runner = LeanInteractRunner(server_manager=server_manager, timeout_buffer_ms=100)
 
     # Wire into SearchOrchestrator
     return SearchOrchestrator(

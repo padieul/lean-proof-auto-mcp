@@ -17,7 +17,13 @@ from ..lean.ports import ProofStateInspector, ProofValidator
 from ..observability.ports import MetadataCollector
 from .candidate_generator import CandidateGenerator
 from .feedback_builder import FeedbackBuilder, SearchFeedback
-from .search_automated_proof_domain import Candidate, CandidateSource, HintType, SearchResult
+from .search_automated_proof_domain import (
+    Candidate,
+    CandidateSource,
+    HintSet,
+    HintType,
+    SearchResult,
+)
 
 if TYPE_CHECKING:
     from .harness_construction import HarnessConstructor
@@ -120,7 +126,7 @@ class SearchResultEnhanced:
     """
 
     outcome: Literal["closed", "partial", "failed"]
-    best_hint_set: list[Candidate] | None
+    best_hint_set: "HintSet | None"
     attempts: int
     explored_sets: int
     feedback: SearchFeedback
@@ -210,9 +216,8 @@ class SearchOrchestrator:
         # 1. Generate candidates from configured sources
         try:
             # Get theorem declaration from index
-            from .indexer import TheoremDecl
             from .search_automated_proof_domain import CandidateConfig
-            
+
             # Find theorem in index
             # Try exact match first, then try with namespace prefix
             theorem_decl = None
@@ -221,13 +226,13 @@ class SearchOrchestrator:
                     theorem_decl = decl
                     break
                 # Also try matching the short name (without namespace)
-                if '.' in decl.theorem_id and decl.theorem_id.split('.')[-1] == theorem_id:
+                if "." in decl.theorem_id and decl.theorem_id.split(".")[-1] == theorem_id:
                     theorem_decl = decl
                     break
-            
+
             if theorem_decl is None:
                 raise ValueError(f"Theorem not found in index: {theorem_id}")
-            
+
             # Build candidate config from search config
             candidate_config = CandidateConfig(
                 sources=config.candidate_sources,
@@ -235,7 +240,7 @@ class SearchOrchestrator:
                 allow_simp_hints=config.allow_simp_hints,
                 allow_unfold_hints=config.allow_unfold_hints,
             )
-            
+
             # Generate candidates using the correct method signature
             candidates = self.candidate_gen.generate(
                 theorem_decl=theorem_decl,
@@ -329,7 +334,7 @@ class SearchOrchestrator:
 
             if success:
                 logger.info(f"Found successful hint set with {len(hint_set)} hints")
-                best_hint_set = hint_set
+                best_hint_set = HintSet([c.hint for c in hint_set])
                 return SearchResult(
                     outcome="closed",
                     best_hint_set=best_hint_set,
@@ -339,7 +344,7 @@ class SearchOrchestrator:
                 )
 
         # No successful combination found
-        outcome = "partial" if best_hint_set else "failed"
+        outcome: Literal["closed", "partial", "failed"] = "partial" if best_hint_set else "failed"
         return SearchResult(
             outcome=outcome,
             best_hint_set=best_hint_set,
@@ -517,7 +522,6 @@ class SearchOrchestrator:
 
             # Extract harness code
             assert isinstance(result, HarnessSuccess)
-            harness_code = result.code
 
             # Run Lean verification
             # TODO: Implement actual Lean verification
@@ -589,9 +593,8 @@ class SearchOrchestrator:
         if config.automation_mode in ("aesop", "aesop?"):
             imports.append("import Aesop")
 
-        if config.automation_secondary:
-            if config.automation_secondary in ("aesop", "aesop?"):
-                imports.append("import Aesop")
+        if config.automation_secondary and config.automation_secondary in ("aesop", "aesop?"):
+            imports.append("import Aesop")
 
         return imports
 

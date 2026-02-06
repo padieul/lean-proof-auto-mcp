@@ -9,7 +9,6 @@ Focus: Theorems with `open scoped X in` declarations, particularly `prod_mono`
 """
 
 import json
-import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -142,11 +141,11 @@ class TestVerifyTool:
     def test_verify_theorem(self, mcp_client, basic_lean_path, theorem_info, tmp_path):
         """Test verify tool on a specific theorem."""
         theorem_name = theorem_info["name"]
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"Testing VERIFY on: {theorem_name}")
         print(f"Description: {theorem_info['description']}")
         print(f"Has scoped notation: {theorem_info['has_scoped_notation']}")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         # Call verify tool
         result = mcp_client.call_tool(
@@ -171,19 +170,17 @@ class TestVerifyTool:
         # Basic assertions
         assert "result" in result or "error" in result, "Response should have result or error"
 
-        if "result" in result:
-            # Check if harness was generated
-            if "harness" in result["result"]:
-                harness = result["result"]["harness"]
-                print(f"\nGENERATED HARNESS:\n{harness}\n")
+        if "result" in result and "harness" in result["result"]:
+            harness = result["result"]["harness"]
+            print(f"\nGENERATED HARNESS:\n{harness}\n")
 
-                # Check for scoped notation preservation
-                if theorem_info["has_scoped_notation"]:
-                    for module in theorem_info["scoped_modules"]:
-                        assert (
-                            f"open scoped {module}" in harness
-                        ), f"Scoped notation 'open scoped {module}' should be preserved in harness"
-                        print(f"✓ Scoped notation 'open scoped {module}' found in harness")
+            # Check for scoped notation preservation
+            if theorem_info["has_scoped_notation"]:
+                for module in theorem_info["scoped_modules"]:
+                    assert f"open scoped {module}" in harness, (
+                        f"Scoped notation 'open scoped {module}' should be preserved in harness"
+                    )
+                    print(f"✓ Scoped notation 'open scoped {module}' found in harness")
 
 
 class TestProbeTool:
@@ -193,11 +190,11 @@ class TestProbeTool:
     def test_probe_theorem(self, mcp_client, basic_lean_path, theorem_info, tmp_path):
         """Test probe tool on a specific theorem."""
         theorem_name = theorem_info["name"]
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"Testing PROBE on: {theorem_name}")
         print(f"Description: {theorem_info['description']}")
         print(f"Has scoped notation: {theorem_info['has_scoped_notation']}")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         # Call probe tool
         result = mcp_client.call_tool(
@@ -221,19 +218,17 @@ class TestProbeTool:
         # Basic assertions
         assert "result" in result or "error" in result, "Response should have result or error"
 
-        if "result" in result:
-            # Check if harness was generated
-            if "harness" in result["result"]:
-                harness = result["result"]["harness"]
-                print(f"\nGENERATED HARNESS:\n{harness}\n")
+        if "result" in result and "harness" in result["result"]:
+            harness = result["result"]["harness"]
+            print(f"\nGENERATED HARNESS:\n{harness}\n")
 
-                # Check for scoped notation preservation
-                if theorem_info["has_scoped_notation"]:
-                    for module in theorem_info["scoped_modules"]:
-                        assert (
-                            f"open scoped {module}" in harness
-                        ), f"Scoped notation 'open scoped {module}' should be preserved in harness"
-                        print(f"✓ Scoped notation 'open scoped {module}' found in harness")
+            # Check for scoped notation preservation
+            if theorem_info["has_scoped_notation"]:
+                for module in theorem_info["scoped_modules"]:
+                    assert f"open scoped {module}" in harness, (
+                        f"Scoped notation 'open scoped {module}' should be preserved in harness"
+                    )
+                    print(f"✓ Scoped notation 'open scoped {module}' found in harness")
 
 
 class TestProbeFileTool:
@@ -241,9 +236,9 @@ class TestProbeFileTool:
 
     def test_probe_file_basic_lean(self, mcp_client, basic_lean_path, tmp_path):
         """Test probe_file tool on entire Basic.lean file."""
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"Testing PROBE_FILE on: {basic_lean_path}")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         # Call probe_file tool
         result = mcp_client.call_tool(
@@ -254,7 +249,7 @@ class TestProbeFileTool:
         )
 
         # Print detailed results
-        print(f"\nRESULT:")
+        print("\nRESULT:")
         print(json.dumps(result, indent=2))
 
         # Save results to file for later analysis
@@ -294,11 +289,11 @@ class TestTryAutomatedProofTool:
     def test_try_automated_proof(self, mcp_client, basic_lean_path, theorem_info, tmp_path):
         """Test try_automated_proof tool on a specific theorem."""
         theorem_name = theorem_info["name"]
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"Testing TRY_AUTOMATED_PROOF on: {theorem_name}")
         print(f"Description: {theorem_info['description']}")
         print(f"Has scoped notation: {theorem_info['has_scoped_notation']}")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         # Call try_automated_proof tool
         result = mcp_client.call_tool(
@@ -330,11 +325,11 @@ class TestSearchAutomatedProofTool:
     def test_search_automated_proof(self, mcp_client, basic_lean_path, theorem_info, tmp_path):
         """Test search_automated_proof tool on a specific theorem."""
         theorem_name = theorem_info["name"]
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"Testing SEARCH_AUTOMATED_PROOF on: {theorem_name}")
         print(f"Description: {theorem_info['description']}")
         print(f"Has scoped notation: {theorem_info['has_scoped_notation']}")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         # Call search_automated_proof tool
         result = mcp_client.call_tool(
@@ -369,9 +364,9 @@ class TestHarnessGeneration:
         This tests the core harness construction logic directly to see
         if scoped notation is preserved.
         """
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print("Testing DIRECT HARNESS CONSTRUCTION")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         # Import the harness constructor
         from lean_proof_auto_mcp.core.harness_construction import LeanHarnessConstructor
@@ -432,9 +427,9 @@ class TestSummary:
 
     def test_generate_summary(self, tmp_path):
         """Generate a summary report of all test results."""
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print("INVESTIGATION SUMMARY")
-        print(f"{'='*80}\n")
+        print(f"{'=' * 80}\n")
 
         # This test should run last and summarize findings
         print("All tests completed. Check the output files in:")

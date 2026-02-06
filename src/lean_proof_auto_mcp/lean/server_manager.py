@@ -123,7 +123,7 @@ class ServerManagerImpl:
         """
         logger.info(f"Shutting down {len(self._servers)} servers")
 
-        for file_path, server in list(self._servers.items()):
+        for _file_path, server in list(self._servers.items()):
             self._cleanup_server(server)
 
         self._servers.clear()
@@ -172,10 +172,7 @@ class ServerManagerImpl:
         try:
             # Determine workspace path from file_path
             # If workspace_path was provided, use it; otherwise use file's directory
-            if self.workspace_path:
-                workspace = self.workspace_path
-            else:
-                workspace = Path(file_path).parent
+            workspace = self.workspace_path or Path(file_path).parent
 
             # Check if workspace has lakefile
             lakefile_path = workspace / "lakefile.toml"
@@ -184,9 +181,7 @@ class ServerManagerImpl:
             if lakefile_path.exists() or lakefile_lean_path.exists():
                 # Has Lake project - use it
                 try:
-                    project = LocalProject(
-                        directory=str(workspace), auto_build=False
-                    )
+                    project = LocalProject(directory=str(workspace), auto_build=False)
                     config = LeanREPLConfig(project=project)
                     server = LeanServer(config)
                     logger.info(f"Created server with Lake project context for {file_path}")
@@ -219,11 +214,7 @@ class ServerManagerImpl:
         # A more robust check would try a simple command
         try:
             # Check if server has required methods
-            if not hasattr(server, "run") or not hasattr(server, "kill"):
-                return False
-
-            # Server appears to be alive
-            return True
+            return hasattr(server, "run") and hasattr(server, "kill")
         except Exception:
             return False
 
@@ -238,7 +229,7 @@ class ServerManagerImpl:
         """
         try:
             if hasattr(server, "kill"):
-                server.kill()  # type: ignore[attr-defined]
+                server.kill()
                 logger.debug("Server killed successfully")
         except Exception as e:
             logger.warning(f"Failed to kill server: {e}")

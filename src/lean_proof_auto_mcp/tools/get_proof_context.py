@@ -11,7 +11,6 @@ Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 29.5, 29.6
 import hashlib
 import logging
 import uuid
-from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -66,9 +65,7 @@ def get_proof_context(args: dict[str, Any]) -> dict[str, Any]:
     """
     # Validate and coerce arguments
     try:
-        file_path, theorem_id, include_similar, similarity_threshold, run_id = _validate_args(
-            args
-        )
+        file_path, theorem_id, include_similar, similarity_threshold, run_id = _validate_args(args)
     except ValueError as e:
         # Return error response for invalid inputs
         return _build_error_response(

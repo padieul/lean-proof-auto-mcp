@@ -20,9 +20,8 @@ from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     CandidateConfig,
     CandidateSource,
 )
-from lean_proof_auto_mcp.core.source import SourceText, Span
-from lean_proof_auto_mcp.lean.ports import Declaration, DeclValue, LeanInteractQuerier, Range
-
+from lean_proof_auto_mcp.core.source import SourceText
+from lean_proof_auto_mcp.lean.ports import Declaration, DeclValue, Range
 
 # ============================================================================
 # Mock LeanInteractQuerier for Testing
@@ -147,9 +146,7 @@ end Test
 
         # Execute: Generate candidates from goal_symbols source
         if CandidateSource.GOAL_SYMBOLS in config.sources:
-            candidates = generator.generate(
-                theorem_decl, [CandidateSource.GOAL_SYMBOLS], config
-            )
+            candidates = generator.generate(theorem_decl, [CandidateSource.GOAL_SYMBOLS], config)
 
             # Verify: Should return a list
             assert isinstance(candidates, list)
@@ -230,9 +227,7 @@ end Test
 
         # Execute: Generate candidates from same_namespace source
         if CandidateSource.SAME_NAMESPACE in config.sources:
-            candidates = generator.generate(
-                theorem_decl, [CandidateSource.SAME_NAMESPACE], config
-            )
+            candidates = generator.generate(theorem_decl, [CandidateSource.SAME_NAMESPACE], config)
 
             # Verify: Should return a list
             assert isinstance(candidates, list)

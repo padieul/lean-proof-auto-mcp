@@ -13,7 +13,6 @@ import hypothesis.strategies as st
 import pytest
 from hypothesis import given, settings
 
-from lean_proof_auto_mcp.lean.ports import Declaration, DeclValue, Range
 from lean_proof_auto_mcp.lean.querier import LeanInteractQuerierImpl
 
 # ============================================================================
@@ -52,13 +51,13 @@ def test_property_2_accurate_proof_reference_extraction(theorem_name, constants)
     """
     # Setup: Create mock declarations
     mock_declarations = []
-    
+
     # Create the theorem declaration
     mock_theorem = Mock()
     mock_theorem.name = theorem_name
     mock_theorem.full_name = f"MyNamespace.{theorem_name}"
     mock_theorem.type = "Prop"
-    
+
     # Add value with constants
     mock_value = Mock()
     mock_value.pp = "proof_text"
@@ -66,17 +65,17 @@ def test_property_2_accurate_proof_reference_extraction(theorem_name, constants)
     mock_value.start_pos = Mock(line=1, column=0)
     mock_value.end_pos = Mock(line=2, column=0)
     mock_theorem.value = mock_value
-    
+
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = "MyNamespace"
     mock_theorem.scope = mock_scope
-    
+
     mock_declarations.append(mock_theorem)
-    
+
     # Add referenced declarations (unique)
     unique_constants = list(set(constants))
     for const in unique_constants:
@@ -90,25 +89,25 @@ def test_property_2_accurate_proof_reference_extraction(theorem_name, constants)
         mock_decl.end_pos = Mock(line=2, column=0)
         mock_decl.scope = mock_scope
         mock_declarations.append(mock_decl)
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = mock_declarations
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute
     references = querier.get_proof_references("test.lean", theorem_name)
-    
+
     # Verify: All unique constants are included
     unique_constants_set = set(constants)
     for const in unique_constants_set:
         assert const in references
-    
+
     # Verify: Number of references matches unique constants
     assert len(references) >= len(unique_constants_set)
 
@@ -132,7 +131,7 @@ def test_property_2_empty_proof_references(theorem_name):
     mock_theorem.name = theorem_name
     mock_theorem.full_name = f"MyNamespace.{theorem_name}"
     mock_theorem.type = "Prop"
-    
+
     # Add value with empty constants
     mock_value = Mock()
     mock_value.pp = "trivial"
@@ -140,28 +139,28 @@ def test_property_2_empty_proof_references(theorem_name):
     mock_value.start_pos = Mock(line=1, column=0)
     mock_value.end_pos = Mock(line=2, column=0)
     mock_theorem.value = mock_value
-    
+
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = "MyNamespace"
     mock_theorem.scope = mock_scope
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = [mock_theorem]
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute
     references = querier.get_proof_references("test.lean", theorem_name)
-    
+
     # Verify: Empty list returned
     assert references == []
 
@@ -189,24 +188,24 @@ def test_property_2_no_proof_value(theorem_name):
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = "MyNamespace"
     mock_theorem.scope = mock_scope
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = [mock_theorem]
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute
     references = querier.get_proof_references("test.lean", theorem_name)
-    
+
     # Verify: Empty list returned
     assert references == []
 
@@ -235,21 +234,21 @@ def test_property_2_theorem_not_found(theorem_name, invalid_theorem):
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = "MyNamespace"
     mock_theorem.scope = mock_scope
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = [mock_theorem]
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute & Verify: Searching for non-existent theorem raises ValueError
     if invalid_theorem != theorem_name:
         with pytest.raises(ValueError, match="Theorem not found"):
@@ -280,7 +279,7 @@ def test_property_2_primary_source_constants(constants):
     mock_theorem.name = "test_theorem"
     mock_theorem.full_name = "MyNamespace.test_theorem"
     mock_theorem.type = "Prop"
-    
+
     # Add value with constants
     mock_value = Mock()
     mock_value.pp = "proof_text"
@@ -288,28 +287,28 @@ def test_property_2_primary_source_constants(constants):
     mock_value.start_pos = Mock(line=1, column=0)
     mock_value.end_pos = Mock(line=2, column=0)
     mock_theorem.value = mock_value
-    
+
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = "MyNamespace"
     mock_theorem.scope = mock_scope
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = [mock_theorem]
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute
     references = querier.get_proof_references("test.lean", "test_theorem")
-    
+
     # Verify: All constants from primary source are included
     for const in constants:
         assert const in references
@@ -337,13 +336,13 @@ def test_property_2_reference_validation(valid_refs, invalid_refs):
     """
     # Setup: Create mock declarations
     mock_declarations = []
-    
+
     # Create the theorem declaration
     mock_theorem = Mock()
     mock_theorem.name = "test_theorem"
     mock_theorem.full_name = "MyNamespace.test_theorem"
     mock_theorem.type = "Prop"
-    
+
     # Add value with both valid and invalid references
     all_refs = valid_refs + invalid_refs
     mock_value = Mock()
@@ -352,17 +351,17 @@ def test_property_2_reference_validation(valid_refs, invalid_refs):
     mock_value.start_pos = Mock(line=1, column=0)
     mock_value.end_pos = Mock(line=2, column=0)
     mock_theorem.value = mock_value
-    
+
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = "MyNamespace"
     mock_theorem.scope = mock_scope
-    
+
     mock_declarations.append(mock_theorem)
-    
+
     # Add only valid references as declarations
     for ref in valid_refs:
         mock_decl = Mock()
@@ -375,24 +374,24 @@ def test_property_2_reference_validation(valid_refs, invalid_refs):
         mock_decl.end_pos = Mock(line=2, column=0)
         mock_decl.scope = mock_scope
         mock_declarations.append(mock_decl)
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = mock_declarations
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute
     references = querier.get_proof_references("test.lean", "test_theorem")
-    
+
     # Verify: All valid references are included
     for ref in valid_refs:
         assert ref in references
-    
+
     # Verify: All references are returned (including invalid ones as they might be external)
     # The current implementation includes all references, assuming invalid ones are external
     assert len(references) >= len(valid_refs)

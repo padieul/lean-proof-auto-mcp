@@ -14,7 +14,6 @@ This replaces test_search_annotations_e2e.py with updated interface.
 Requirements: 25.1, 4.1, 4.8, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6
 """
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -45,16 +44,18 @@ class TestCompleteWorkflow:
         )
         from lean_proof_auto_mcp.core.search_automated_proof_domain import (
             Candidate,
+            CandidateSource,
             Hint,
             HintType,
-            CandidateSource,
         )
         from lean_proof_auto_mcp.core.search_orchestrator import SearchResultEnhanced
 
         # Create mock orchestrator with complete success result
         mock_orchestrator = MagicMock()
-        
-        hint = Hint(name="Nat.add_comm", type=HintType.ADD_SAFE, source=CandidateSource.GOAL_SYMBOLS)
+
+        hint = Hint(
+            name="Nat.add_comm", type=HintType.ADD_SAFE, source=CandidateSource.GOAL_SYMBOLS
+        )
         candidate = Candidate(hint=hint, rank=0.9, metadata={})
 
         feedback = SearchFeedback(
@@ -153,7 +154,7 @@ class TestCompleteWorkflow:
         depth_presets = ["quick", "normal", "deep", "exhaustive"]
 
         for depth in depth_presets:
-            result = search_automated_proof(
+            search_automated_proof(
                 {
                     "file": VALID_THEOREM,
                     "theorem_id": "simple_add_comm",
@@ -212,7 +213,7 @@ class TestCompleteWorkflow:
         mock_create_orchestrator.return_value = mock_orchestrator
 
         # Test with overrides
-        result = search_automated_proof(
+        search_automated_proof(
             {
                 "file": VALID_THEOREM,
                 "theorem_id": "simple_add_comm",
@@ -258,7 +259,7 @@ class TestCompleteWorkflow:
         mock_create_orchestrator.return_value = mock_orchestrator
 
         # Test with specific candidate sources
-        result = search_automated_proof(
+        search_automated_proof(
             {
                 "file": VALID_THEOREM,
                 "theorem_id": "simple_add_comm",
@@ -309,7 +310,7 @@ class TestCompleteWorkflow:
         mock_create_orchestrator.return_value = mock_orchestrator
 
         # Test with all return options enabled
-        result = search_automated_proof(
+        search_automated_proof(
             {
                 "file": VALID_THEOREM,
                 "theorem_id": "simple_add_comm",
@@ -420,16 +421,18 @@ class TestDeterministicOutput:
         from lean_proof_auto_mcp.core.feedback_builder import SearchFeedback
         from lean_proof_auto_mcp.core.search_automated_proof_domain import (
             Candidate,
+            CandidateSource,
             Hint,
             HintType,
-            CandidateSource,
         )
         from lean_proof_auto_mcp.core.search_orchestrator import SearchResultEnhanced
 
         # Create mock orchestrator with deterministic result
         mock_orchestrator = MagicMock()
-        
-        hint = Hint(name="Nat.add_comm", type=HintType.ADD_SAFE, source=CandidateSource.GOAL_SYMBOLS)
+
+        hint = Hint(
+            name="Nat.add_comm", type=HintType.ADD_SAFE, source=CandidateSource.GOAL_SYMBOLS
+        )
         candidate = Candidate(hint=hint, rank=0.9, metadata={})
 
         feedback = SearchFeedback(
@@ -476,7 +479,7 @@ class TestDeterministicOutput:
 
         # Verify hint sets match
         assert len(result1["best_hint_set"]) == len(result2["best_hint_set"])
-        for h1, h2 in zip(result1["best_hint_set"], result2["best_hint_set"]):
+        for h1, h2 in zip(result1["best_hint_set"], result2["best_hint_set"], strict=False):
             assert h1["name"] == h2["name"]
             assert h1["hint_type"] == h2["hint_type"]
             assert h1["source"] == h2["source"]

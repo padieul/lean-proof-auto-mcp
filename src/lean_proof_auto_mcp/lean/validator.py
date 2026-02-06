@@ -157,7 +157,7 @@ class ProofValidatorImpl:
                 # Validation failed with errors
                 first_error = errors[0]
                 error_location = self._extract_location(first_error)
-                
+
                 return ValidationResult(
                     status="error",
                     error_message=first_error["message"],
@@ -171,7 +171,7 @@ class ProofValidatorImpl:
             if hasattr(response, "sorries") and response.sorries:
                 # Proof is incomplete
                 proof_state = self._extract_proof_state(response)
-                
+
                 return ValidationResult(
                     status="incomplete",
                     error_message="Proof is incomplete (contains sorry)",
@@ -185,7 +185,7 @@ class ProofValidatorImpl:
             if hasattr(response, "goals") and response.goals:
                 # Proof is incomplete (goals remaining)
                 proof_state = self._extract_proof_state(response)
-                
+
                 return ValidationResult(
                     status="incomplete",
                     error_message="Proof is incomplete (goals remaining)",
@@ -424,53 +424,51 @@ class ProofValidatorImpl:
         from ..core.harness_construction import (
             HarnessConfig,
             HarnessError,
-            HarnessSuccess,
             ImportBasedHarnessConstructor,
             LeanInteractTheoremTypeExtractor,
             StandardImportPathConverter,
         )
         from ..lean.querier import LeanInteractQuerierImpl
-        
+
         # Get server manager from server
-        if not hasattr(self.server, 'server_manager'):
+        if not hasattr(self.server, "server_manager"):
             # Fallback to old approach if server doesn't have server_manager
             logger.warning("Server missing server_manager, using fallback import approach")
             return self._construct_validation_with_import_fallback(
                 file_path, theorem_id, theorem_statement, proof_attempt
             )
-        
-        server_manager = self.server.server_manager  # type: ignore[attr-defined]
-        
+
+        server_manager = self.server.server_manager
+
         # Create harness constructor components
         querier = LeanInteractQuerierImpl(server_manager)
         type_extractor = LeanInteractTheoremTypeExtractor(querier)
         path_converter = StandardImportPathConverter()
-        
+
         harness_constructor = ImportBasedHarnessConstructor(
-            type_extractor=type_extractor,
-            path_converter=path_converter
+            type_extractor=type_extractor, path_converter=path_converter
         )
-        
+
         # Build harness config
         config = HarnessConfig(
             theorem_id=theorem_id,
             file_path=file_path,
             proof_attempt=proof_attempt,
-            additional_imports=[]
+            additional_imports=[],
         )
-        
+
         # Construct harness
         result = harness_constructor.construct(config)
-        
+
         if isinstance(result, HarnessError):
             # Fall back to simple approach if construction fails
             logger.warning(f"Harness construction failed: {result.message}, using fallback")
             return self._construct_validation_with_import_fallback(
                 file_path, theorem_id, theorem_statement, proof_attempt
             )
-        
+
         return result.code
-    
+
     def _construct_validation_with_import_fallback(
         self,
         file_path: str,
@@ -480,7 +478,7 @@ class ProofValidatorImpl:
     ) -> str:
         """
         Fallback: Construct validation code using simple import approach.
-        
+
         This is the old approach that may fail due to missing context.
         """
         # Convert file path to import path

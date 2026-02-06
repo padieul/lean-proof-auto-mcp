@@ -9,10 +9,7 @@ Requirements: 4.1, 4.2, 4.3
 
 from unittest.mock import Mock
 
-import pytest
-
 from lean_proof_auto_mcp.core.harness_construction import (
-    HarnessConfig,
     HarnessError,
     HarnessSuccess,
 )
@@ -25,7 +22,9 @@ from lean_proof_auto_mcp.core.search_automated_proof_domain import (
 from lean_proof_auto_mcp.core.search_orchestrator import SearchConfig, SearchOrchestrator
 
 
-def create_test_candidate(name: str, hint_type: HintType, source: CandidateSource, rank: float = 0.9) -> Candidate:
+def create_test_candidate(
+    name: str, hint_type: HintType, source: CandidateSource, rank: float = 0.9
+) -> Candidate:
     """Helper to create test candidates."""
     hint = Hint(name=name, type=hint_type, source=source)
     return Candidate(hint=hint, rank=rank, metadata={})
@@ -45,8 +44,12 @@ class TestSearchOrchestratorWithHarnessConstructor:
 
         # Configure candidate generator to return test candidates
         test_candidates = [
-            create_test_candidate("test_lemma_1", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9),
-            create_test_candidate("test_lemma_2", HintType.ADD_SAFE, CandidateSource.LOCAL_CONTEXT, 0.8),
+            create_test_candidate(
+                "test_lemma_1", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9
+            ),
+            create_test_candidate(
+                "test_lemma_2", HintType.ADD_SAFE, CandidateSource.LOCAL_CONTEXT, 0.8
+            ),
         ]
         mock_candidate_gen.generate_candidates.return_value = test_candidates
 
@@ -129,7 +132,9 @@ class TestSearchOrchestratorWithHarnessConstructor:
 
         # Configure candidate generator
         test_candidates = [
-            create_test_candidate("test_lemma", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9),
+            create_test_candidate(
+                "test_lemma", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9
+            ),
         ]
         mock_candidate_gen.generate_candidates.return_value = test_candidates
 
@@ -183,7 +188,9 @@ class TestHintCombinationGeneration:
 
         # Create test candidates
         candidates = [
-            create_test_candidate(f"lemma_{i}", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9 - i * 0.1)
+            create_test_candidate(
+                f"lemma_{i}", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9 - i * 0.1
+            )
             for i in range(5)
         ]
 
@@ -217,7 +224,9 @@ class TestHintCombinationGeneration:
 
         # Create test candidates
         candidates = [
-            create_test_candidate(f"lemma_{i}", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9)
+            create_test_candidate(
+                f"lemma_{i}", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9
+            )
             for i in range(3)
         ]
 
@@ -270,7 +279,9 @@ class TestHintCombinationGeneration:
 
         # Create many candidates
         candidates = [
-            create_test_candidate(f"lemma_{i}", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9)
+            create_test_candidate(
+                f"lemma_{i}", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9
+            )
             for i in range(20)
         ]
 
@@ -343,8 +354,12 @@ class TestProofWithHints:
 
         # Create lemma hints
         hints = [
-            create_test_candidate("test_lemma_1", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9),
-            create_test_candidate("test_lemma_2", HintType.ADD_SAFE, CandidateSource.LOCAL_CONTEXT, 0.8),
+            create_test_candidate(
+                "test_lemma_1", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9
+            ),
+            create_test_candidate(
+                "test_lemma_2", HintType.ADD_SAFE, CandidateSource.LOCAL_CONTEXT, 0.8
+            ),
         ]
 
         # Build proof

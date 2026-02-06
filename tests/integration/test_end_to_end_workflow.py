@@ -2,21 +2,22 @@
 
 These tests verify the complete workflow with real Lean files:
 - Search → validate → iterate cycle
-- All three MCP tools working together (search_automated_proof, try_automated_proof, get_proof_context)
+- All three MCP tools working together (search_automated_proof,
+  try_automated_proof, get_proof_context)
 - Real mathlib theorems
 - Complete iteration cycles
 
 Requirements: 27.3
 """
 
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from lean_proof_auto_mcp.tools.get_proof_context import get_proof_context
 from lean_proof_auto_mcp.tools.search_automated_proof import search_automated_proof
 from lean_proof_auto_mcp.tools.try_automated_proof import try_automated_proof
-from lean_proof_auto_mcp.tools.get_proof_context import get_proof_context
-
 
 # Fixture paths
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "lean"
@@ -50,9 +51,9 @@ class TestCompleteWorkflow:
         )
         from lean_proof_auto_mcp.core.search_automated_proof_domain import (
             Candidate,
+            CandidateSource,
             Hint,
             HintType,
-            CandidateSource,
         )
         from lean_proof_auto_mcp.core.search_orchestrator import SearchResultEnhanced
         from lean_proof_auto_mcp.lean.validator import ValidationResult
@@ -181,15 +182,15 @@ class TestCompleteWorkflow:
         Requirements: 27.3
         """
         from lean_proof_auto_mcp.core.feedback_builder import (
+            PartialProgress,
             SearchFeedback,
             Suggestion,
-            PartialProgress,
         )
         from lean_proof_auto_mcp.core.search_automated_proof_domain import (
             Candidate,
+            CandidateSource,
             Hint,
             HintType,
-            CandidateSource,
         )
         from lean_proof_auto_mcp.core.search_orchestrator import SearchResultEnhanced
 
@@ -303,13 +304,13 @@ class TestCompleteWorkflow:
         from lean_proof_auto_mcp.core.feedback_builder import SearchFeedback
         from lean_proof_auto_mcp.core.search_automated_proof_domain import (
             Candidate,
+            CandidateSource,
             Hint,
             HintType,
-            CandidateSource,
         )
         from lean_proof_auto_mcp.core.search_orchestrator import SearchResultEnhanced
-        from lean_proof_auto_mcp.lean.validator import ValidationResult
         from lean_proof_auto_mcp.lean.ports import ProofState
+        from lean_proof_auto_mcp.lean.validator import ValidationResult
 
         # Setup search mock
         mock_orchestrator = MagicMock()
@@ -414,7 +415,7 @@ class TestRealMathlibTheorems:
         mathlib_file = str(MATHLIB_DIR / "Defs.lean")
 
         # Get context
-        context_result = get_proof_context(
+        get_proof_context(
             {
                 "file": mathlib_file,
                 "theorem_id": "eval₂_zero",
@@ -461,9 +462,7 @@ class TestToolInteraction:
 
     @patch("lean_proof_auto_mcp.tools.get_proof_context._create_extractor")
     @patch("lean_proof_auto_mcp.tools.search_automated_proof._create_orchestrator")
-    def test_context_informs_search(
-        self, mock_create_orchestrator, mock_create_extractor
-    ):
+    def test_context_informs_search(self, mock_create_orchestrator, mock_create_extractor):
         """Test that context extraction informs search parameters.
 
         Requirements: 27.3
@@ -520,9 +519,9 @@ class TestToolInteraction:
         # Use context to inform search
         # In real workflow, LLM would extract in_scope declarations
         # and use them to configure candidate sources
-        in_scope = context_result.get("in_scope", [])
+        context_result.get("in_scope", [])
 
-        search_result_dict = search_automated_proof(
+        search_automated_proof(
             {
                 "file": VALID_THEOREM,
                 "theorem_id": "simple_add_comm",
@@ -550,9 +549,9 @@ class TestToolInteraction:
         )
         from lean_proof_auto_mcp.core.search_automated_proof_domain import (
             Candidate,
+            CandidateSource,
             Hint,
             HintType,
-            CandidateSource,
         )
         from lean_proof_auto_mcp.core.search_orchestrator import SearchResultEnhanced
         from lean_proof_auto_mcp.lean.validator import ValidationResult

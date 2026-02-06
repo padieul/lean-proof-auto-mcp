@@ -10,7 +10,6 @@ Requirements: 7.1, 7.2, 7.8, 29.5, 29.6
 import hashlib
 import logging
 import uuid
-from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -85,6 +84,10 @@ def try_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
 
         # Extract theorem statement from file
         try:
+            # Type assertion to help mypy understand querier has extract_declarations
+            from ..lean.querier import LeanInteractQuerierImpl
+
+            assert isinstance(querier, LeanInteractQuerierImpl)
             declarations = querier.extract_declarations(file_path)
             theorem = None
             for decl in declarations:
@@ -118,9 +121,7 @@ def try_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
         metadata = metadata_collector.collect_version_info()
 
         # Convert result to dict
-        return _format_response(
-            result, file_path, theorem_id, run_id, return_proof_state, metadata
-        )
+        return _format_response(result, file_path, theorem_id, run_id, return_proof_state, metadata)
 
     except Exception as e:
         # Catch all exceptions and return error response
@@ -230,7 +231,7 @@ def _create_validator(file_path: str) -> tuple[ProofValidatorImpl, object]:
 
     # Get or create server for file
     server = server_manager.get_server(file_path)
-    
+
     # Attach server_manager to server for harness construction
     # This allows the validator to access the harness constructor
     server.server_manager = server_manager  # type: ignore[attr-defined]

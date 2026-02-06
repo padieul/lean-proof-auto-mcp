@@ -8,21 +8,19 @@ Target: 95%+ accuracy for declaration extraction
 Requirements: 1.4
 """
 
-import pytest
+# Import from relative path instead of absolute 'tests' module
+import sys
 from pathlib import Path
-from typing import List, Set
+
+import pytest
 
 from lean_proof_auto_mcp.lean.querier import LeanInteractQuerierImpl
 from lean_proof_auto_mcp.lean.server_manager import ServerManagerImpl
 
-# Import from relative path instead of absolute 'tests' module
-import sys
-from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from fixtures.benchmark_ground_truth import (
     ALL_GROUND_TRUTH_FILES,
     GroundTruthDeclaration,
-    GroundTruthFile,
     count_total_declarations,
 )
 
@@ -69,7 +67,7 @@ class TestDeclarationExtractionAccuracy:
 
             # Compare with ground truth
             extracted_names = {decl.name for decl in extracted_decls}
-            gt_names = {decl.name for decl in gt_file.declarations}
+            {decl.name for decl in gt_file.declarations}
 
             # Count correct extractions
             for gt_decl in gt_file.declarations:
@@ -77,9 +75,7 @@ class TestDeclarationExtractionAccuracy:
 
                 if gt_decl.name in extracted_names:
                     # Found the declaration
-                    extracted_decl = next(
-                        d for d in extracted_decls if d.name == gt_decl.name
-                    )
+                    extracted_decl = next(d for d in extracted_decls if d.name == gt_decl.name)
 
                     # Verify key properties
                     is_correct = self._verify_declaration(gt_decl, extracted_decl)
@@ -96,26 +92,22 @@ class TestDeclarationExtractionAccuracy:
                         )
                 else:
                     # Missing declaration
-                    missing_declarations.append(
-                        {"file": file_path, "name": gt_decl.name}
-                    )
+                    missing_declarations.append({"file": file_path, "name": gt_decl.name})
 
         # Calculate accuracy
-        accuracy = (
-            correct_extractions / total_declarations if total_declarations > 0 else 0.0
-        )
+        accuracy = correct_extractions / total_declarations if total_declarations > 0 else 0.0
 
         # Report results
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("Declaration Extraction Accuracy Benchmark")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Total declarations: {total_declarations}")
         print(f"Correct extractions: {correct_extractions}")
         print(f"Missing declarations: {len(missing_declarations)}")
         print(f"Incorrect extractions: {len(incorrect_extractions)}")
         print(f"Accuracy: {accuracy * 100:.2f}%")
-        print(f"Target: 95.00%")
-        print(f"{'='*60}")
+        print("Target: 95.00%")
+        print(f"{'=' * 60}")
 
         if missing_declarations:
             print("\nMissing declarations:")
@@ -125,14 +117,12 @@ class TestDeclarationExtractionAccuracy:
         if incorrect_extractions:
             print("\nIncorrect extractions:")
             for incorrect in incorrect_extractions:
-                print(
-                    f"  - {incorrect['file']}: {incorrect['name']} ({incorrect['reason']})"
-                )
+                print(f"  - {incorrect['file']}: {incorrect['name']} ({incorrect['reason']})")
 
         # Assert accuracy meets target
-        assert (
-            accuracy >= 0.95
-        ), f"Declaration extraction accuracy {accuracy*100:.2f}% is below 95% target"
+        assert accuracy >= 0.95, (
+            f"Declaration extraction accuracy {accuracy * 100:.2f}% is below 95% target"
+        )
 
     def test_declaration_name_accuracy(self, querier):
         """Test accuracy of declaration name extraction.
@@ -164,7 +154,7 @@ class TestDeclarationExtractionAccuracy:
 
         print(f"\nName extraction accuracy: {accuracy * 100:.2f}%")
 
-        assert accuracy >= 0.95, f"Name accuracy {accuracy*100:.2f}% below 95% target"
+        assert accuracy >= 0.95, f"Name accuracy {accuracy * 100:.2f}% below 95% target"
 
     def test_declaration_type_accuracy(self, querier):
         """Test accuracy of type signature extraction.
@@ -189,15 +179,15 @@ class TestDeclarationExtractionAccuracy:
                 total_types += 1
 
                 # Find matching extracted declaration
-                matching_decl = next(
-                    (d for d in extracted_decls if d.name == gt_decl.name), None
-                )
+                matching_decl = next((d for d in extracted_decls if d.name == gt_decl.name), None)
 
                 if matching_decl and matching_decl.type:
                     # Normalize type signatures for comparison
                     gt_type_normalized = self._normalize_type(gt_decl.type_signature)
                     extracted_type_normalized = self._normalize_type(
-                        matching_decl.type.pp if hasattr(matching_decl.type, 'pp') else str(matching_decl.type)
+                        matching_decl.type.pp
+                        if hasattr(matching_decl.type, "pp")
+                        else str(matching_decl.type)
                     )
 
                     if gt_type_normalized == extracted_type_normalized:
@@ -207,7 +197,7 @@ class TestDeclarationExtractionAccuracy:
 
         print(f"\nType signature extraction accuracy: {accuracy * 100:.2f}%")
 
-        assert accuracy >= 0.95, f"Type accuracy {accuracy*100:.2f}% below 95% target"
+        assert accuracy >= 0.95, f"Type accuracy {accuracy * 100:.2f}% below 95% target"
 
     def test_declaration_proof_presence_accuracy(self, querier):
         """Test accuracy of detecting whether declarations have proofs.
@@ -232,9 +222,7 @@ class TestDeclarationExtractionAccuracy:
                 total_checks += 1
 
                 # Find matching extracted declaration
-                matching_decl = next(
-                    (d for d in extracted_decls if d.name == gt_decl.name), None
-                )
+                matching_decl = next((d for d in extracted_decls if d.name == gt_decl.name), None)
 
                 if matching_decl:
                     has_proof = matching_decl.value is not None
@@ -245,9 +233,7 @@ class TestDeclarationExtractionAccuracy:
 
         print(f"\nProof presence detection accuracy: {accuracy * 100:.2f}%")
 
-        assert (
-            accuracy >= 0.95
-        ), f"Proof presence accuracy {accuracy*100:.2f}% below 95% target"
+        assert accuracy >= 0.95, f"Proof presence accuracy {accuracy * 100:.2f}% below 95% target"
 
     def test_declaration_completeness(self, querier):
         """Test that all expected declarations are extracted.
@@ -280,13 +266,9 @@ class TestDeclarationExtractionAccuracy:
         print(f"\nDeclaration completeness: {completeness * 100:.2f}%")
         print(f"Found {total_found} out of {total_expected} expected declarations")
 
-        assert (
-            completeness >= 0.95
-        ), f"Completeness {completeness*100:.2f}% below 95% target"
+        assert completeness >= 0.95, f"Completeness {completeness * 100:.2f}% below 95% target"
 
-    def _verify_declaration(
-        self, gt_decl: GroundTruthDeclaration, extracted_decl
-    ) -> bool:
+    def _verify_declaration(self, gt_decl: GroundTruthDeclaration, extracted_decl) -> bool:
         """Verify that an extracted declaration matches ground truth.
 
         Args:
@@ -302,7 +284,11 @@ class TestDeclarationExtractionAccuracy:
 
         # Check type signature (normalized)
         if extracted_decl.type:
-            extracted_type = extracted_decl.type.pp if hasattr(extracted_decl.type, 'pp') else str(extracted_decl.type)
+            extracted_type = (
+                extracted_decl.type.pp
+                if hasattr(extracted_decl.type, "pp")
+                else str(extracted_decl.type)
+            )
             gt_type = gt_decl.type_signature
             if self._normalize_type(extracted_type) != self._normalize_type(gt_type):
                 return False
@@ -313,16 +299,14 @@ class TestDeclarationExtractionAccuracy:
             return False
 
         # Check namespace
-        if extracted_decl.namespace != gt_decl.namespace:
-            # Allow empty string vs None
-            if not (
+        return not (
+            extracted_decl.namespace != gt_decl.namespace
+            and not (
                 (extracted_decl.namespace == "" and gt_decl.namespace == "")
                 or (extracted_decl.namespace is None and gt_decl.namespace == "")
                 or (extracted_decl.namespace == "" and gt_decl.namespace is None)
-            ):
-                return False
-
-        return True
+            )
+        )
 
     def _normalize_type(self, type_str: str) -> str:
         """Normalize a type signature for comparison.
@@ -364,12 +348,7 @@ class TestDeclarationExtractionPerformance:
 
         Requirements: 10.6
         """
-        file_path = str(
-            Path(__file__).parent.parent
-            / "fixtures"
-            / "lean"
-            / "valid_theorem.lean"
-        )
+        file_path = str(Path(__file__).parent.parent / "fixtures" / "lean" / "valid_theorem.lean")
 
         if not Path(file_path).exists():
             pytest.skip(f"Test file not found: {file_path}")
@@ -389,12 +368,7 @@ class TestDeclarationExtractionPerformance:
         """
         import time
 
-        file_path = str(
-            Path(__file__).parent.parent
-            / "fixtures"
-            / "lean"
-            / "valid_theorem.lean"
-        )
+        file_path = str(Path(__file__).parent.parent / "fixtures" / "lean" / "valid_theorem.lean")
 
         if not Path(file_path).exists():
             pytest.skip(f"Test file not found: {file_path}")
@@ -415,6 +389,4 @@ class TestDeclarationExtractionPerformance:
 
         # Second extraction should be faster due to server reuse
         # Allow some variance, but expect at least 20% improvement
-        assert (
-            second_time < first_time * 0.8
-        ), "Server reuse should improve performance"
+        assert second_time < first_time * 0.8, "Server reuse should improve performance"

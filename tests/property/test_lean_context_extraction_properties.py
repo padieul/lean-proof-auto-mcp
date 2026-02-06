@@ -44,13 +44,13 @@ def test_property_3_complete_context_extraction(
     """
     # Setup: Create mock declarations
     mock_declarations = []
-    
+
     # Create the theorem declaration
     mock_theorem = Mock()
     mock_theorem.name = theorem_name
     mock_theorem.full_name = f"{namespace}.{theorem_name}" if namespace else theorem_name
     mock_theorem.type = theorem_type
-    
+
     # Add value with proof text
     mock_value = Mock()
     mock_value.pp = proof_text
@@ -58,17 +58,17 @@ def test_property_3_complete_context_extraction(
     mock_value.start_pos = Mock(line=1, column=0)
     mock_value.end_pos = Mock(line=2, column=0)
     mock_theorem.value = mock_value
-    
+
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = namespace
     mock_theorem.scope = mock_scope
-    
+
     mock_declarations.append(mock_theorem)
-    
+
     # Add in-scope declarations
     for i in range(num_in_scope):
         mock_decl = Mock()
@@ -82,32 +82,32 @@ def test_property_3_complete_context_extraction(
         mock_decl.namespace = namespace
         mock_decl.scope = mock_scope
         mock_declarations.append(mock_decl)
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = mock_declarations
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute
     context = querier.get_theorem_context("test.lean", theorem_name)
-    
+
     # Verify: Complete theorem statement from declaration.type
     assert context.theorem_statement == theorem_type
-    
+
     # Verify: Original proof from declaration.value.pp
     assert context.original_proof == proof_text
-    
+
     # Verify: Namespace from declaration.scope.curr_namespace
     assert context.namespace == namespace
-    
+
     # Verify: In-scope declarations (same namespace)
     assert len(context.in_scope) >= num_in_scope
-    
+
     # Verify: Hypotheses list exists (may be empty for now)
     assert isinstance(context.hypotheses, list)
 
@@ -136,24 +136,24 @@ def test_property_3_namespace_extraction(theorem_name, namespace):
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = namespace
     mock_theorem.scope = mock_scope
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = [mock_theorem]
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute
     context = querier.get_theorem_context("test.lean", theorem_name)
-    
+
     # Verify: Namespace extracted correctly
     assert context.namespace == namespace
 
@@ -182,24 +182,24 @@ def test_property_3_theorem_statement_extraction(theorem_name, theorem_type):
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = "MyNamespace"
     mock_theorem.scope = mock_scope
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = [mock_theorem]
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute
     context = querier.get_theorem_context("test.lean", theorem_name)
-    
+
     # Verify: Theorem statement extracted correctly
     assert context.theorem_statement == theorem_type
 
@@ -224,7 +224,7 @@ def test_property_3_original_proof_extraction(theorem_name, proof_text):
     mock_theorem.name = theorem_name
     mock_theorem.full_name = f"MyNamespace.{theorem_name}"
     mock_theorem.type = "Prop"
-    
+
     # Add value with proof text
     mock_value = Mock()
     mock_value.pp = proof_text
@@ -232,28 +232,28 @@ def test_property_3_original_proof_extraction(theorem_name, proof_text):
     mock_value.start_pos = Mock(line=1, column=0)
     mock_value.end_pos = Mock(line=2, column=0)
     mock_theorem.value = mock_value
-    
+
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = "MyNamespace"
     mock_theorem.scope = mock_scope
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = [mock_theorem]
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute
     context = querier.get_theorem_context("test.lean", theorem_name)
-    
+
     # Verify: Original proof extracted correctly
     assert context.original_proof == proof_text
 
@@ -281,24 +281,24 @@ def test_property_3_no_proof_value(theorem_name):
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = "MyNamespace"
     mock_theorem.scope = mock_scope
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = [mock_theorem]
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute
     context = querier.get_theorem_context("test.lean", theorem_name)
-    
+
     # Verify: Empty proof returned
     assert context.original_proof == ""
 
@@ -324,7 +324,7 @@ def test_property_3_in_scope_declarations(
     """
     # Setup: Create mock declarations
     mock_declarations = []
-    
+
     # Create the theorem declaration
     mock_theorem = Mock()
     mock_theorem.name = theorem_name
@@ -335,13 +335,13 @@ def test_property_3_in_scope_declarations(
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
     mock_theorem.namespace = namespace
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = namespace
     mock_theorem.scope = mock_scope
-    
+
     mock_declarations.append(mock_theorem)
-    
+
     # Add declarations in same namespace
     for i in range(num_same_namespace):
         mock_decl = Mock()
@@ -355,7 +355,7 @@ def test_property_3_in_scope_declarations(
         mock_decl.namespace = namespace
         mock_decl.scope = mock_scope
         mock_declarations.append(mock_decl)
-    
+
     # Add declarations in different namespace
     for i in range(num_different_namespace):
         mock_decl = Mock()
@@ -371,24 +371,24 @@ def test_property_3_in_scope_declarations(
         other_scope.curr_namespace = "OtherNamespace"
         mock_decl.scope = other_scope
         mock_declarations.append(mock_decl)
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = mock_declarations
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute
     context = querier.get_theorem_context("test.lean", theorem_name)
-    
+
     # Verify: In-scope declarations include same namespace declarations
     # (and the theorem itself)
     assert len(context.in_scope) >= num_same_namespace + 1
-    
+
     # Verify: Same namespace declarations are included
     for i in range(num_same_namespace):
         expected_name = f"{namespace}.same_ns_decl_{i}"
@@ -419,21 +419,21 @@ def test_property_3_theorem_not_found(theorem_name, invalid_theorem):
     mock_theorem.attributes = []
     mock_theorem.start_pos = Mock(line=1, column=0)
     mock_theorem.end_pos = Mock(line=2, column=0)
-    
+
     mock_scope = Mock()
     mock_scope.curr_namespace = "MyNamespace"
     mock_theorem.scope = mock_scope
-    
+
     # Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = [mock_theorem]
     mock_server.run.return_value = mock_response
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute & Verify: Searching for non-existent theorem raises ValueError
     if invalid_theorem != theorem_name:
         with pytest.raises(ValueError, match="Theorem not found"):

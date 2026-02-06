@@ -191,12 +191,14 @@ def create_app(cfg: Config) -> FastMCP:
         Args:
             file: Path to Lean file
             theorem_id: Theorem identifier to search
-            search_depth: Search depth preset - "quick", "normal", "deep", "exhaustive" (default: "normal")
+            search_depth: Search depth preset - "quick", "normal", "deep",
+                "exhaustive" (default: "normal")
             search_budget_s: Override search budget in seconds (optional)
             max_candidates: Override max candidates (optional)
             candidate_sources: List of candidate sources to use (optional)
             max_candidates_per_source: Max candidates per source (optional)
-            automation_mode: Automation mode - "aesop", "simp", "omega", "grind" (default: "aesop")
+            automation_mode: Automation mode - "aesop", "simp", "omega",
+                "grind" (default: "aesop")
             automation_secondary: Secondary automation for fallback (optional)
             search_strategy: Search strategy - "greedy", "beam", "exhaustive" (default: "greedy")
             beam_width: Beam width for beam search (default: 3)
@@ -217,7 +219,7 @@ def create_app(cfg: Config) -> FastMCP:
             Search result with outcome, hints, feedback, metadata, and optional trace
         """
         # Build args dict, filtering out None values
-        args_dict = {
+        args_dict: dict[str, int | float | str | bool | list | None] = {
             "file": file,
             "theorem_id": theorem_id,
             "search_depth": search_depth,

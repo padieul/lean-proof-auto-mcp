@@ -8,7 +8,6 @@ and has been manually verified to be correct.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 
 @dataclass(frozen=True)
@@ -19,8 +18,8 @@ class GroundTruthDeclaration:
     full_name: str
     type_signature: str
     has_proof: bool
-    proof_references: List[str]  # Lemmas/theorems used in proof
-    attributes: List[str]
+    proof_references: list[str]  # Lemmas/theorems used in proof
+    attributes: list[str]
     namespace: str
     line_number: int  # Approximate line number in file
 
@@ -30,7 +29,7 @@ class GroundTruthFile:
     """Ground truth for a complete file."""
 
     file_path: str
-    declarations: List[GroundTruthDeclaration]
+    declarations: list[GroundTruthDeclaration]
 
 
 # Ground truth for valid_theorem.lean
@@ -200,17 +199,15 @@ ALL_GROUND_TRUTH_FILES = [
 ]
 
 
-def get_ground_truth_for_file(file_path: str) -> Optional[GroundTruthFile]:
+def get_ground_truth_for_file(file_path: str) -> GroundTruthFile | None:
     """Get ground truth for a specific file."""
     for gt_file in ALL_GROUND_TRUTH_FILES:
-        if gt_file.file_path.endswith(file_path) or file_path.endswith(
-            gt_file.file_path
-        ):
+        if gt_file.file_path.endswith(file_path) or file_path.endswith(gt_file.file_path):
             return gt_file
     return None
 
 
-def get_all_ground_truth_declarations() -> List[GroundTruthDeclaration]:
+def get_all_ground_truth_declarations() -> list[GroundTruthDeclaration]:
     """Get all ground truth declarations across all files."""
     all_declarations = []
     for gt_file in ALL_GROUND_TRUTH_FILES:
@@ -226,10 +223,7 @@ def count_total_declarations() -> int:
 def count_declarations_with_proofs() -> int:
     """Count declarations that have proofs."""
     return sum(
-        1
-        for gt_file in ALL_GROUND_TRUTH_FILES
-        for decl in gt_file.declarations
-        if decl.has_proof
+        1 for gt_file in ALL_GROUND_TRUTH_FILES for decl in gt_file.declarations if decl.has_proof
     )
 
 

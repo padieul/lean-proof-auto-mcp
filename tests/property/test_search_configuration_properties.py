@@ -14,7 +14,6 @@ from hypothesis import given, settings
 
 from lean_proof_auto_mcp.core.search_orchestrator import SearchConfig
 
-
 # ============================================================================
 # Property 4: Search Depth Configuration Consistency
 # ============================================================================
@@ -24,7 +23,8 @@ from lean_proof_auto_mcp.core.search_orchestrator import SearchConfig
 @settings(max_examples=100)
 def test_property_4_depth_preset_parameters(depth):
     """
-    Feature: iterative-orchestration-enhancements, Property 4: Search Depth Configuration Consistency
+    Feature: iterative-orchestration-enhancements, Property 4: Search Depth
+    Configuration Consistency
 
     For any search_depth value (quick, normal, deep, exhaustive), the system SHALL
     apply the corresponding preset parameters (search_budget_s, max_candidates,
@@ -46,9 +46,9 @@ def test_property_4_depth_preset_parameters(depth):
         "exhaustive": (120.0, 200, 500, 120.0),
     }
 
-    expected_budget, expected_candidates, expected_steps, expected_min_budget = (
-        expected_presets[depth]
-    )
+    expected_budget, expected_candidates, expected_steps, expected_min_budget = expected_presets[
+        depth
+    ]
 
     assert config.search_budget_s == expected_budget
     assert config.max_candidates == expected_candidates
@@ -60,7 +60,8 @@ def test_property_4_depth_preset_parameters(depth):
 @settings(max_examples=100)
 def test_property_4_depth_preset_consistency(depth):
     """
-    Feature: iterative-orchestration-enhancements, Property 4: Search Depth Configuration Consistency
+    Feature: iterative-orchestration-enhancements, Property 4: Search Depth
+    Configuration Consistency
 
     For any search_depth value, creating config multiple times should produce
     consistent results.
@@ -86,7 +87,8 @@ def test_property_4_depth_preset_consistency(depth):
 @settings(max_examples=100)
 def test_property_4_parameter_override(depth, custom_budget):
     """
-    Feature: iterative-orchestration-enhancements, Property 4: Search Depth Configuration Consistency
+    Feature: iterative-orchestration-enhancements, Property 4: Search Depth
+    Configuration Consistency
 
     Individual parameter overrides should take precedence over presets.
 
@@ -132,7 +134,8 @@ def test_property_4_parameter_override(depth, custom_budget):
 @settings(max_examples=100)
 def test_property_4_depth_ordering(depth):
     """
-    Feature: iterative-orchestration-enhancements, Property 4: Search Depth Configuration Consistency
+    Feature: iterative-orchestration-enhancements, Property 4: Search Depth
+    Configuration Consistency
 
     Search depth presets should follow a consistent ordering:
     quick < normal < deep < exhaustive
@@ -165,7 +168,8 @@ def test_property_4_depth_ordering(depth):
 @settings(max_examples=100)
 def test_property_4_default_values(depth):
     """
-    Feature: iterative-orchestration-enhancements, Property 4: Search Depth Configuration Consistency
+    Feature: iterative-orchestration-enhancements, Property 4: Search Depth
+    Configuration Consistency
 
     All depth presets should have sensible default values for all parameters.
 
@@ -201,7 +205,8 @@ def test_property_4_default_values(depth):
 @settings(max_examples=100)
 def test_property_4_budget_relationships(depth):
     """
-    Feature: iterative-orchestration-enhancements, Property 4: Search Depth Configuration Consistency
+    Feature: iterative-orchestration-enhancements, Property 4: Search Depth
+    Configuration Consistency
 
     Budget parameters should have sensible relationships:
     - minimize_budget_s should be <= search_budget_s

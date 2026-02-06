@@ -74,7 +74,7 @@ class HeuristicClassifier:
         has_explicit_failure = self._has_explicit_failure(diagnostics)
         if has_explicit_failure:
             return "failed"
-        
+
         # Analyze diagnostics to determine if promising (Requirement 2.2, 2.3)
         subgoal_depth = self._estimate_subgoal_depth(diagnostics)
         if subgoal_depth <= 3:

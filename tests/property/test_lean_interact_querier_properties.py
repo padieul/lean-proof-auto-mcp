@@ -7,8 +7,6 @@ Each test runs a minimum of 100 iterations with randomized inputs.
 Requirements: 1.1, 1.2, 1.3
 """
 
-import tempfile
-from pathlib import Path
 from unittest.mock import Mock
 
 import hypothesis.strategies as st
@@ -29,7 +27,7 @@ def valid_declarations(draw):
     name = draw(st.text(min_size=1, max_size=50))
     full_name = draw(st.text(min_size=1, max_size=100))
     type_sig = draw(st.text(min_size=1, max_size=200))
-    
+
     # Generate optional value
     has_value = draw(st.booleans())
     value = None
@@ -43,7 +41,7 @@ def valid_declarations(draw):
             end_col=draw(st.integers(min_value=0, max_value=100)),
         )
         value = DeclValue(pp=pp, constants=constants, range=value_range)
-    
+
     attributes = draw(st.lists(st.text(min_size=1, max_size=20), max_size=10))
     decl_range = Range(
         start_line=draw(st.integers(min_value=1, max_value=1000)),
@@ -52,7 +50,7 @@ def valid_declarations(draw):
         end_col=draw(st.integers(min_value=0, max_value=100)),
     )
     namespace = draw(st.text(min_size=0, max_size=100))
-    
+
     return Declaration(
         name=name,
         full_name=full_name,
@@ -92,7 +90,7 @@ def test_property_1_complete_declaration_extraction(num_declarations):
         mock_decl.name = f"theorem_{i}"
         mock_decl.full_name = f"MyNamespace.theorem_{i}"
         mock_decl.type = f"Prop_{i}"
-        
+
         # Add value with constants
         mock_value = Mock()
         mock_value.pp = f"proof_text_{i}"
@@ -100,17 +98,17 @@ def test_property_1_complete_declaration_extraction(num_declarations):
         mock_value.start_pos = Mock(line=i, column=0)
         mock_value.end_pos = Mock(line=i + 1, column=0)
         mock_decl.value = mock_value
-        
+
         mock_decl.attributes = ["simp"] if i % 2 == 0 else []
         mock_decl.start_pos = Mock(line=i, column=0)
         mock_decl.end_pos = Mock(line=i + 1, column=0)
-        
+
         mock_scope = Mock()
         mock_scope.curr_namespace = "MyNamespace"
         mock_decl.scope = mock_scope
-        
+
         mock_declarations.append(mock_decl)
-    
+
     # Create querier with mocked ServerManager
     mock_server_manager = Mock()
     mock_server = Mock()
@@ -118,35 +116,35 @@ def test_property_1_complete_declaration_extraction(num_declarations):
     mock_response.declarations = mock_declarations
     mock_server.run.return_value = mock_response
     mock_server_manager.get_server.return_value = mock_server
-    
+
     querier = LeanInteractQuerierImpl(server_manager=mock_server_manager)
-    
+
     # Execute
     declarations = querier.extract_declarations("test.lean")
-    
+
     # Verify: All declarations extracted
     assert len(declarations) == num_declarations
-    
+
     # Verify: Each declaration has complete information
     for i, decl in enumerate(declarations):
         # Fully qualified name
         assert decl.full_name == f"MyNamespace.theorem_{i}"
-        
+
         # Type signature
         assert decl.type == f"Prop_{i}"
-        
+
         # Proof value with pp text and constants
         assert decl.value is not None
         assert decl.value.pp == f"proof_text_{i}"
         assert isinstance(decl.value.constants, list)
-        
+
         # Attributes
         assert isinstance(decl.attributes, list)
-        
+
         # Position range
         assert decl.range.start_line >= 0
         assert decl.range.end_line >= decl.range.start_line
-        
+
         # Namespace
         assert decl.namespace == "MyNamespace"
 
@@ -163,12 +161,12 @@ def test_property_1_declaration_immutability(decl):
     Validates: Requirements 1.1, 1.2
     """
     # Verify: Declaration is frozen
-    with pytest.raises(Exception):  # FrozenInstanceError or AttributeError
+    with pytest.raises((AttributeError, Exception)):
         decl.name = "modified"  # type: ignore[misc]
-    
+
     # Verify: DeclValue is frozen if present
     if decl.value is not None:
-        with pytest.raises(Exception):
+        with pytest.raises((AttributeError, Exception)):
             decl.value.pp = "modified"  # type: ignore[misc]
 
 
@@ -190,14 +188,14 @@ def test_property_1_decl_value_get_all_references(pp_text, constants):
     # Setup
     value_range = Range(start_line=1, start_col=0, end_line=2, end_col=0)
     decl_value = DeclValue(pp=pp_text, constants=constants, range=value_range)
-    
+
     # Execute
     references = decl_value.get_all_references()
-    
+
     # Verify: All constants are included
     for const in constants:
         assert const in references
-    
+
     # Verify: No duplicates (set conversion)
     assert len(references) == len(set(references))
 
@@ -225,7 +223,7 @@ def test_property_1_is_theorem_property(type_sig, has_theorem_keyword):
     # Setup: Inject keyword if needed
     if has_theorem_keyword:
         type_sig = f"theorem {type_sig}"
-    
+
     decl = Declaration(
         name="test",
         full_name="Test.test",
@@ -235,7 +233,7 @@ def test_property_1_is_theorem_property(type_sig, has_theorem_keyword):
         range=Range(1, 0, 2, 0),
         namespace="Test",
     )
-    
+
     # Execute & Verify
     expected = "theorem" in type_sig or "lemma" in type_sig
     assert decl.is_theorem == expected
@@ -261,7 +259,7 @@ def test_property_1_has_simp_attribute_property(attributes, has_simp):
         attributes = attributes + ["simp"]
     elif not has_simp and "simp" in attributes:
         attributes = [a for a in attributes if a != "simp"]
-    
+
     decl = Declaration(
         name="test",
         full_name="Test.test",
@@ -271,7 +269,7 @@ def test_property_1_has_simp_attribute_property(attributes, has_simp):
         range=Range(1, 0, 2, 0),
         namespace="Test",
     )
-    
+
     # Execute & Verify
     assert decl.has_simp_attribute == has_simp
 
@@ -293,16 +291,17 @@ def test_property_1_lean_interact_not_available():
     """
     # Setup: Create querier
     querier = LeanInteractQuerierImpl()
-    
+
     # Mock LeanInteract as unavailable
     import lean_proof_auto_mcp.lean.querier as querier_module
+
     original_available = querier_module.LEAN_INTERACT_AVAILABLE
     original_server = querier_module.LeanServer
-    
+
     try:
         querier_module.LEAN_INTERACT_AVAILABLE = False
         querier_module.LeanServer = None
-        
+
         # Execute & Verify
         with pytest.raises(RuntimeError, match="LeanInteract library not installed"):
             querier.extract_declarations("test.lean")
@@ -324,13 +323,14 @@ def test_property_1_lean_interact_error():
     """
     # Setup: Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     # Mock server that returns error
     mock_server = Mock()
-    
+
     # Import LeanError if available and create mock instance
     try:
         from lean_interact.interface import LeanError
+
         # LeanError is a Pydantic model, so we need to mock it properly
         mock_error = Mock(spec=LeanError)
         mock_error.__class__ = LeanError
@@ -340,9 +340,9 @@ def test_property_1_lean_interact_error():
         mock_error = Mock()
         mock_error.__class__.__name__ = "LeanError"
         mock_server.run.return_value = mock_error
-    
+
     querier._server_cache["test.lean"] = mock_server
-    
+
     # Execute & Verify
     with pytest.raises(RuntimeError, match="Failed to extract declarations"):
         querier.extract_declarations("test.lean")
@@ -370,26 +370,25 @@ def test_property_1_server_reuse(file_path, num_calls):
     """
     # Setup: Create querier with mocked server
     querier = LeanInteractQuerierImpl()
-    
+
     mock_server = Mock()
     mock_response = Mock()
     mock_response.declarations = []
     mock_server.run.return_value = mock_response
-    
+
     # Mock server creation
-    original_get_or_create = querier._get_or_create_server
-    
+
     def mock_get_or_create(fp):
         if fp not in querier._server_cache:
             querier._server_cache[fp] = mock_server
         return querier._server_cache[fp]
-    
+
     querier._get_or_create_server = mock_get_or_create  # type: ignore[method-assign]
-    
+
     # Execute: Call multiple times
     for _ in range(num_calls):
         querier.extract_declarations(file_path)
-    
+
     # Verify: Server was reused (only one instance in cache)
     assert len(querier._server_cache) == 1
     assert file_path in querier._server_cache
@@ -411,20 +410,20 @@ def test_property_1_cleanup_closes_servers():
     """
     # Setup: Create querier with multiple cached servers
     querier = LeanInteractQuerierImpl()
-    
+
     mock_servers = []
     for i in range(3):
         mock_server = Mock()
         mock_server.kill = Mock()
         querier._server_cache[f"file_{i}.lean"] = mock_server
         mock_servers.append(mock_server)
-    
+
     # Execute
     querier.close()
-    
+
     # Verify: All servers were killed
     for mock_server in mock_servers:
         mock_server.kill.assert_called_once()
-    
+
     # Verify: Cache was cleared
     assert len(querier._server_cache) == 0

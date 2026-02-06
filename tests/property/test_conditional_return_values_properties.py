@@ -13,7 +13,6 @@ import hypothesis.strategies as st
 from hypothesis import given, settings
 
 from lean_proof_auto_mcp.core.feedback_builder import (
-    FeedbackBuilder,
     PartialProgress,
     SearchFeedback,
     Suggestion,
@@ -21,7 +20,6 @@ from lean_proof_auto_mcp.core.feedback_builder import (
 from lean_proof_auto_mcp.core.search_automated_proof_domain import Candidate, SearchResult
 from lean_proof_auto_mcp.core.search_orchestrator import SearchConfig, SearchResultEnhanced
 from lean_proof_auto_mcp.lean.ports import ProofState
-
 
 # ============================================================================
 # Test Helpers

@@ -7,8 +7,9 @@ and LeanInteract server instances.
 Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 10.6, 28.4
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from lean_proof_auto_mcp.lean.querier import LeanInteractQuerierImpl
 from lean_proof_auto_mcp.lean.server_manager import ServerManagerImpl
@@ -27,9 +28,10 @@ class TestLeanInteractIntegration:
     @pytest.fixture
     def querier(self):
         """Create a LeanInteractQuerier instance."""
-        from lean_proof_auto_mcp.lean.server_manager import ServerManagerImpl
         from pathlib import Path
-        
+
+        from lean_proof_auto_mcp.lean.server_manager import ServerManagerImpl
+
         server_manager = ServerManagerImpl(workspace_path=Path.cwd())
         querier = LeanInteractQuerierImpl(server_manager=server_manager)
         yield querier
@@ -97,7 +99,7 @@ class TestLeanInteractIntegration:
         # Assert
         assert context.theorem_statement, "Should have theorem statement"
         # theorem_statement is a DeclType object with pp field
-        assert hasattr(context.theorem_statement, 'pp'), "Statement should have pp field"
+        assert hasattr(context.theorem_statement, "pp"), "Statement should have pp field"
         assert context.original_proof, "Should have original proof"
         assert context.namespace is not None, "Should have namespace"
         assert isinstance(context.in_scope, list), "In-scope should be a list"

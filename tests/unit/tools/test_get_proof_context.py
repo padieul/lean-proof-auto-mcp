@@ -6,12 +6,12 @@ Requirements: 8.2, 8.3, 8.4, 8.5, 8.6
 
 import pytest
 
+from lean_proof_auto_mcp.core.context_extractor import ProofContext, SimilarProof
 from lean_proof_auto_mcp.tools.get_proof_context import (
     _build_error_response,
     _format_response,
     _validate_args,
 )
-from lean_proof_auto_mcp.core.context_extractor import ProofContext, SimilarProof
 
 
 class TestValidateArgs:
@@ -24,9 +24,7 @@ class TestValidateArgs:
             "theorem_id": "MyTheorem",
         }
 
-        file_path, theorem_id, include_similar, similarity_threshold, run_id = (
-            _validate_args(args)
-        )
+        file_path, theorem_id, include_similar, similarity_threshold, run_id = _validate_args(args)
 
         assert file_path == "test.lean"
         assert theorem_id == "MyTheorem"
@@ -43,9 +41,7 @@ class TestValidateArgs:
             "similarity_threshold": 0.8,
         }
 
-        file_path, theorem_id, include_similar, similarity_threshold, run_id = (
-            _validate_args(args)
-        )
+        file_path, theorem_id, include_similar, similarity_threshold, run_id = _validate_args(args)
 
         assert file_path == "path/to/file.lean"
         assert theorem_id == "MyTheorem.proof"
@@ -142,9 +138,7 @@ class TestValidateArgs:
             "similarity_threshold": -0.1,
         }
 
-        with pytest.raises(
-            ValueError, match="'similarity_threshold' must be between 0.0 and 1.0"
-        ):
+        with pytest.raises(ValueError, match="'similarity_threshold' must be between 0.0 and 1.0"):
             _validate_args(args)
 
     def test_similarity_threshold_above_one_raises_error(self):
@@ -155,9 +149,7 @@ class TestValidateArgs:
             "similarity_threshold": 1.5,
         }
 
-        with pytest.raises(
-            ValueError, match="'similarity_threshold' must be between 0.0 and 1.0"
-        ):
+        with pytest.raises(ValueError, match="'similarity_threshold' must be between 0.0 and 1.0"):
             _validate_args(args)
 
 

@@ -8,16 +8,23 @@ declarations, original proof references) and ranks them for search priority.
 This refactored version uses LeanInteractQuerier for accurate hint extraction
 instead of regex-based parsing, achieving 95%+ accuracy.
 
-Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 12.1, 12.2, 12.3, 12.4, 5.2, 5.3, 5.4, 5.5
+Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 12.1, 12.2, 12.3,
+12.4, 5.2, 5.3, 5.4, 5.5
 """
 
 import logging
 import re
 from pathlib import Path
 
-from ..lean.ports import Declaration, LeanInteractQuerier, ProofState, ProofStateInspector
+from ..lean.ports import Declaration, LeanInteractQuerier, ProofStateInspector
 from .indexer import FileIndex, TheoremDecl
-from .search_automated_proof_domain import Candidate, CandidateConfig, CandidateSource, Hint, HintType
+from .search_automated_proof_domain import (
+    Candidate,
+    CandidateConfig,
+    CandidateSource,
+    Hint,
+    HintType,
+)
 from .source import SourceText
 
 logger = logging.getLogger(__name__)
@@ -171,7 +178,9 @@ class CandidateGenerator:
                 # Base rank for goal symbols
                 rank = 5.0
 
-                candidate = Candidate(hint=hint, rank=rank, metadata={"extracted_from": "goal_type"})
+                candidate = Candidate(
+                    hint=hint, rank=rank, metadata={"extracted_from": "goal_type"}
+                )
                 candidates.append(candidate)
 
         except Exception as e:
@@ -218,9 +227,7 @@ class CandidateGenerator:
                     # Extract type constructors from hypotheses
                     for hypothesis in proof_state.hypotheses:
                         # Extract identifiers from hypothesis
-                        identifier_pattern = (
-                            r"\b([A-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)*)\b"
-                        )
+                        identifier_pattern = r"\b([A-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z][a-zA-Z0-9_]*)*)\b"
                         identifiers = re.findall(identifier_pattern, hypothesis)
 
                         for identifier in identifiers:
@@ -464,7 +471,7 @@ class CandidateGenerator:
             for identifier in references:
                 # Find declaration for this identifier
                 decl = self._find_declaration(identifier, declarations)
-                
+
                 # Requirement 2.3: Validate all references against declaration list
                 # Only include references that exist in the file's declarations
                 if decl is None:
@@ -472,7 +479,7 @@ class CandidateGenerator:
                     # This filters out invalid references and ensures accuracy
                     logger.debug(f"Skipping reference '{identifier}' - not found in declarations")
                     continue
-                
+
                 hint_type = self._infer_hint_type_from_declaration(decl, config)
 
                 if hint_type is None:
@@ -576,7 +583,9 @@ class CandidateGenerator:
         # Default to ADD_SAFE for other lemmas
         return HintType.ADD_SAFE
 
-    def _infer_hint_type_from_name(self, identifier: str, config: CandidateConfig) -> HintType | None:
+    def _infer_hint_type_from_name(
+        self, identifier: str, config: CandidateConfig
+    ) -> HintType | None:
         """
         Infer hint type from identifier name (fallback when declaration not available).
 

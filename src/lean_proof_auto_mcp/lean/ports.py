@@ -14,7 +14,10 @@ Requirements: 9.1, 9.2, 9.3, 9.5
 """
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from .server_manager import ServerManagerImpl as _ServerManager
 
 
 @dataclass(frozen=True)
@@ -191,6 +194,11 @@ class LeanInteractQuerier(Protocol):
 
     Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4
     """
+
+    @property
+    def server_manager(self) -> "_ServerManager":
+        """Get the server manager instance."""
+        ...
 
     def extract_declarations(self, file_path: str) -> list[Declaration]:
         """

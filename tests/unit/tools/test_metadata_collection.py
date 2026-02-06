@@ -10,7 +10,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from lean_proof_auto_mcp.core.feedback_builder import FeedbackBuilder
 from lean_proof_auto_mcp.core.search_orchestrator import SearchOrchestrator
 from lean_proof_auto_mcp.observability.ports import MetadataCollector
 
@@ -100,7 +99,7 @@ class TestSearchAutomatedProofMetadata:
 
         # Verify format matches existing tools
         assert isinstance(metadata, dict)
-        assert all(isinstance(k, str) for k in metadata.keys())
+        assert all(isinstance(k, str) for k in metadata)
         assert all(isinstance(v, str) for v in metadata.values())
 
         # Verify expected keys (optional - tools may have different keys)
@@ -193,7 +192,7 @@ class TestMetadataConsistency:
         metadata = orchestrator._build_metadata()
 
         # All keys should be strings
-        assert all(isinstance(k, str) for k in metadata.keys())
+        assert all(isinstance(k, str) for k in metadata)
         # All values should be strings
         assert all(isinstance(v, str) for v in metadata.values())
 

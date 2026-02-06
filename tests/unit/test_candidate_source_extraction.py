@@ -8,8 +8,6 @@ methods correctly.
 Requirements: 25.3, 5.2, 5.3, 5.4, 5.5, 12.1, 12.2
 """
 
-import pytest
-
 from lean_proof_auto_mcp.core.candidate_generator import CandidateGenerator
 from lean_proof_auto_mcp.core.indexer import build_index
 from lean_proof_auto_mcp.core.search_automated_proof_domain import (
@@ -255,9 +253,7 @@ end Test
                 allow_unfold_hints=True,
             )
 
-            candidates = generator.generate(
-                theorem_decl, [CandidateSource.SAME_NAMESPACE], config
-            )
+            candidates = generator.generate(theorem_decl, [CandidateSource.SAME_NAMESPACE], config)
 
             # Verify candidates were extracted
             assert isinstance(candidates, list)
@@ -317,9 +313,7 @@ end Other
                 allow_unfold_hints=True,
             )
 
-            candidates = generator.generate(
-                theorem_decl, [CandidateSource.SAME_NAMESPACE], config
-            )
+            candidates = generator.generate(theorem_decl, [CandidateSource.SAME_NAMESPACE], config)
 
             # Verify no candidates from Other namespace
             candidate_names = {c.hint.name for c in candidates}
@@ -400,7 +394,7 @@ theorem test_theorem (n : Nat) : Nat.add n 0 = n := by
 
     def test_extracts_all_references_from_value_constants(self):
         """Test that original_proof_refs extracts all references from value.constants.
-        
+
         Note: Validation of references happens at the search/validation layer,
         not during candidate generation. The generator extracts all references
         from value.constants as provided by LeanInteract.

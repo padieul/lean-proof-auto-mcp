@@ -237,9 +237,7 @@ class ContextExtractor:
 
         return similar_proofs
 
-    def _compute_similarity(
-        self, theorem_context: TheoremContext, candidate: Declaration
-    ) -> float:
+    def _compute_similarity(self, theorem_context: TheoremContext, candidate: Declaration) -> float:
         """
         Compute similarity score between theorem and candidate.
 
@@ -262,9 +260,9 @@ class ContextExtractor:
         # Namespace similarity (0.3 weight)
         if candidate.namespace == theorem_context.namespace:
             score += 0.3
-        elif candidate.namespace.startswith(theorem_context.namespace + "."):
-            score += 0.15
-        elif theorem_context.namespace.startswith(candidate.namespace + "."):
+        elif candidate.namespace.startswith(
+            theorem_context.namespace + "."
+        ) or theorem_context.namespace.startswith(candidate.namespace + "."):
             score += 0.15
 
         # Type signature similarity (0.4 weight)

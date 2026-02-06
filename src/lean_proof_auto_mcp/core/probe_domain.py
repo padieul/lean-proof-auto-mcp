@@ -291,7 +291,7 @@ class ProbeCommandHandler:
 
     This handler implements the core probe workflow following hexagonal
     architecture principles. It depends only on abstract ports (LeanRunner,
-    WorkspaceProvider, AutomationClassifier, HarnessConstructor) and contains 
+    WorkspaceProvider, AutomationClassifier, HarnessConstructor) and contains
     no infrastructure logic.
 
     The workflow:
@@ -704,29 +704,27 @@ class ProbeCommandHandler:
         """
         # Always use ImportBasedHarnessConstructor with workspace context
         # This ensures correct import path resolution
+        from ..lean.querier import LeanInteractQuerierImpl
+        from ..lean.server_manager import ServerManagerImpl
         from .harness_construction import (
             HarnessConfig,
             HarnessError,
-            HarnessSuccess,
             ImportBasedHarnessConstructor,
             LeanInteractTheoremTypeExtractor,
             StandardImportPathConverter,
         )
-        from ..lean.querier import LeanInteractQuerierImpl
-        from ..lean.server_manager import ServerManagerImpl
-        
+
         # Create ServerManager with workspace context
         server_manager = ServerManagerImpl(workspace_path=workspace_path)
-        
+
         # Build HarnessConstructor with workspace context
         querier = LeanInteractQuerierImpl(server_manager=server_manager)
         type_extractor = LeanInteractTheoremTypeExtractor(querier)
         path_converter = StandardImportPathConverter()
         harness_constructor = ImportBasedHarnessConstructor(
-            type_extractor=type_extractor,
-            path_converter=path_converter
+            type_extractor=type_extractor, path_converter=path_converter
         )
-        
+
         # Convert absolute file_path to relative path from project root
         # The workspace is a copy of the project, so we need the relative path
         file_path_obj = Path(cmd.file_path)
@@ -745,17 +743,17 @@ class ProbeCommandHandler:
                 file_path_for_harness = cmd.file_path
         else:
             file_path_for_harness = cmd.file_path
-        
+
         # For type extraction, we need to find the file in the workspace
         # The workspace_path is the Lean project root (where lakefile is)
         # We need to find where the file is relative to that workspace
-        # 
+        #
         # Strategy: Look for the file in the workspace by checking if it exists
         # at workspace_path / file_path_for_harness
         file_in_workspace = workspace_path / file_path_for_harness
         if file_in_workspace.exists():
             # File exists at this location, use relative path for extraction
-            file_path_for_extraction = file_path_for_harness
+            pass
         else:
             # File doesn't exist there, try to find it
             # Maybe the workspace is at a different level
@@ -768,52 +766,52 @@ class ProbeCommandHandler:
                     relative_from_capital = Path(*parts[i:])
                     candidate = workspace_path / relative_from_capital
                     if candidate.exists():
-                        file_path_for_extraction = str(relative_from_capital)
+                        str(relative_from_capital)
                         file_path_for_harness = str(relative_from_capital)
                         break
             else:
                 # Fallback: use the relative path as-is
-                file_path_for_extraction = file_path_for_harness
-        
+                pass
+
         # Determine additional imports based on mode
         additional_imports = []
         if cmd.mode in ("aesop", "aesop?"):
             additional_imports.append("import Aesop")
-        
+
         # Use ImportBasedHarnessConstructor to build the harness properly
         config = HarnessConfig(
             theorem_id=cmd.theorem_id,
             file_path=file_path_for_harness,
             proof_attempt=cmd.mode,
-            additional_imports=additional_imports
+            additional_imports=additional_imports,
         )
-        
+
         result = harness_constructor.construct(config)
-        
+
         # Check if construction was successful
         if isinstance(result, HarnessError):
             raise ValueError(f"Harness construction failed: {result.message}")
-        
+
         harness_content = result.code
-        
+
         # Add trace configuration if requested
         if cmd.trace_config:
             # Insert trace options after imports
-            lines = harness_content.split('\n')
+            lines = harness_content.split("\n")
             import_end = 0
             for i, line in enumerate(lines):
                 if line.strip() and not line.strip().startswith("import"):
                     import_end = i
                     break
-            
+
             trace_lines = []
             for key, value in cmd.trace_config.items():
                 trace_lines.append(f"set_option {key} {str(value).lower()}")
-            
+
             # Insert trace options after imports
             lines = lines[:import_end] + trace_lines + [""] + lines[import_end:]
             harness_content = "\n".join(lines)
-        
+
         return harness_content
 
     def _find_project_root(self, file_path: Path) -> Path | None:
@@ -1290,9 +1288,7 @@ class ProbeFileCommandHandler:
             if workspace:
                 with contextlib.suppress(Exception):
                     self.probe_handler.workspace_provider.cleanup_workspace(workspace)
-            return self._build_error_result(
-                cmd, f"Failed to create workspace: {e}", start_time
-            )
+            return self._build_error_result(cmd, f"Failed to create workspace: {e}", start_time)
 
         try:
             # 3. Probe each theorem (reuse server for all theorems)

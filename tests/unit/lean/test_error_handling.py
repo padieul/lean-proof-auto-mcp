@@ -7,7 +7,7 @@ timeout handling, and invalid input handling across the adapter layer.
 Requirements: 11.1, 11.2, 11.3
 """
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -82,7 +82,7 @@ class TestProofValidatorErrorHandling:
         # Arrange
         mock_server = Mock()
         mock_server.run.side_effect = TimeoutError("Validation timed out")
-        
+
         # Patch Command to avoid validation errors
         with patch("lean_proof_auto_mcp.lean.validator.Command"):
             validator = ProofValidatorImpl(server=mock_server)
@@ -115,8 +115,10 @@ class TestProofValidatorErrorHandling:
         mock_server.run.return_value = mock_lean_error
 
         # Patch both LeanError and Command
-        with patch("lean_proof_auto_mcp.lean.validator.LeanError", type(mock_lean_error)), \
-             patch("lean_proof_auto_mcp.lean.validator.Command"):
+        with (
+            patch("lean_proof_auto_mcp.lean.validator.LeanError", type(mock_lean_error)),
+            patch("lean_proof_auto_mcp.lean.validator.Command"),
+        ):
             validator = ProofValidatorImpl(server=mock_server)
 
             # Act
@@ -144,8 +146,10 @@ class TestProofValidatorErrorHandling:
         mock_server.run.return_value = mock_lean_error
 
         # Patch both LeanError and Command
-        with patch("lean_proof_auto_mcp.lean.validator.LeanError", type(mock_lean_error)), \
-             patch("lean_proof_auto_mcp.lean.validator.Command"):
+        with (
+            patch("lean_proof_auto_mcp.lean.validator.LeanError", type(mock_lean_error)),
+            patch("lean_proof_auto_mcp.lean.validator.Command"),
+        ):
             validator = ProofValidatorImpl(server=mock_server)
 
             # Act
@@ -169,7 +173,7 @@ class TestProofValidatorErrorHandling:
         # Arrange
         mock_server = Mock()
         mock_server.run.side_effect = RuntimeError("Unexpected server crash")
-        
+
         # Patch Command to avoid validation errors
         with patch("lean_proof_auto_mcp.lean.validator.Command"):
             validator = ProofValidatorImpl(server=mock_server)
@@ -284,10 +288,11 @@ class TestProofStateInspectorErrorHandling:
         )
 
         # Patch LEAN_INTERACT_AVAILABLE to False
-        with patch("lean_proof_auto_mcp.lean.proof_state.LEAN_INTERACT_AVAILABLE", False):
-            # Act & Assert
-            with pytest.raises(RuntimeError, match="LeanInteract library not installed"):
-                inspector.get_initial_proof_state(theorem)
+        with (
+            patch("lean_proof_auto_mcp.lean.proof_state.LEAN_INTERACT_AVAILABLE", False),
+            pytest.raises(RuntimeError, match="LeanInteract library not installed"),
+        ):
+            inspector.get_initial_proof_state(theorem)
 
     def test_get_initial_proof_state_without_server(self):
         """
@@ -324,8 +329,10 @@ class TestProofStateInspectorErrorHandling:
         mock_server.run.return_value = mock_lean_error
 
         # Patch both LeanError and Command
-        with patch("lean_proof_auto_mcp.lean.proof_state.LeanError", type(mock_lean_error)), \
-             patch("lean_proof_auto_mcp.lean.proof_state.Command"):
+        with (
+            patch("lean_proof_auto_mcp.lean.proof_state.LeanError", type(mock_lean_error)),
+            patch("lean_proof_auto_mcp.lean.proof_state.Command"),
+        ):
             inspector = ProofStateInspectorImpl(server=mock_server)
             theorem = Declaration(
                 name="test_theorem",
@@ -375,10 +382,11 @@ class TestProofStateInspectorErrorHandling:
         inspector = ProofStateInspectorImpl(server=None)
 
         # Patch LEAN_INTERACT_AVAILABLE to False
-        with patch("lean_proof_auto_mcp.lean.proof_state.LEAN_INTERACT_AVAILABLE", False):
-            # Act & Assert
-            with pytest.raises(RuntimeError, match="LeanInteract library not installed"):
-                inspector.apply_tactic(proof_state_id=1, tactic="trivial")
+        with (
+            patch("lean_proof_auto_mcp.lean.proof_state.LEAN_INTERACT_AVAILABLE", False),
+            pytest.raises(RuntimeError, match="LeanInteract library not installed"),
+        ):
+            inspector.apply_tactic(proof_state_id=1, tactic="trivial")
 
     def test_apply_tactic_without_server(self):
         """
@@ -454,10 +462,11 @@ class TestServerManagerErrorHandling:
         manager = ServerManagerImpl()
 
         # Patch LEAN_INTERACT_AVAILABLE to False
-        with patch("lean_proof_auto_mcp.lean.server_manager.LEAN_INTERACT_AVAILABLE", False):
-            # Act & Assert
-            with pytest.raises(RuntimeError, match="LeanInteract library not installed"):
-                manager.get_server("/path/to/file.lean")
+        with (
+            patch("lean_proof_auto_mcp.lean.server_manager.LEAN_INTERACT_AVAILABLE", False),
+            pytest.raises(RuntimeError, match="LeanInteract library not installed"),
+        ):
+            manager.get_server("/path/to/file.lean")
 
     def test_get_server_with_creation_failure(self):
         """
@@ -562,8 +571,10 @@ class TestServerManagerErrorHandling:
         manager._servers["/path/to/file.lean"] = mock_dead_server
 
         # Patch LeanServer and LeanREPLConfig to create new server
-        with patch("lean_proof_auto_mcp.lean.server_manager.LeanServer") as mock_lean_server, \
-             patch("lean_proof_auto_mcp.lean.server_manager.LeanREPLConfig"):
+        with (
+            patch("lean_proof_auto_mcp.lean.server_manager.LeanServer") as mock_lean_server,
+            patch("lean_proof_auto_mcp.lean.server_manager.LeanREPLConfig"),
+        ):
             mock_new_server = Mock()
             mock_new_server.run = Mock()
             mock_new_server.kill = Mock()

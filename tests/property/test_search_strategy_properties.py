@@ -14,7 +14,6 @@ from hypothesis import given, settings
 
 from lean_proof_auto_mcp.core.search_orchestrator import SearchConfig
 
-
 # ============================================================================
 # Property 10: Search Strategy Behavior Consistency
 # ============================================================================

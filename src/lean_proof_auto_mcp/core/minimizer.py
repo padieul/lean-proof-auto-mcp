@@ -9,7 +9,7 @@ Requirements: 5.1, 5.2, 5.3, 5.5, 5.6
 
 from collections.abc import Callable
 
-from lean_proof_auto_mcp.core.search_annotations_domain import (
+from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     ExecutionOutcome,
     HintSet,
 )

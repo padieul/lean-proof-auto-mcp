@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from ..observability.ports import MetadataCollector
+    from .harness_construction import HarnessConstructor
 
 logger = logging.getLogger(__name__)
 
@@ -290,12 +291,13 @@ class ProbeCommandHandler:
 
     This handler implements the core probe workflow following hexagonal
     architecture principles. It depends only on abstract ports (LeanRunner,
-    WorkspaceProvider, AutomationClassifier) and contains no infrastructure logic.
+    WorkspaceProvider, AutomationClassifier, HarnessConstructor) and contains
+    no infrastructure logic.
 
     The workflow:
     1. Generate unique run_id
     2. Create isolated workspace
-    3. Construct automation harness
+    3. Construct automation harness (via HarnessConstructor)
     4. Run Lean with automation tactic
     5. Parse and classify outcome
     6. Build structured result
@@ -309,6 +311,7 @@ class ProbeCommandHandler:
         lean_runner: "LeanRunner",
         workspace_provider: "WorkspaceProvider",
         classifier: AutomationClassifier,
+        harness_constructor: "HarnessConstructor | None" = None,
         artifact_store: ArtifactStore | None = None,
         metadata_collector: "MetadataCollector | None" = None,
     ):
@@ -319,6 +322,7 @@ class ProbeCommandHandler:
             lean_runner: Port for running Lean verification
             workspace_provider: Port for workspace isolation
             classifier: Port for classifying automation outcomes
+            harness_constructor: Optional port for constructing test harnesses
             artifact_store: Optional port for artifact storage
             metadata_collector: Optional port for collecting environment metadata
 
@@ -327,6 +331,7 @@ class ProbeCommandHandler:
         self.lean_runner = lean_runner
         self.workspace_provider = workspace_provider
         self.classifier = classifier
+        self.harness_constructor = harness_constructor
         self.artifact_store = artifact_store
         self.metadata_collector = metadata_collector
 
@@ -680,21 +685,10 @@ class ProbeCommandHandler:
 
     def _construct_harness(self, cmd: ProbeCommand, workspace_path: Path) -> str:
         """
-        Build automation test harness.
+        Build automation test harness using ImportBasedHarnessConstructor.
 
-        The harness imports the original file, extracts the theorem signature,
-        and replaces the proof with the automation tactic.
-
-        Format:
-        ```lean
-        import <original_file>
-
-        -- Optional trace configuration
-        set_option trace.aesop true
-
-        theorem <theorem_name> : <theorem_type> := by
-          <automation_tactic>
-        ```
+        This method creates a HarnessConstructor with the workspace context
+        to ensure correct import path resolution.
 
         Args:
             cmd: Probe command with file, theorem, mode
@@ -708,109 +702,141 @@ class ProbeCommandHandler:
 
         Requirements: 1.2, 3.2
         """
-        # Read the original file
-        file_path = workspace_path / cmd.file_path
-        if not file_path.exists():
-            raise ValueError(f"File not found: {cmd.file_path}")
+        # Always use ImportBasedHarnessConstructor with workspace context
+        # This ensures correct import path resolution
+        from ..lean.querier import LeanInteractQuerierImpl
+        from ..lean.server_manager import ServerManagerImpl
+        from .harness_construction import (
+            HarnessConfig,
+            HarnessError,
+            ImportBasedHarnessConstructor,
+            LeanInteractTheoremTypeExtractor,
+            StandardImportPathConverter,
+        )
 
-        # Use indexer to find theorem (single source of truth)
-        from .indexer import build_index, find_by_id
-        from .source import SourceText
+        # Create ServerManager with workspace context
+        server_manager = ServerManagerImpl(workspace_path=workspace_path)
 
-        with open(file_path, encoding="utf-8") as f:
-            content = f.read()
+        # Build HarnessConstructor with workspace context
+        querier = LeanInteractQuerierImpl(server_manager=server_manager)
+        type_extractor = LeanInteractTheoremTypeExtractor(querier)
+        path_converter = StandardImportPathConverter()
+        harness_constructor = ImportBasedHarnessConstructor(
+            type_extractor=type_extractor, path_converter=path_converter
+        )
 
-        source = SourceText(path=cmd.file_path, text=content)
-
-        # Check if we have a cached index for this file
-        # Cache key is (file_path, content_hash)
-        import hashlib
-
-        content_hash = hashlib.md5(content.encode()).hexdigest()
-        cache_key = (cmd.file_path, content_hash)
-
-        # Use instance-level cache (will be shared across probes in same handler instance)
-        if not hasattr(self, "_index_cache"):
-            from .indexer import FileIndex
-
-            self._index_cache: dict[tuple[str, str], FileIndex] = {}
-
-        if cache_key in self._index_cache:
-            index = self._index_cache[cache_key]
-        else:
-            index = build_index(source)
-            self._index_cache[cache_key] = index
-            # Limit cache size to prevent memory issues
-            if len(self._index_cache) > 10:
-                # Remove oldest entry
-                self._index_cache.pop(next(iter(self._index_cache)))
-
-        theorem_decl = find_by_id(index, cmd.theorem_id)
-
-        if theorem_decl is None:
-            raise ValueError(f"Theorem '{cmd.theorem_id}' not found in {cmd.file_path}")
-
-        # Extract theorem signature from the found location
-        # The indexer gives us the exact location, so we can extract precisely
-        lines = content.splitlines()
-
-        # Get the declaration span (includes signature)
-        decl_start_line = theorem_decl.decl_span.start_line - 1  # Convert to 0-indexed
-        decl_end_line = theorem_decl.decl_span.end_line - 1
-
-        # Find the ":=" that marks the end of the signature
-        signature_lines = []
-        found_assignment = False
-
-        for line_idx in range(decl_start_line, min(decl_end_line + 1, len(lines))):
-            line = lines[line_idx]
-
-            # Check if this line contains ":="
-            if ":=" in line:
-                # Take everything before ":="
-                before_assignment = line.split(":=")[0]
-                signature_lines.append(before_assignment)
-                found_assignment = True
-                break
+        # Convert absolute file_path to relative path from project root
+        # The workspace is a copy of the project, so we need the relative path
+        file_path_obj = Path(cmd.file_path)
+        if file_path_obj.is_absolute():
+            # Find the project root by looking for lakefile.toml or lakefile.lean
+            project_root = self._find_project_root(file_path_obj)
+            if project_root:
+                try:
+                    relative_path = file_path_obj.relative_to(project_root)
+                    file_path_for_harness = str(relative_path)
+                except ValueError:
+                    # Fallback: use the original path
+                    file_path_for_harness = cmd.file_path
             else:
-                signature_lines.append(line)
+                # No project root found, use original path
+                file_path_for_harness = cmd.file_path
+        else:
+            file_path_for_harness = cmd.file_path
 
-        if not found_assignment:
-            raise ValueError(f"Theorem '{cmd.theorem_id}' has no proof body (no ':=' found)")
-
-        theorem_signature = "\n".join(signature_lines).strip()
-
-        # Build harness
-        # For standalone theorems (test fixtures), we don't need imports
-        # For real projects with Lake, we need to import the original file
-
-        # Build standalone harness (no imports)
-        # The harness should NOT import the original file because that would
-        # cause "already declared" errors. Instead, we write a standalone
-        # theorem with just the signature and automation tactic.
+        # For type extraction, we need to find the file in the workspace
+        # The workspace_path is the Lean project root (where lakefile is)
+        # We need to find where the file is relative to that workspace
         #
-        # For theorems that depend on definitions from the file, this won't work.
-        # In that case, we'd need to import only the dependencies (not the file itself).
-        # For now, we focus on simple theorems that don't need external dependencies.
+        # Strategy: Look for the file in the workspace by checking if it exists
+        # at workspace_path / file_path_for_harness
+        file_in_workspace = workspace_path / file_path_for_harness
+        if file_in_workspace.exists():
+            # File exists at this location, use relative path for extraction
+            pass
+        else:
+            # File doesn't exist there, try to find it
+            # Maybe the workspace is at a different level
+            # Try using just the filename parts after "Fixtures" or other capital letter
+            parts = Path(file_path_for_harness).parts
+            # Find first capitalized part (likely the module root)
+            for i, part in enumerate(parts):
+                if part and part[0].isupper():
+                    # Try from this part onwards
+                    relative_from_capital = Path(*parts[i:])
+                    candidate = workspace_path / relative_from_capital
+                    if candidate.exists():
+                        str(relative_from_capital)
+                        file_path_for_harness = str(relative_from_capital)
+                        break
+            else:
+                # Fallback: use the relative path as-is
+                pass
 
-        harness_lines = []
-
-        # Import Aesop if using aesop mode (needed for the tactic)
+        # Determine additional imports based on mode
+        additional_imports = []
         if cmd.mode in ("aesop", "aesop?"):
-            harness_lines.append("import Aesop")
-            harness_lines.append("")
+            additional_imports.append("import Aesop")
+
+        # Use ImportBasedHarnessConstructor to build the harness properly
+        config = HarnessConfig(
+            theorem_id=cmd.theorem_id,
+            file_path=file_path_for_harness,
+            proof_attempt=cmd.mode,
+            additional_imports=additional_imports,
+        )
+
+        result = harness_constructor.construct(config)
+
+        # Check if construction was successful
+        if isinstance(result, HarnessError):
+            raise ValueError(f"Harness construction failed: {result.message}")
+
+        harness_content = result.code
 
         # Add trace configuration if requested
         if cmd.trace_config:
+            # Insert trace options after imports
+            lines = harness_content.split("\n")
+            import_end = 0
+            for i, line in enumerate(lines):
+                if line.strip() and not line.strip().startswith("import"):
+                    import_end = i
+                    break
+
+            trace_lines = []
             for key, value in cmd.trace_config.items():
-                harness_lines.append(f"set_option {key} {str(value).lower()}")
-            harness_lines.append("")
+                trace_lines.append(f"set_option {key} {str(value).lower()}")
 
-        # Add theorem with automation tactic
-        harness_lines.append(f"{theorem_signature} := by")
-        harness_lines.append(f"  {cmd.mode}")
+            # Insert trace options after imports
+            lines = lines[:import_end] + trace_lines + [""] + lines[import_end:]
+            harness_content = "\n".join(lines)
 
-        return "\n".join(harness_lines)
+        return harness_content
+
+    def _find_project_root(self, file_path: Path) -> Path | None:
+        """
+        Find the Lean project root by looking for lakefile.toml or lakefile.lean.
+
+        Args:
+            file_path: Path to a file in the project
+
+        Returns:
+            Path to project root, or None if not found
+        """
+        current = file_path if file_path.is_dir() else file_path.parent
+
+        # Search up to 10 levels
+        for _ in range(10):
+            if (current / "lakefile.toml").exists() or (current / "lakefile.lean").exists():
+                return current
+
+            parent = current.parent
+            if parent == current:  # Reached filesystem root
+                break
+            current = parent
+
+        return None
 
     def _extract_suggested_script(self, logs: str) -> str | None:
         """
@@ -1247,25 +1273,22 @@ class ProbeFileCommandHandler:
 
         # 2. Create workspace and Lean server ONCE for all theorems
         workspace = None
-        lean_server = None
         try:
             # Create workspace
             workspace = self.probe_handler.workspace_provider.create_workspace(cmd.file_path)
             logger.info(f"Created workspace for batch probe: {workspace.workspace_id}")
 
-            # Create reusable Lean server
-            lean_server = self.probe_handler.lean_runner.create_server(workspace.path)
-            logger.info(f"Created reusable Lean server for {len(theorem_ids)} theorems")
+            # Note: ServerManager handles server lifecycle automatically
+            # No need to explicitly create server - it will be created on first use
+            logger.info(f"Workspace ready for {len(theorem_ids)} theorems")
 
         except Exception as e:
-            logger.error(f"Workspace/server creation failed: {e}")
+            logger.error(f"Workspace creation failed: {e}")
             # Cleanup if partially created
             if workspace:
                 with contextlib.suppress(Exception):
                     self.probe_handler.workspace_provider.cleanup_workspace(workspace)
-            return self._build_error_result(
-                cmd, f"Failed to create workspace/server: {e}", start_time
-            )
+            return self._build_error_result(cmd, f"Failed to create workspace: {e}", start_time)
 
         try:
             # 3. Probe each theorem (reuse server for all theorems)
@@ -1302,8 +1325,8 @@ class ProbeFileCommandHandler:
                         )
                         continue
 
-                    # Execute probe with server reuse
-                    probe_result = self.probe_handler.handle(probe_cmd, lean_server=lean_server)
+                    # Execute probe (ServerManager handles server reuse automatically)
+                    probe_result = self.probe_handler.handle(probe_cmd)
 
                     # Extract summary for this theorem
                     theorem_summary = self._extract_summary(probe_result, theorem_id)
@@ -1360,12 +1383,8 @@ class ProbeFileCommandHandler:
                 except Exception as e:
                     logger.warning(f"Harness file cleanup failed for {harness_file}: {e}")
 
-            if lean_server:
-                try:
-                    lean_server.close()
-                    logger.info("Closed reusable Lean server")
-                except Exception as e:
-                    logger.warning(f"Server cleanup failed: {e}")
+            # Note: ServerManager handles server cleanup automatically
+            # No need to explicitly close server
 
             if workspace:
                 try:

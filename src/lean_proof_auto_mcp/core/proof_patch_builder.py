@@ -7,7 +7,7 @@ ready-to-paste Lean proof code from hint sets and automation configurations.
 Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 15.1, 15.2, 15.3, 15.4, 15.5
 """
 
-from lean_proof_auto_mcp.core.search_annotations_domain import (
+from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     HintSet,
     HintType,
     ProofPatch,

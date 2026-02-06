@@ -4,12 +4,14 @@ from mcp.server.fastmcp import FastMCP
 
 from .adapters.router import ToolRouter
 from .config import Config
+from .tools.get_proof_context import get_proof_context
 from .tools.probe import probe
 from .tools.probe_file import probe_file
 from .tools.rank_targets import rank_targets
 from .tools.scan_file import scan_file
 from .tools.scan_theorem import scan_theorem
-from .tools.search_annotations import search_annotations
+from .tools.search_automated_proof import search_automated_proof
+from .tools.try_automated_proof import try_automated_proof
 from .tools.verify import verify
 
 
@@ -23,7 +25,9 @@ def create_app(cfg: Config) -> FastMCP:
     router.register("verify", verify)
     router.register("probe", probe)
     router.register("probe_file", probe_file)
-    router.register("search_annotations", search_annotations)
+    router.register("search_automated_proof", search_automated_proof)
+    router.register("try_automated_proof", try_automated_proof)
+    router.register("get_proof_context", get_proof_context)
 
     app = FastMCP(cfg.server_name)
 
@@ -153,56 +157,168 @@ def create_app(cfg: Config) -> FastMCP:
             },
         )
 
-    @app.tool(name="search_annotations")
-    def search_annotations_tool(
+    @app.tool(name="search_automated_proof")
+    def search_automated_proof_tool(
         file: str,
         theorem_id: str,
-        mode: str = "local_only",
-        automation: dict | None = None,
-        budgets: dict | None = None,
-        search: dict | None = None,
-        candidates: dict | None = None,
-        skeleton: dict | None = None,
-        style: dict | None = None,
-        workspace: dict | None = None,
-        allow_global_edits: bool = False,
+        search_depth: str = "normal",
+        search_budget_s: float | None = None,
+        max_candidates: int | None = None,
+        candidate_sources: list[str] | None = None,
+        max_candidates_per_source: int | None = None,
+        automation_mode: str = "aesop",
+        automation_secondary: str | None = None,
+        search_strategy: str = "greedy",
+        beam_width: int = 3,
+        max_search_steps: int | None = None,
+        max_hints_in_set: int = 10,
+        allow_simp_hints: bool = True,
+        allow_unfold_hints: bool = True,
+        allow_unsafe_hints: bool = False,
+        minimize_hints: bool = True,
+        minimize_budget_s: float | None = None,
+        return_proof_states: bool = True,
+        return_partial_progress: bool = True,
+        return_context: bool = False,
+        return_similar_proofs: bool = False,
+        return_search_trace: bool = False,
     ) -> dict:
-        """Search for minimal local proof hints to make a theorem provable by automation.
+        """Search for automated proof with rich feedback and LLM-controlled parameters.
 
-        Discovers the minimal set of local hints (lemmas, definitions, rules) that
-        enable automation to close a goal. Uses search strategies (greedy or beam)
-        to explore hint combinations, then minimizes the result using delta-debugging.
+        Enhanced search tool with LLM-controlled search depth presets, rich feedback
+        mechanisms, and support for all candidate sources including original_proof_refs.
 
         Args:
             file: Path to Lean file
             theorem_id: Theorem identifier to search
-            mode: Operation mode - "local_only" or "suggest_global" (default: "local_only")
-            automation: Automation configuration dict (optional)
-            budgets: Budget configuration dict (optional)
-            search: Search configuration dict (optional)
-            candidates: Candidate configuration dict (optional)
-            skeleton: Skeleton configuration dict (optional)
-            style: Style configuration dict (optional)
-            workspace: Workspace configuration dict (optional)
-            allow_global_edits: Allow global edits (default: False)
+            search_depth: Search depth preset - "quick", "normal", "deep",
+                "exhaustive" (default: "normal")
+            search_budget_s: Override search budget in seconds (optional)
+            max_candidates: Override max candidates (optional)
+            candidate_sources: List of candidate sources to use (optional)
+            max_candidates_per_source: Max candidates per source (optional)
+            automation_mode: Automation mode - "aesop", "simp", "omega",
+                "grind" (default: "aesop")
+            automation_secondary: Secondary automation for fallback (optional)
+            search_strategy: Search strategy - "greedy", "beam", "exhaustive" (default: "greedy")
+            beam_width: Beam width for beam search (default: 3)
+            max_search_steps: Maximum search steps (optional)
+            max_hints_in_set: Maximum hints in a set (default: 10)
+            allow_simp_hints: Allow simp hints (default: True)
+            allow_unfold_hints: Allow unfold hints (default: True)
+            allow_unsafe_hints: Allow unsafe hints (default: False)
+            minimize_hints: Minimize hint set after finding solution (default: True)
+            minimize_budget_s: Override minimization budget (optional)
+            return_proof_states: Return initial and final proof states (default: True)
+            return_partial_progress: Return partial progress information (default: True)
+            return_context: Return theorem context (default: False)
+            return_similar_proofs: Return similar proofs (default: False)
+            return_search_trace: Return detailed search trace (default: False)
 
         Returns:
-            Search result with status, minimized hint set, proof patch, timing, and artifacts
+            Search result with outcome, hints, feedback, metadata, and optional trace
+        """
+        # Build args dict, filtering out None values
+        args_dict: dict[str, int | float | str | bool | list | None] = {
+            "file": file,
+            "theorem_id": theorem_id,
+            "search_depth": search_depth,
+            "automation_mode": automation_mode,
+            "automation_secondary": automation_secondary,
+            "search_strategy": search_strategy,
+            "beam_width": beam_width,
+            "max_hints_in_set": max_hints_in_set,
+            "allow_simp_hints": allow_simp_hints,
+            "allow_unfold_hints": allow_unfold_hints,
+            "allow_unsafe_hints": allow_unsafe_hints,
+            "minimize_hints": minimize_hints,
+            "return_proof_states": return_proof_states,
+            "return_partial_progress": return_partial_progress,
+            "return_context": return_context,
+            "return_similar_proofs": return_similar_proofs,
+            "return_search_trace": return_search_trace,
+        }
+
+        # Add optional overrides if provided
+        if search_budget_s is not None:
+            args_dict["search_budget_s"] = search_budget_s
+        if max_candidates is not None:
+            args_dict["max_candidates"] = max_candidates
+        if candidate_sources is not None:
+            args_dict["candidate_sources"] = candidate_sources
+        if max_candidates_per_source is not None:
+            args_dict["max_candidates_per_source"] = max_candidates_per_source
+        if max_search_steps is not None:
+            args_dict["max_search_steps"] = max_search_steps
+        if minimize_budget_s is not None:
+            args_dict["minimize_budget_s"] = minimize_budget_s
+
+        return router.dispatch("search_automated_proof", args_dict)
+
+    @app.tool(name="try_automated_proof")
+    def try_automated_proof_tool(
+        file: str,
+        theorem_id: str,
+        proof_attempt: str,
+        timeout_s: float = 10.0,
+        return_proof_state: bool = True,
+    ) -> dict:
+        """Validate a proof attempt with detailed feedback.
+
+        Fast validation of LLM-generated proof attempts with structured feedback
+        including error messages, locations, remaining proof state, and tactical
+        suggestions.
+
+        Args:
+            file: Path to Lean file
+            theorem_id: Theorem identifier
+            proof_attempt: Proof code to validate
+            timeout_s: Timeout in seconds (default: 10.0)
+            return_proof_state: Return proof state for incomplete proofs (default: True)
+
+        Returns:
+            Validation result with status, error info, proof state, suggestions, and metadata
         """
         return router.dispatch(
-            "search_annotations",
+            "try_automated_proof",
             {
                 "file": file,
                 "theorem_id": theorem_id,
-                "mode": mode,
-                "automation": automation or {},
-                "budgets": budgets or {},
-                "search": search or {},
-                "candidates": candidates or {},
-                "skeleton": skeleton or {},
-                "style": style or {},
-                "workspace": workspace or {},
-                "allow_global_edits": allow_global_edits,
+                "proof_attempt": proof_attempt,
+                "timeout_s": timeout_s,
+                "return_proof_state": return_proof_state,
+            },
+        )
+
+    @app.tool(name="get_proof_context")
+    def get_proof_context_tool(
+        file: str,
+        theorem_id: str,
+        include_similar_proofs: bool = True,
+        similarity_threshold: float = 0.7,
+    ) -> dict:
+        """Get rich context about a theorem.
+
+        Extract comprehensive context for LLM reasoning including theorem statement,
+        original proof, hypotheses, in-scope declarations, namespace, and similar
+        proofs with similarity scores.
+
+        Args:
+            file: Path to Lean file
+            theorem_id: Theorem identifier
+            include_similar_proofs: Include similar proofs (default: True)
+            similarity_threshold: Minimum similarity score (default: 0.7)
+
+        Returns:
+            Context with statement, proof, hypotheses, scope, similar proofs, and metadata
+        """
+        return router.dispatch(
+            "get_proof_context",
+            {
+                "file": file,
+                "theorem_id": theorem_id,
+                "include_similar_proofs": include_similar_proofs,
+                "similarity_threshold": similarity_threshold,
             },
         )
 

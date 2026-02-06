@@ -41,6 +41,8 @@ tmp/
 .kiro/cache/
 .kiro/logs/
 
+/CODE_REVIEWS
+
 # Claude Code - exclude user-specific settings
 .claude/settings.local.json
 

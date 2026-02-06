@@ -14,7 +14,7 @@ import pytest
 from hypothesis import given, settings
 
 from lean_proof_auto_mcp.core.proof_patch_builder import ProofPatchBuilder
-from lean_proof_auto_mcp.core.search_annotations_domain import (
+from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     CandidateSource,
     Hint,
     HintSet,

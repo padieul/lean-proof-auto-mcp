@@ -70,12 +70,46 @@ class HeuristicClassifier:
                 return "trivial"
 
         # Failure classification (outcome == "not_closed")
+        # First check for explicit failure messages in diagnostics (Requirement 2.3)
+        has_explicit_failure = self._has_explicit_failure(diagnostics)
+        if has_explicit_failure:
+            return "failed"
+
         # Analyze diagnostics to determine if promising (Requirement 2.2, 2.3)
         subgoal_depth = self._estimate_subgoal_depth(diagnostics)
         if subgoal_depth <= 3:
             return "promising"
         else:
             return "failed"
+
+    def _has_explicit_failure(self, diagnostics: list[dict]) -> bool:
+        """
+        Check for explicit failure messages in diagnostics.
+
+        Looks for messages indicating tactics made no progress or failed.
+
+        Args:
+            diagnostics: List of diagnostic messages from Lean
+
+        Returns:
+            True if explicit failure detected, False otherwise
+
+        Requirements: 2.3
+        """
+        failure_indicators = [
+            "made no progress",
+            "failed to",
+            "tactic failed",
+            "could not",
+            "unable to",
+        ]
+
+        for diag in diagnostics:
+            message = diag.get("message", "").lower()
+            if any(indicator in message for indicator in failure_indicators):
+                return True
+
+        return False
 
     def _estimate_subgoal_depth(self, diagnostics: list[dict]) -> int:
         """

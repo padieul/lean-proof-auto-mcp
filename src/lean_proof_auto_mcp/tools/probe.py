@@ -158,9 +158,11 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
     Create ProbeCommandHandler with real adapters (composition root).
 
     This function wires together all dependencies:
+    - ServerManager for Lean server lifecycle management
     - LeanInteractRunner for Lean execution
     - GitWorktreeProvider or TempCopyProvider for workspace isolation
     - HeuristicClassifier for outcome classification
+    - ImportBasedHarnessConstructor for harness construction
 
     Args:
         file_path: Path to the file being probed (used to detect project root)
@@ -168,7 +170,7 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
     Returns:
         Configured ProbeCommandHandler
 
-    Requirements: 1.1, 6.1, 6.2
+    Requirements: 1.1, 6.1, 6.2, 10.6, 28.4, 28.5
     """
     # Detect project root from file path
     # Look for lakefile.toml or lakefile.lean in parent directories
@@ -179,8 +181,13 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
     if project_root is None:
         project_root = file_path_obj.parent
 
-    # Create LeanInteractRunner
-    lean_runner = LeanInteractRunner(timeout_buffer_ms=100)
+    # Create ServerManager with workspace context
+    from ..lean.server_manager import ServerManagerImpl
+
+    server_manager = ServerManagerImpl(workspace_path=project_root)
+
+    # Create LeanInteractRunner with ServerManager
+    lean_runner = LeanInteractRunner(server_manager=server_manager, timeout_buffer_ms=100)
 
     # Create workspace provider (auto-detect mode)
     workspace_provider = create_workspace_provider(
@@ -205,6 +212,7 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
         lean_runner=lean_runner,
         workspace_provider=workspace_provider,
         classifier=classifier,
+        harness_constructor=None,  # Created per-workspace in _construct_harness
         artifact_store=artifact_store,
         metadata_collector=metadata_collector,
     )

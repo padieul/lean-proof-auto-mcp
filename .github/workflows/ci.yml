@@ -45,6 +45,8 @@ jobs:
       - name: Pytest
         # Skip tests that require Lean 4 installation (integration tests and some unit tests)
         # Also skip xfail tests (known issues/limitations)
+        # Also skip eval_investigation tests (manual investigation only, not for CI/CD)
         # Tests requiring Lean are marked with @pytest.mark.requires_lean
         # Expected failures are marked with @pytest.mark.xfail
-        run: uv run pytest -m "not requires_lean"
+        # Eval investigation tests are marked with @pytest.mark.eval_investigation
+        run: uv run pytest -m "not requires_lean and not eval_investigation"

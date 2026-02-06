@@ -405,17 +405,15 @@ class ProofValidatorImpl:
         proof_attempt: str,
     ) -> str:
         """
-        Construct validation code using import-based approach.
+        Construct validation code using import-based harness construction.
 
-        This method creates a validation harness that imports the original file
-        to preserve all context (type class instances, variables, namespaces,
-        notation). It uses 'example' instead of 'theorem' to avoid "already
-        declared" errors.
+        This method uses the ImportBasedHarnessConstructor to create a proper
+        test harness that preserves ALL context from the original file.
 
         Args:
             file_path: Path to original file (e.g., "Fixtures/Algebra/Group.lean")
             theorem_id: Theorem identifier
-            theorem_statement: Theorem type
+            theorem_statement: Theorem type (not used - we get it from the file)
             proof_attempt: Proof to validate
 
         Returns:
@@ -423,19 +421,75 @@ class ProofValidatorImpl:
 
         Requirements: 7.2, 7.3
         """
+        from ..core.harness_construction import (
+            HarnessConfig,
+            HarnessError,
+            HarnessSuccess,
+            ImportBasedHarnessConstructor,
+            LeanInteractTheoremTypeExtractor,
+            StandardImportPathConverter,
+        )
+        from ..lean.querier import LeanInteractQuerierImpl
+        
+        # Get server manager from server
+        if not hasattr(self.server, 'server_manager'):
+            # Fallback to old approach if server doesn't have server_manager
+            logger.warning("Server missing server_manager, using fallback import approach")
+            return self._construct_validation_with_import_fallback(
+                file_path, theorem_id, theorem_statement, proof_attempt
+            )
+        
+        server_manager = self.server.server_manager  # type: ignore[attr-defined]
+        
+        # Create harness constructor components
+        querier = LeanInteractQuerierImpl(server_manager)
+        type_extractor = LeanInteractTheoremTypeExtractor(querier)
+        path_converter = StandardImportPathConverter()
+        
+        harness_constructor = ImportBasedHarnessConstructor(
+            type_extractor=type_extractor,
+            path_converter=path_converter
+        )
+        
+        # Build harness config
+        config = HarnessConfig(
+            theorem_id=theorem_id,
+            file_path=file_path,
+            proof_attempt=proof_attempt,
+            additional_imports=[]
+        )
+        
+        # Construct harness
+        result = harness_constructor.construct(config)
+        
+        if isinstance(result, HarnessError):
+            # Fall back to simple approach if construction fails
+            logger.warning(f"Harness construction failed: {result.message}, using fallback")
+            return self._construct_validation_with_import_fallback(
+                file_path, theorem_id, theorem_statement, proof_attempt
+            )
+        
+        return result.code
+    
+    def _construct_validation_with_import_fallback(
+        self,
+        file_path: str,
+        theorem_id: str,
+        theorem_statement: str,
+        proof_attempt: str,
+    ) -> str:
+        """
+        Fallback: Construct validation code using simple import approach.
+        
+        This is the old approach that may fail due to missing context.
+        """
         # Convert file path to import path
-        # e.g., "Fixtures/Algebra/Group/Subgroup/Basic.lean" -> "Fixtures.Algebra.Group.Subgroup.Basic"
         import_path = file_path.replace("/", ".").replace("\\", ".").replace(".lean", "")
 
         # Build validation harness
         lines = []
-
-        # Import the original file (preserves all context)
         lines.append(f"import {import_path}")
         lines.append("")
-
-        # Test the theorem with the proof attempt using 'example'
-        # This avoids "already declared" errors and preserves all context
         lines.append(f"-- Validate proof for {theorem_id}")
         lines.append(f"example : {theorem_statement} := by")
 

@@ -344,11 +344,11 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
     # Create LeanInteractQuerier with ServerManager
     querier = LeanInteractQuerierImpl(server_manager=server_manager)
 
-    # Create ProofStateInspector (doesn't need workspace_path)
-    proof_state_inspector = ProofStateInspectorImpl()
-
-    # Get server instance from ServerManager
+    # Get server instance from ServerManager for proof state inspection
     server = server_manager.get_server(file_path)
+
+    # Create ProofStateInspector with server
+    proof_state_inspector = ProofStateInspectorImpl(server=server)
 
     # Create ProofValidator with server (doesn't need workspace_path)
     validator = ProofValidatorImpl(server=server)
@@ -370,11 +370,34 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
     # Create SubprocessMetadataCollector at composition root
     metadata_collector = SubprocessMetadataCollector()
 
+    # Create HarnessConstructor for building test harnesses
+    from ..core.harness_construction import (
+        ImportBasedHarnessConstructor,
+        LeanInteractTheoremTypeExtractor,
+        StandardImportPathConverter,
+    )
+    from ..adapters.lean_interact_runner import LeanInteractRunner
+    
+    type_extractor = LeanInteractTheoremTypeExtractor(querier)
+    path_converter = StandardImportPathConverter()
+    harness_constructor = ImportBasedHarnessConstructor(
+        type_extractor=type_extractor,
+        path_converter=path_converter
+    )
+    
+    # Create LeanRunner for executing harnesses
+    lean_runner = LeanInteractRunner(
+        server_manager=server_manager,
+        timeout_buffer_ms=100
+    )
+
     # Wire into SearchOrchestrator
     return SearchOrchestrator(
         candidate_gen=candidate_generator,
         feedback_builder=feedback_builder,
         validator=validator,
+        harness_constructor=harness_constructor,
+        lean_runner=lean_runner,
         proof_state_inspector=proof_state_inspector,
         metadata_collector=metadata_collector,
     )
@@ -429,7 +452,7 @@ def _format_response(
     status_map = {
         "closed": "success",
         "partial": "partial",
-        "failed": "error",
+        "failed": "fail",  # Failed search is "fail" not "error"
     }
     status = status_map.get(result.outcome, "error")
 

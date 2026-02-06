@@ -685,10 +685,10 @@ class ProbeCommandHandler:
 
     def _construct_harness(self, cmd: ProbeCommand, workspace_path: Path) -> str:
         """
-        Build automation test harness using the injected HarnessConstructor.
+        Build automation test harness using ImportBasedHarnessConstructor.
 
-        If a HarnessConstructor is provided, it will be used to construct the harness.
-        Otherwise, falls back to the legacy import-based approach for backward compatibility.
+        This method creates a HarnessConstructor with the workspace context
+        to ensure correct import path resolution.
 
         Args:
             cmd: Probe command with file, theorem, mode
@@ -702,123 +702,143 @@ class ProbeCommandHandler:
 
         Requirements: 1.2, 3.2
         """
-        # If HarnessConstructor is provided, use it
-        if self.harness_constructor is not None:
-            from .harness_construction import HarnessConfig, HarnessError, HarnessSuccess
-            
-            # Determine additional imports based on mode
-            additional_imports = []
-            if cmd.mode in ("aesop", "aesop?"):
-                additional_imports.append("import Aesop")
-            
-            # Build harness config
-            config = HarnessConfig(
-                theorem_id=cmd.theorem_id,
-                file_path=cmd.file_path,
-                proof_attempt=cmd.mode,
-                additional_imports=additional_imports
-            )
-            
-            # Construct harness
-            result = self.harness_constructor.construct(config)
-            
-            # Handle result
-            if isinstance(result, HarnessError):
-                if result.error_type == "theorem_not_found":
-                    raise ValueError(result.message)
-                else:
-                    raise RuntimeError(f"Harness construction failed: {result.message}")
-            
-            # Extract code from success result
-            assert isinstance(result, HarnessSuccess)
-            harness_content = result.code
-            
-            # Add trace configuration if requested
-            if cmd.trace_config:
-                # Insert trace options after imports
-                lines = harness_content.split('\n')
-                import_end = 0
-                for i, line in enumerate(lines):
-                    if line.strip() and not line.strip().startswith("import"):
-                        import_end = i
-                        break
-                
-                trace_lines = []
-                for key, value in cmd.trace_config.items():
-                    trace_lines.append(f"set_option {key} {str(value).lower()}")
-                
-                # Insert trace options after imports
-                lines = lines[:import_end] + trace_lines + [""] + lines[import_end:]
-                harness_content = "\n".join(lines)
-            
-            return harness_content
-        
-        # Legacy fallback: inline import-based construction
-        # This code path is kept for backward compatibility
-        # Read the original file
-        file_path = workspace_path / cmd.file_path
-        if not file_path.exists():
-            raise ValueError(f"File not found: {cmd.file_path}")
-
-        # Use LeanInteract querier to extract theorem type
-        # This is more reliable than manual parsing
+        # Always use ImportBasedHarnessConstructor with workspace context
+        # This ensures correct import path resolution
+        from .harness_construction import (
+            HarnessConfig,
+            HarnessError,
+            HarnessSuccess,
+            ImportBasedHarnessConstructor,
+            LeanInteractTheoremTypeExtractor,
+            StandardImportPathConverter,
+        )
         from ..lean.querier import LeanInteractQuerierImpl
         from ..lean.server_manager import ServerManagerImpl
         
-        # Create querier with workspace context
+        # Create ServerManager with workspace context
         server_manager = ServerManagerImpl(workspace_path=workspace_path)
-        querier = LeanInteractQuerierImpl(server_manager=server_manager)
         
-        try:
-            # Extract declarations from the file
-            declarations = querier.extract_declarations(str(file_path))
-            
-            # Find the theorem by ID
-            theorem = None
-            for decl in declarations:
-                if decl.full_name == cmd.theorem_id or decl.name == cmd.theorem_id:
-                    theorem = decl
-                    break
-            
-            if theorem is None:
-                raise ValueError(f"Theorem '{cmd.theorem_id}' not found in {cmd.file_path}")
-            
-            # Use the type from the declaration
-            theorem_type = theorem.type
-            
-        except Exception as e:
-            # If querier fails, fall back to error
-            raise ValueError(f"Failed to extract theorem type: {e}") from e
-
-        # Convert file path to import path
-        # e.g., "Fixtures/Algebra/Group/Subgroup/Basic.lean" -> "Fixtures.Algebra.Group.Subgroup.Basic"
-        import_path = cmd.file_path.replace("/", ".").replace("\\", ".").replace(".lean", "")
-
-        # Build harness
-        harness_lines = []
-
-        # Import the original file (preserves all context)
-        harness_lines.append(f"import {import_path}")
-        harness_lines.append("")
-
-        # Import Aesop if using aesop mode (needed for the tactic)
+        # Build HarnessConstructor with workspace context
+        querier = LeanInteractQuerierImpl(server_manager=server_manager)
+        type_extractor = LeanInteractTheoremTypeExtractor(querier)
+        path_converter = StandardImportPathConverter()
+        harness_constructor = ImportBasedHarnessConstructor(
+            type_extractor=type_extractor,
+            path_converter=path_converter
+        )
+        
+        # Convert absolute file_path to relative path from project root
+        # The workspace is a copy of the project, so we need the relative path
+        file_path_obj = Path(cmd.file_path)
+        if file_path_obj.is_absolute():
+            # Find the project root by looking for lakefile.toml or lakefile.lean
+            project_root = self._find_project_root(file_path_obj)
+            if project_root:
+                try:
+                    relative_path = file_path_obj.relative_to(project_root)
+                    file_path_for_harness = str(relative_path)
+                except ValueError:
+                    # Fallback: use the original path
+                    file_path_for_harness = cmd.file_path
+            else:
+                # No project root found, use original path
+                file_path_for_harness = cmd.file_path
+        else:
+            file_path_for_harness = cmd.file_path
+        
+        # For type extraction, we need to find the file in the workspace
+        # The workspace_path is the Lean project root (where lakefile is)
+        # We need to find where the file is relative to that workspace
+        # 
+        # Strategy: Look for the file in the workspace by checking if it exists
+        # at workspace_path / file_path_for_harness
+        file_in_workspace = workspace_path / file_path_for_harness
+        if file_in_workspace.exists():
+            # File exists at this location, use relative path for extraction
+            file_path_for_extraction = file_path_for_harness
+        else:
+            # File doesn't exist there, try to find it
+            # Maybe the workspace is at a different level
+            # Try using just the filename parts after "Fixtures" or other capital letter
+            parts = Path(file_path_for_harness).parts
+            # Find first capitalized part (likely the module root)
+            for i, part in enumerate(parts):
+                if part and part[0].isupper():
+                    # Try from this part onwards
+                    relative_from_capital = Path(*parts[i:])
+                    candidate = workspace_path / relative_from_capital
+                    if candidate.exists():
+                        file_path_for_extraction = str(relative_from_capital)
+                        file_path_for_harness = str(relative_from_capital)
+                        break
+            else:
+                # Fallback: use the relative path as-is
+                file_path_for_extraction = file_path_for_harness
+        
+        # Determine additional imports based on mode
+        additional_imports = []
         if cmd.mode in ("aesop", "aesop?"):
-            harness_lines.append("import Aesop")
-            harness_lines.append("")
-
+            additional_imports.append("import Aesop")
+        
+        # Use ImportBasedHarnessConstructor to build the harness properly
+        config = HarnessConfig(
+            theorem_id=cmd.theorem_id,
+            file_path=file_path_for_harness,
+            proof_attempt=cmd.mode,
+            additional_imports=additional_imports
+        )
+        
+        result = harness_constructor.construct(config)
+        
+        # Check if construction was successful
+        if isinstance(result, HarnessError):
+            raise ValueError(f"Harness construction failed: {result.message}")
+        
+        harness_content = result.code
+        
         # Add trace configuration if requested
         if cmd.trace_config:
+            # Insert trace options after imports
+            lines = harness_content.split('\n')
+            import_end = 0
+            for i, line in enumerate(lines):
+                if line.strip() and not line.strip().startswith("import"):
+                    import_end = i
+                    break
+            
+            trace_lines = []
             for key, value in cmd.trace_config.items():
-                harness_lines.append(f"set_option {key} {str(value).lower()}")
-            harness_lines.append("")
+                trace_lines.append(f"set_option {key} {str(value).lower()}")
+            
+            # Insert trace options after imports
+            lines = lines[:import_end] + trace_lines + [""] + lines[import_end:]
+            harness_content = "\n".join(lines)
+        
+        return harness_content
 
-        # Test the theorem with automation using 'example'
-        # This avoids "already declared" errors and preserves all context
-        harness_lines.append(f"-- Test {cmd.theorem_id} with {cmd.mode}")
-        harness_lines.append(f"example : {theorem_type} := by")
-        harness_lines.append(f"  {cmd.mode}")
+    def _find_project_root(self, file_path: Path) -> Path | None:
+        """
+        Find the Lean project root by looking for lakefile.toml or lakefile.lean.
 
-        return "\n".join(harness_lines)
+        Args:
+            file_path: Path to a file in the project
+
+        Returns:
+            Path to project root, or None if not found
+        """
+        current = file_path if file_path.is_dir() else file_path.parent
+
+        # Search up to 10 levels
+        for _ in range(10):
+            if (current / "lakefile.toml").exists() or (current / "lakefile.lean").exists():
+                return current
+
+            parent = current.parent
+            if parent == current:  # Reached filesystem root
+                break
+            current = parent
+
+        return None
 
     def _extract_suggested_script(self, logs: str) -> str | None:
         """

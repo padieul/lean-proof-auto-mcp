@@ -207,60 +207,15 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
 
     metadata_collector = SubprocessMetadataCollector()
 
-    # Build HarnessConstructor with its dependencies
-    harness_constructor = _build_harness_constructor(server_manager)
-
     # Wire dependencies into handler
     return ProbeCommandHandler(
         lean_runner=lean_runner,
         workspace_provider=workspace_provider,
         classifier=classifier,
-        harness_constructor=harness_constructor,
+        harness_constructor=None,  # Created per-workspace in _construct_harness
         artifact_store=artifact_store,
         metadata_collector=metadata_collector,
     )
-
-
-def _build_harness_constructor(server_manager: "ServerManagerImpl") -> "ImportBasedHarnessConstructor | None":
-    """
-    Build ImportBasedHarnessConstructor with all dependencies.
-    
-    This is the composition root for harness construction - all wiring happens here.
-    
-    NOTE: Currently disabled because the HarnessConstructor needs to be created
-    per-workspace, not per-project. The legacy fallback in _construct_harness
-    handles this correctly by creating a new ServerManager with the workspace path.
-    
-    Args:
-        server_manager: ServerManager for LeanInteract querying
-        
-    Returns:
-        None (disabled for now)
-    """
-    # TODO: Re-enable once we refactor to create HarnessConstructor per-workspace
-    return None
-    
-    # from ..core.harness_construction import (
-    #     ImportBasedHarnessConstructor,
-    #     LeanInteractTheoremTypeExtractor,
-    #     StandardImportPathConverter,
-    # )
-    # from ..lean.querier import LeanInteractQuerierImpl
-    #
-    # # Build querier
-    # querier = LeanInteractQuerierImpl(server_manager=server_manager)
-    #
-    # # Build type extractor
-    # type_extractor = LeanInteractTheoremTypeExtractor(querier)
-    #
-    # # Build path converter
-    # path_converter = StandardImportPathConverter()
-    #
-    # # Build harness constructor
-    # return ImportBasedHarnessConstructor(
-    #     type_extractor=type_extractor,
-    #     path_converter=path_converter
-    # )
 
 
 def _find_lean_project_root(file_path: Path) -> Path | None:

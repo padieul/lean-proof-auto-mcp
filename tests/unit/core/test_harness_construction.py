@@ -155,10 +155,24 @@ class TestStandardImportPathConverter:
 class TestLeanInteractTheoremTypeExtractor:
     """Test LeanInteractTheoremTypeExtractor."""
     
-    def test_extract_type_success(self):
+    def test_extract_type_success(self, tmp_path):
         """Test successful type extraction."""
-        # Mock querier
+        # Create a test file
+        test_file = tmp_path / "test.lean"
+        test_file.write_text("""import Mathlib
+
+variable {G : Type*} [Group G]
+
+theorem Subgroup.mem_prod : p ∈ H.prod K ↔ p.1 ∈ H ∧ p.2 ∈ K := by
+  sorry
+""")
+        
+        # Mock querier with proper server_manager
         mock_querier = Mock()
+        mock_server_manager = Mock()
+        mock_server_manager.workspace_path = tmp_path
+        mock_querier.server_manager = mock_server_manager
+        
         mock_decl = Mock()
         mock_decl.name = "Subgroup.mem_prod"
         mock_decl.full_name = "Subgroup.mem_prod"
@@ -168,13 +182,27 @@ class TestLeanInteractTheoremTypeExtractor:
         extractor = LeanInteractTheoremTypeExtractor(mock_querier)
         result = extractor.extract_type("test.lean", "Subgroup.mem_prod")
         
-        assert result.type_expr == "p ∈ H.prod K ↔ p.1 ∈ H ∧ p.2 ∈ K"
-        assert "LeanInteract" in result.source
+        # New implementation returns FULL_FILE marker
+        assert result.type_expr == "FULL_FILE:Subgroup.mem_prod"
+        assert "FullFile" in result.source
         mock_querier.extract_declarations.assert_called_once_with("test.lean")
     
-    def test_extract_type_by_full_name(self):
+    def test_extract_type_by_full_name(self, tmp_path):
         """Test type extraction using full name."""
+        # Create a test file
+        test_file = tmp_path / "test.lean"
+        test_file.write_text("""import Mathlib
+
+theorem mem_prod : test_type := by
+  sorry
+""")
+        
+        # Mock querier with proper server_manager
         mock_querier = Mock()
+        mock_server_manager = Mock()
+        mock_server_manager.workspace_path = tmp_path
+        mock_querier.server_manager = mock_server_manager
+        
         mock_decl = Mock()
         mock_decl.name = "mem_prod"
         mock_decl.full_name = "Subgroup.mem_prod"
@@ -184,7 +212,8 @@ class TestLeanInteractTheoremTypeExtractor:
         extractor = LeanInteractTheoremTypeExtractor(mock_querier)
         result = extractor.extract_type("test.lean", "Subgroup.mem_prod")
         
-        assert result.type_expr == "test_type"
+        # New implementation returns FULL_FILE marker
+        assert result.type_expr == "FULL_FILE:Subgroup.mem_prod"
     
     def test_extract_type_theorem_not_found(self):
         """Test type extraction when theorem not found."""
@@ -199,9 +228,23 @@ class TestLeanInteractTheoremTypeExtractor:
         assert "NonExistent" in str(exc_info.value)
         assert "test.lean" in str(exc_info.value)
     
-    def test_extract_type_multiple_declarations(self):
+    def test_extract_type_multiple_declarations(self, tmp_path):
         """Test type extraction with multiple declarations."""
+        # Create a test file
+        test_file = tmp_path / "test.lean"
+        test_file.write_text("""import Mathlib
+
+theorem theorem1 : type1 := by sorry
+
+theorem theorem2 : type2 := by sorry
+""")
+        
+        # Mock querier with proper server_manager
         mock_querier = Mock()
+        mock_server_manager = Mock()
+        mock_server_manager.workspace_path = tmp_path
+        mock_querier.server_manager = mock_server_manager
+        
         mock_decl1 = Mock()
         mock_decl1.name = "theorem1"
         mock_decl1.full_name = "theorem1"
@@ -217,7 +260,8 @@ class TestLeanInteractTheoremTypeExtractor:
         extractor = LeanInteractTheoremTypeExtractor(mock_querier)
         result = extractor.extract_type("test.lean", "theorem2")
         
-        assert result.type_expr == "type2"
+        # New implementation returns FULL_FILE marker
+        assert result.type_expr == "FULL_FILE:theorem2"
 
 
 # ============================================================================
@@ -227,19 +271,35 @@ class TestLeanInteractTheoremTypeExtractor:
 class TestImportBasedHarnessConstructor:
     """Test ImportBasedHarnessConstructor."""
     
-    def test_construct_success(self):
-        """Test successful harness construction."""
-        # Setup mocks
-        type_extractor = Mock()
-        type_extractor.extract_type.return_value = TheoremType(
-            type_expr="p ∈ H.prod K ↔ p.1 ∈ H ∧ p.2 ∈ K",
-            source="test"
-        )
+    def test_construct_success(self, tmp_path):
+        """Test successful harness construction with full file approach."""
+        # Create a test file
+        test_file = tmp_path / "test.lean"
+        test_file.write_text("""import Mathlib
+
+variable {G : Type*} [Group G]
+
+theorem test_theorem : True := by
+  trivial
+
+theorem other_theorem : False ∨ True := by
+  right
+  trivial
+""")
         
-        path_converter = Mock()
-        path_converter.convert.return_value = ImportPath(
-            path="Fixtures.Algebra.Group"
-        )
+        # Setup mocks
+        mock_querier = Mock()
+        mock_server_manager = Mock()
+        mock_server_manager.workspace_path = tmp_path
+        mock_querier.server_manager = mock_server_manager
+        
+        mock_decl = Mock()
+        mock_decl.name = "test_theorem"
+        mock_decl.full_name = "test_theorem"
+        mock_querier.extract_declarations.return_value = [mock_decl]
+        
+        type_extractor = LeanInteractTheoremTypeExtractor(mock_querier)
+        path_converter = StandardImportPathConverter()
         
         constructor = ImportBasedHarnessConstructor(
             type_extractor=type_extractor,
@@ -248,8 +308,8 @@ class TestImportBasedHarnessConstructor:
         
         # Construct harness
         config = HarnessConfig(
-            theorem_id="Subgroup.mem_prod",
-            file_path="Fixtures/Algebra/Group.lean",
+            theorem_id="test_theorem",
+            file_path="test.lean",
             proof_attempt="aesop"
         )
         
@@ -257,26 +317,38 @@ class TestImportBasedHarnessConstructor:
         
         # Verify success
         assert isinstance(result, HarnessSuccess)
-        assert result.theorem_id == "Subgroup.mem_prod"
-        assert result.file_path == "Fixtures/Algebra/Group.lean"
+        assert result.theorem_id == "test_theorem"
+        assert result.file_path == "test.lean"
         
-        # Verify structure
-        lines = result.code.split('\n')
-        assert lines[0].startswith("import")
-        assert "example :" in result.code
+        # Verify structure - should preserve everything
+        assert "import Mathlib" in result.code
+        assert "variable {G : Type*} [Group G]" in result.code
+        assert "theorem test_theorem" in result.code
         assert "aesop" in result.code
-        assert "p ∈ H.prod K ↔ p.1 ∈ H ∧ p.2 ∈ K" in result.code
+        assert "theorem other_theorem" in result.code
+        assert "sorry" in result.code  # Other theorems use sorry
     
-    def test_construct_with_additional_imports(self):
+    def test_construct_with_additional_imports(self, tmp_path):
         """Test harness construction with additional imports."""
-        type_extractor = Mock()
-        type_extractor.extract_type.return_value = TheoremType(
-            type_expr="test_type",
-            source="test"
-        )
+        # Create a test file
+        test_file = tmp_path / "test.lean"
+        test_file.write_text("""import Mathlib
+
+theorem test : True := by trivial
+""")
         
-        path_converter = Mock()
-        path_converter.convert.return_value = ImportPath(path="Test.Module")
+        mock_querier = Mock()
+        mock_server_manager = Mock()
+        mock_server_manager.workspace_path = tmp_path
+        mock_querier.server_manager = mock_server_manager
+        
+        mock_decl = Mock()
+        mock_decl.name = "test"
+        mock_decl.full_name = "test"
+        mock_querier.extract_declarations.return_value = [mock_decl]
+        
+        type_extractor = LeanInteractTheoremTypeExtractor(mock_querier)
+        path_converter = StandardImportPathConverter()
         
         constructor = ImportBasedHarnessConstructor(
             type_extractor=type_extractor,
@@ -287,15 +359,15 @@ class TestImportBasedHarnessConstructor:
             theorem_id="test",
             file_path="test.lean",
             proof_attempt="aesop",
-            additional_imports=["import Aesop", "import Mathlib"]
+            additional_imports=["Aesop", "Std"]
         )
         
         result = constructor.construct(config)
         
         assert isinstance(result, HarnessSuccess)
-        assert "import Test.Module" in result.code
-        assert "import Aesop" in result.code
         assert "import Mathlib" in result.code
+        assert "import Aesop" in result.code
+        assert "import Std" in result.code
     
     def test_construct_theorem_not_found(self):
         """Test harness construction when theorem not found."""
@@ -346,8 +418,8 @@ class TestImportBasedHarnessConstructor:
         assert isinstance(result, HarnessError)
         assert result.error_type == "type_extraction_failed"
     
-    def test_validate_harness_imports_first(self):
-        """Test validation ensures imports are first."""
+    def test_validate_harness_requires_import(self):
+        """Test validation requires at least one import."""
         type_extractor = Mock()
         path_converter = Mock()
         
@@ -356,18 +428,14 @@ class TestImportBasedHarnessConstructor:
             path_converter=path_converter
         )
         
-        # Valid harness
-        valid_harness = "import Test\n\nexample : True := by\n  trivial"
-        constructor._validate_harness(valid_harness)  # Should not raise
-        
-        # Invalid harness (no import first)
-        invalid_harness = "namespace Test\nimport Module"
+        # Invalid harness (no import)
+        invalid_harness = "theorem test : True := by trivial"
         with pytest.raises(HarnessConstructionError) as exc_info:
             constructor._validate_harness(invalid_harness)
-        assert "First line must be import" in str(exc_info.value)
+        assert "import" in str(exc_info.value).lower()
     
-    def test_validate_harness_no_late_imports(self):
-        """Test validation rejects imports after non-import lines."""
+    def test_validate_harness_requires_theorem(self):
+        """Test validation requires at least one theorem."""
         type_extractor = Mock()
         path_converter = Mock()
         
@@ -376,27 +444,11 @@ class TestImportBasedHarnessConstructor:
             path_converter=path_converter
         )
         
-        # Invalid harness (import after code)
-        invalid_harness = "import Test\n\nexample : True := by\n  trivial\nimport Late"
+        # Invalid harness (no theorem)
+        invalid_harness = "import Test\n\nvariable (x : Nat)"
         with pytest.raises(HarnessConstructionError) as exc_info:
             constructor._validate_harness(invalid_harness)
-        assert "must be at beginning" in str(exc_info.value)
-    
-    def test_validate_harness_requires_example(self):
-        """Test validation requires example statement."""
-        type_extractor = Mock()
-        path_converter = Mock()
-        
-        constructor = ImportBasedHarnessConstructor(
-            type_extractor=type_extractor,
-            path_converter=path_converter
-        )
-        
-        # Invalid harness (no example)
-        invalid_harness = "import Test\n\ntheorem test : True := by trivial"
-        with pytest.raises(HarnessConstructionError) as exc_info:
-            constructor._validate_harness(invalid_harness)
-        assert "example :" in str(exc_info.value)
+        assert "theorem" in str(exc_info.value).lower() or "lemma" in str(exc_info.value).lower()
     
     def test_construct_preserves_unicode(self):
         """Test that harness construction preserves Unicode characters."""
@@ -461,13 +513,26 @@ class TestImportBasedHarnessConstructor:
 class TestHarnessConstructionIntegration:
     """Integration tests for harness construction components."""
     
-    def test_full_pipeline(self):
+    def test_full_pipeline(self, tmp_path):
         """Test full harness construction pipeline."""
+        # Create a test file
+        test_file = tmp_path / "Test" / "Module.lean"
+        test_file.parent.mkdir(parents=True, exist_ok=True)
+        test_file.write_text("""import Mathlib
+
+theorem test_theorem : True := by
+  trivial
+""")
+        
         # Create real components
         path_converter = StandardImportPathConverter()
         
-        # Mock querier
+        # Mock querier with proper server_manager
         mock_querier = Mock()
+        mock_server_manager = Mock()
+        mock_server_manager.workspace_path = tmp_path
+        mock_querier.server_manager = mock_server_manager
+        
         mock_decl = Mock()
         mock_decl.name = "test_theorem"
         mock_decl.full_name = "Test.test_theorem"
@@ -493,6 +558,7 @@ class TestHarnessConstructionIntegration:
         
         # Verify
         assert isinstance(result, HarnessSuccess)
-        assert "import Test.Module" in result.code
-        assert "example : True" in result.code
+        # New implementation copies imports and theorem from source file
+        assert "import Mathlib" in result.code
+        assert "theorem test_theorem" in result.code
         assert "trivial" in result.code

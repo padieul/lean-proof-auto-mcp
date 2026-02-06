@@ -230,6 +230,10 @@ def _create_validator(file_path: str) -> tuple[ProofValidatorImpl, object]:
 
     # Get or create server for file
     server = server_manager.get_server(file_path)
+    
+    # Attach server_manager to server for harness construction
+    # This allows the validator to access the harness constructor
+    server.server_manager = server_manager  # type: ignore[attr-defined]
 
     # Create ProofValidator with server
     validator = ProofValidatorImpl(server=server)

@@ -106,7 +106,18 @@ class LeanInteractQuerierImpl:
                     # Extract declaration information
                     name = getattr(decl, "name", "")
                     full_name = getattr(decl, "full_name", name)
-                    type_sig = getattr(decl, "type", "")
+                    
+                    # Extract type - handle both string and DeclType object
+                    type_obj = getattr(decl, "type", "")
+                    if hasattr(type_obj, "pp"):
+                        # DeclType object with pp attribute
+                        type_sig = str(type_obj.pp)
+                    elif hasattr(type_obj, "__str__"):
+                        # Object with string representation
+                        type_sig = str(type_obj)
+                    else:
+                        # Already a string
+                        type_sig = type_obj if isinstance(type_obj, str) else ""
 
                     # Extract value (proof/definition body)
                     value = None

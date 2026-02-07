@@ -5,7 +5,7 @@ This module provides the CandidateGenerator service that extracts potential
 hints from various sources (goal symbols, local context, namespace, nearby
 declarations, original proof references) and ranks them for search priority.
 
-This refactored version uses LeanInteractQuerier for accurate hint extraction
+This refactored version uses Querier for accurate hint extraction
 instead of regex-based parsing, achieving 95%+ accuracy.
 
 Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 12.1, 12.2, 12.3,
@@ -16,7 +16,7 @@ import logging
 import re
 from pathlib import Path
 
-from ..lean.ports import Declaration, LeanInteractQuerier, ProofStateInspector
+from ..lean.ports import Declaration, Querier, ProofStateInspector
 from .indexer import FileIndex, TheoremDecl
 from .search_automated_proof_domain import (
     Candidate,
@@ -36,7 +36,7 @@ class CandidateGenerator:
 
     The CandidateGenerator extracts potential hints from multiple sources,
     ranks them by priority, and enforces per-source limits. This refactored
-    version uses LeanInteractQuerier for 95%+ accuracy instead of regex parsing.
+    version uses Querier for 95%+ accuracy instead of regex parsing.
 
     Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 12.1, 12.2, 12.3, 12.4
     """
@@ -45,7 +45,7 @@ class CandidateGenerator:
         self,
         source: SourceText,
         index: FileIndex,
-        querier: LeanInteractQuerier,
+        querier: Querier,
         proof_state_inspector: ProofStateInspector | None = None,
     ):
         """
@@ -54,7 +54,7 @@ class CandidateGenerator:
         Args:
             source: Source text of the file
             index: Theorem index for the file
-            querier: LeanInteractQuerier for extracting declarations and references
+            querier: Querier for extracting declarations and references
             proof_state_inspector: Optional ProofStateInspector for extracting proof states
 
         Requirements: 12.1, 9.2, 9.5

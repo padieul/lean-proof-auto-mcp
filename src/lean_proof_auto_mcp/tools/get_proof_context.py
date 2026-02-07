@@ -162,7 +162,7 @@ def _create_extractor(file_path: str) -> ContextExtractor:
     Create ContextExtractor with real adapters (composition root).
 
     This function wires together all dependencies:
-    - LeanInteractQuerier for declaration extraction
+    - Querier for declaration extraction
     - ProofStateInspector for proof state inspection
     - ContextExtractor for context extraction
 
@@ -195,7 +195,7 @@ def _create_extractor(file_path: str) -> ContextExtractor:
 
     server_manager = ServerManagerImpl(workspace_path=project_root)
 
-    # Create LeanInteractQuerier with ServerManager
+    # Create Querier with ServerManager
     querier = LeanInteractQuerierImpl(server_manager=server_manager)
 
     # Create ProofStateInspector (doesn't need workspace_path)

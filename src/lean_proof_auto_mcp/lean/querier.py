@@ -1,7 +1,7 @@
 """
 LeanInteractQuerier implementation.
 
-This module implements the LeanInteractQuerier port using the LeanInteract library.
+This module implements the Querier port using the LeanInteract library.
 It extracts declarations, proof references, and theorem context from Lean files.
 
 Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 10.6, 12.1, 12.2, 28.4, 28.5
@@ -33,7 +33,7 @@ except ImportError:
 
 class LeanInteractQuerierImpl:
     """
-    Concrete implementation of LeanInteractQuerier using LeanInteract library.
+    Concrete implementation of Querier protocol using LeanInteract library.
 
     This adapter uses LeanInteract to extract declarations and references from
     Lean files, achieving 95%+ accuracy by using value.constants instead of regex.
@@ -45,7 +45,7 @@ class LeanInteractQuerierImpl:
 
     def __init__(self, server_manager: ServerManagerImpl):
         """
-        Initialize LeanInteractQuerier with ServerManager.
+        Initialize querier with ServerManager.
 
         Args:
             server_manager: ServerManager instance for server lifecycle management

@@ -184,7 +184,7 @@ class TheoremContext:
     namespace: str
 
 
-class LeanInteractQuerier(Protocol):
+class Querier(Protocol):
     """
     Port for extracting declarations and references from Lean files.
 

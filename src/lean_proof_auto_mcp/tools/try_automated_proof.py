@@ -193,7 +193,7 @@ def _create_validator(file_path: str) -> tuple[ProofValidatorImpl, object]:
 
     This function wires together all dependencies:
     - ServerManager for LeanInteract server lifecycle
-    - LeanInteractQuerier for theorem extraction
+    - Querier for theorem extraction
     - ProofValidator for proof validation
 
     Args:

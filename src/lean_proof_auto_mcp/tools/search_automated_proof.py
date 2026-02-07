@@ -309,7 +309,7 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
     Create SearchOrchestrator with real adapters (composition root).
 
     This function wires together all dependencies:
-    - LeanInteractQuerier for declaration extraction
+    - Querier for declaration extraction
     - ProofStateInspector for proof state inspection
     - ProofValidator for proof validation
     - CandidateGenerator for hint extraction
@@ -345,7 +345,7 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
 
     server_manager = ServerManagerImpl(workspace_path=project_root)
 
-    # Create LeanInteractQuerier with ServerManager
+    # Create Querier with ServerManager
     querier = LeanInteractQuerierImpl(server_manager=server_manager)
 
     # Get server instance from ServerManager for proof state inspection

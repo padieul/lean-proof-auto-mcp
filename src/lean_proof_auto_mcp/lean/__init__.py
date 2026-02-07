@@ -16,7 +16,7 @@ Components:
 from .ports import (
     Declaration,
     DeclValue,
-    LeanInteractQuerier,
+    Querier,
     ProofState,
     ProofStateInspector,
     ProofValidator,
@@ -35,7 +35,7 @@ __all__ = [
     # Ports (protocols)
     "Declaration",
     "DeclValue",
-    "LeanInteractQuerier",
+    "Querier",
     "ProofState",
     "ProofStateInspector",
     "ProofValidator",

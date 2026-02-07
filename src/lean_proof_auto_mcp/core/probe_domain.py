@@ -1188,7 +1188,7 @@ class ProbeCommandHandler:
 
         # This ensures correct import path resolution
 
-        from ..lean.querier import LeanInteractQuerierImpl
+        from ..lean.querier import LeanInteractQuerier
 
         from ..lean.server_manager import LeanInteractServerManager
         from .harness_construction import (
@@ -1210,7 +1210,7 @@ class ProbeCommandHandler:
 
         # Build HarnessConstructor with workspace context
 
-        querier = LeanInteractQuerierImpl(server_manager=server_manager)
+        querier = LeanInteractQuerier(server_manager=server_manager)
 
         type_extractor = LeanInteractTheoremTypeExtractor(querier)
 

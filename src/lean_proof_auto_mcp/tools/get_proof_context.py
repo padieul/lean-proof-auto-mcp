@@ -28,9 +28,9 @@ from typing import Any
 
 from ..core.context_extractor import ContextExtractor
 
-from ..lean.proof_state import ProofStateInspectorImpl
+from ..lean.proof_state import LeanInteractProofStateInspector
 
-from ..lean.querier import LeanInteractQuerierImpl
+from ..lean.querier import LeanInteractQuerier
 
 from ..observability import SubprocessMetadataCollector
 
@@ -343,12 +343,12 @@ def _create_extractor(file_path: str) -> ContextExtractor:
 
     # Create Querier with ServerManager
 
-    querier = LeanInteractQuerierImpl(server_manager=server_manager)
+    querier = LeanInteractQuerier(server_manager=server_manager)
 
 
-    # Create ProofStateInspector (doesn't need workspace_path)
+    # Create ProofStateInspector with ServerManager
 
-    proof_state_inspector = ProofStateInspectorImpl()
+    proof_state_inspector = LeanInteractProofStateInspector(server_manager=server_manager)
 
 
     # Create ContextExtractor

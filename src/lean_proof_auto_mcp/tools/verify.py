@@ -22,8 +22,6 @@ from typing import Any
 
 from ..adapters.artifact_store import FilesystemArtifactStore
 
-from ..adapters.lean_interact_runner import LeanInteractRunner
-
 from ..adapters.workspace_provider import create_workspace_provider
 
 from ..core.verify_domain import VerifyCommand, VerifyCommandHandler
@@ -283,7 +281,7 @@ def _create_handler(file_path: str) -> VerifyCommandHandler:
 
     - ServerManager for Lean server lifecycle management
 
-    - LeanInteractRunner for Lean execution
+    - LeanInteractProofValidator for Lean execution
 
     - GitWorktreeProvider or TempCopyProvider for workspace isolation
 
@@ -322,13 +320,14 @@ def _create_handler(file_path: str) -> VerifyCommandHandler:
     # Create ServerManager with workspace context
 
     from ..lean.server_manager import LeanInteractServerManager
+    from ..lean.validator import LeanInteractProofValidator
 
     server_manager = LeanInteractServerManager(workspace_path=project_root)
 
 
-    # Create LeanInteractRunner with ServerManager
+    # Create LeanInteractProofValidator with ServerManager
 
-    lean_runner = LeanInteractRunner(server_manager=server_manager, timeout_buffer_ms=100)
+    lean_runner = LeanInteractProofValidator(server_manager=server_manager)
 
 
     # Create workspace provider (auto-detect mode)

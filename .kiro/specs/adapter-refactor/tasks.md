@@ -124,51 +124,51 @@ This plan refactors the adapter layer to establish unified architecture with con
   - Update `lean/__init__.py` exports
   - _Requirements: 2.3, 8.1, 10.1_
 
-- [ ] 9. Rename ProofStateInspectorImpl to LeanInteractProofStateInspector
-  - [ ] 9.1 Rename class in `lean/proof_state.py`
+- [x] 9. Rename ProofStateInspectorImpl to LeanInteractProofStateInspector
+  - [x] 9.1 Rename class in `lean/proof_state.py`
     - Update class name
     - Update all docstrings and comments
     - _Requirements: 2.4, 10.2_
   
-  - [ ] 9.2 Update constructor to accept ServerManager
+  - [x] 9.2 Update constructor to accept ServerManager
     - Change constructor signature: `def __init__(self, server_manager: ServerManager)`
     - Store as `self._server_manager = server_manager`
     - Remove `server` parameter
     - _Requirements: 8.2_
   
-  - [ ] 9.3 Update methods to use ServerManager
+  - [x] 9.3 Update methods to use ServerManager
     - In `get_initial_proof_state()`, get server via `self._server_manager.get_server("default")`
     - In `apply_tactic()`, get server via `self._server_manager.get_server("default")`
     - _Requirements: 8.4_
   
-  - [ ] 9.4 Update lean/__init__.py exports
+  - [x] 9.4 Update lean/__init__.py exports
     - Export `LeanInteractProofStateInspector` instead of `ProofStateInspectorImpl`
     - _Requirements: 10.2_
 
-- [ ] 10. Rename ProofValidatorImpl to LeanInteractProofValidator and add verify_file()
-  - [ ] 10.1 Rename class in `lean/validator.py`
+- [x] 10. Rename ProofValidatorImpl to LeanInteractProofValidator and add verify_file()
+  - [x] 10.1 Rename class in `lean/validator.py`
     - Update class name
     - Update all docstrings and comments
     - _Requirements: 2.5, 10.3_
   
-  - [ ] 10.2 Update constructor to accept ServerManager
+  - [x] 10.2 Update constructor to accept ServerManager
     - Change constructor signature: `def __init__(self, server_manager: ServerManager)`
     - Store as `self._server_manager = server_manager`
     - Remove `server` parameter
     - _Requirements: 8.3_
   
-  - [ ] 10.3 Update validate_proof() to use ServerManager
+  - [x] 10.3 Update validate_proof() to use ServerManager
     - Get server via `self._server_manager.get_server(file_path or "default")`
     - Update all server access to use ServerManager
     - _Requirements: 8.4_
   
-  - [ ] 10.4 Add verify_file() method to ProofValidator protocol
+  - [x] 10.4 Add verify_file() method to ProofValidator protocol
     - Update `lean/ports.py` to add method signature
     - Method signature: `def verify_file(self, workspace_path: Path, file_path: str, theorem_id: str | None, budget_s: float) -> LeanRunResult`
     - Add docstring describing the method
     - _Requirements: 6.1, 6.2_
   
-  - [ ] 10.5 Implement verify_file() in LeanInteractProofValidator
+  - [x] 10.5 Implement verify_file() in LeanInteractProofValidator
     - Copy implementation from `LeanInteractRunner.verify_file()`
     - Use `self._server_manager.get_server(file_path)` to obtain server
     - Implement `_parse_diagnostics()` helper method
@@ -180,19 +180,19 @@ This plan refactors the adapter layer to establish unified architecture with con
     - **Property 7: Verification Scope Handling**
     - **Validates: Requirements 6.4, 6.5**
   
-  - [ ] 10.7 Update lean/__init__.py exports
+  - [x] 10.7 Update lean/__init__.py exports
     - Export `LeanInteractProofValidator` instead of `ProofValidatorImpl`
     - _Requirements: 10.3_
 
-- [ ] 11. Delete LeanInteractRunner and related files
+- [x] 11. Delete LeanInteractRunner and related files
   - Delete `src/lean_proof_auto_mcp/adapters/lean_interact_runner.py`
   - Delete `tests/unit/adapters/test_lean_interact_runner.py`
   - Delete `tests/unit/test_server_manager_refactoring.py`
   - Delete `tests/unit/test_lean_version_detection.py`
   - _Requirements: 7.5, 11.1, 11.2, 11.3_
 
-- [ ] 12. Update all imports throughout codebase
-  - [ ] 12.1 Update tool files to use new class names
+- [x] 12. Update all imports throughout codebase
+  - [x] 12.1 Update tool files to use new class names
     - Update `tools/verify.py`: import and use `LeanInteractServerManager`, `LeanInteractProofValidator`
     - Update `tools/probe.py`: import and use `LeanInteractServerManager`, `LeanInteractProofValidator`
     - Update `tools/probe_file.py`: import and use `LeanInteractServerManager`, `LeanInteractProofValidator`
@@ -200,12 +200,12 @@ This plan refactors the adapter layer to establish unified architecture with con
     - Replace `LeanInteractRunner` usage with `LeanInteractProofValidator.verify_file()`
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5_
   
-  - [ ] 12.2 Update core domain files
+  - [x] 12.2 Update core domain files
     - Update `core/probe_domain.py`: import `LeanInteractServerManager` instead of `ServerManagerImpl`
     - Update any other core files that import adapter classes
     - _Requirements: 12.4_
   
-  - [ ] 12.3 Update test files
+  - [x] 12.3 Update test files
     - Update `tests/unit/lean/test_error_handling.py`: use new class names
     - Update `tests/property/test_server_manager_properties.py`: use `LeanInteractServerManager`
     - Update `tests/integration/test_adapter_layer_integration.py`: use new class names
@@ -221,38 +221,38 @@ This plan refactors the adapter layer to establish unified architecture with con
     - **Validates: Requirements 11.4, 11.5**
 
 - [ ] 13. Update composition roots in tools
-  - [ ] 13.1 Update verify.py composition root
+  - [x] 13.1 Update verify.py composition root
     - Create `server_manager = LeanInteractServerManager(workspace_path=project_root)`
     - Create `validator = LeanInteractProofValidator(server_manager)`
     - Pass validator to command handler
     - _Requirements: 8.1, 8.2, 8.3_
   
-  - [ ] 13.2 Update probe.py composition root
+  - [x] 13.2 Update probe.py composition root
     - Create `server_manager = LeanInteractServerManager(workspace_path=project_root)`
     - Create `validator = LeanInteractProofValidator(server_manager)`
     - Pass validator to command handler
     - _Requirements: 8.1, 8.2, 8.3_
   
-  - [ ] 13.3 Update probe_file.py composition root
+  - [x] 13.3 Update probe_file.py composition root
     - Create `server_manager = LeanInteractServerManager(workspace_path=project_root)`
     - Create `validator = LeanInteractProofValidator(server_manager)`
     - Pass validator to command handler
     - _Requirements: 8.1, 8.2, 8.3_
   
-  - [ ] 13.4 Update search_automated_proof.py composition root
+  - [x] 13.4 Update search_automated_proof.py composition root
     - Create `server_manager = LeanInteractServerManager(workspace_path=project_root)`
     - Create `querier = LeanInteractQuerier(server_manager)`
     - Create `validator = LeanInteractProofValidator(server_manager)`
     - Pass to command handler
     - _Requirements: 8.1, 8.2, 8.3_
   
-  - [ ] 13.5 Update try_automated_proof.py composition root
+  - [x] 13.5 Update try_automated_proof.py composition root
     - Create `server_manager = LeanInteractServerManager(workspace_path=project_root)`
     - Create `validator = LeanInteractProofValidator(server_manager)`
     - Pass to command handler
     - _Requirements: 8.1, 8.2, 8.3_
   
-  - [ ] 13.6 Update get_proof_context.py composition root
+  - [x] 13.6 Update get_proof_context.py composition root
     - Create `server_manager = LeanInteractServerManager(workspace_path=project_root)`
     - Create `querier = LeanInteractQuerier(server_manager)`
     - Pass to command handler
@@ -266,7 +266,7 @@ This plan refactors the adapter layer to establish unified architecture with con
   - **Property 10: Adapter Naming Convention**
   - **Validates: Requirements 2.1, 2.2**
 
-- [ ] 16. Checkpoint - Ensure all tests pass
+- [~] 16. Checkpoint - Ensure all tests pass
   - Run full test suite: `pytest tests/`
   - Verify all unit tests pass
   - Verify all property tests pass
@@ -278,7 +278,7 @@ This plan refactors the adapter layer to establish unified architecture with con
   - **Property 13: Backward Compatibility**
   - **Validates: Requirements 13.4, 13.5**
 
-- [ ] 18. Final verification and cleanup
+- [~] 18. Final verification and cleanup
   - Verify no references to old class names remain: `grep -r "LeanInteractQuerierImpl\|ProofStateInspectorImpl\|ProofValidatorImpl\|ServerManagerImpl\|LeanInteractRunner" src/ tests/`
   - Verify no os.chdir() calls remain: `grep -r "os\.chdir" src/`
   - Verify deleted files are gone

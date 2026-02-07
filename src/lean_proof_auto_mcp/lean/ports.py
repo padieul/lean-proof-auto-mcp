@@ -23,13 +23,15 @@ Requirements: 9.1, 9.2, 9.3, 9.5
 """
 
 from dataclasses import dataclass
-
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 
 if TYPE_CHECKING:
 
     from .server_manager import LeanInteractServerManager as _ServerManager
+    from ..core.verify_domain import LeanRunResult
+    from ..core.verify_domain import LeanRunResult
 
 
 
@@ -485,15 +487,15 @@ class ProofStateInspector(Protocol):
 class ProofValidator(Protocol):
     """
 
-    Port for validating proof attempts.
+    Port for validating proof attempts and verifying files.
 
 
     This protocol defines how the Core Domain Layer validates proofs
+    and verifies entire Lean files without depending on LeanInteract 
+    implementation details.
 
-    without depending on LeanInteract implementation details.
 
-
-    Requirements: 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8
+    Requirements: 6.1, 6.2, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8
     """
 
 
@@ -528,6 +530,37 @@ class ProofValidator(Protocol):
 
 
         Requirements: 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8
+        """
+        ...
+
+    def verify_file(
+        self,
+        workspace_path: Path,
+        file_path: str,
+        theorem_id: str | None,
+        budget_s: float,
+    ) -> "LeanRunResult":
+        """
+        Run Lean verification on file or theorem.
+
+        This method performs file-level or theorem-level verification using
+        LeanInteract. When theorem_id is None, performs file-level verification.
+        When theorem_id is provided, performs theorem-level verification.
+
+        Args:
+            workspace_path: Path to workspace root
+            file_path: Path to Lean file (relative to workspace)
+            theorem_id: Optional theorem identifier for theorem-level verification
+            budget_s: Timeout budget in seconds
+
+        Returns:
+            LeanRunResult with status, diagnostics, logs, and timing information
+
+        Raises:
+            TimeoutError: If verification exceeds budget_s
+            RuntimeError: If Lean verification fails
+
+        Requirements: 6.1, 6.2
         """
         ...
 

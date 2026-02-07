@@ -11,7 +11,7 @@ Requirements: 8.2, 8.3, 8.4, 8.5, 8.6
 import logging
 from dataclasses import dataclass
 
-from ..lean.ports import Declaration, LeanInteractQuerier, ProofStateInspector, TheoremContext
+from ..lean.ports import Declaration, Querier, ProofStateInspector, TheoremContext
 
 logger = logging.getLogger(__name__)
 
@@ -63,14 +63,14 @@ class ContextExtractor:
 
     def __init__(
         self,
-        querier: LeanInteractQuerier,
+        querier: Querier,
         proof_state_inspector: ProofStateInspector | None = None,
     ):
         """
         Initialize ContextExtractor with dependency injection.
 
         Args:
-            querier: LeanInteractQuerier for extracting declarations and context
+            querier: Querier for extracting declarations and context
             proof_state_inspector: Optional ProofStateInspector for extracting proof states
 
         Requirements: 8.1, 9.2, 9.5

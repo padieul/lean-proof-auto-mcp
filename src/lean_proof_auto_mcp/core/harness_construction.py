@@ -268,16 +268,16 @@ class StandardImportPathConverter:
 class LeanInteractTheoremTypeExtractor:
     """Extract theorem types using LeanInteract."""
 
-    def __init__(self, querier: "LeanInteractQuerier") -> None:  # type: ignore[name-defined]
+    def __init__(self, querier: "Querier") -> None:  # type: ignore[name-defined]
         """
-        Initialize with LeanInteract querier.
+        Initialize with querier.
 
         Args:
-            querier: LeanInteractQuerier instance for extracting declarations
+            querier: Querier instance for extracting declarations
         """
-        from ..lean.ports import LeanInteractQuerier as LeanInteractQuerierProtocol
+        from ..lean.ports import Querier
 
-        self.querier: LeanInteractQuerierProtocol = querier
+        self.querier: Querier = querier
 
     def extract_type(self, file_path: str, theorem_id: str) -> TheoremType:
         """

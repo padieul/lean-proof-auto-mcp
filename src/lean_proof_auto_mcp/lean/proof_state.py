@@ -1,5 +1,5 @@
 """
-ProofStateInspector implementation.
+LeanInteractProofStateInspector implementation.
 
 This module implements the ProofStateInspector port for inspecting proof states
 and applying tactics using LeanInteract.
@@ -9,7 +9,7 @@ Requirements: 16.1, 16.2, 16.3, 16.4
 
 import logging
 
-from .ports import Declaration, ProofState, TacticResult
+from .ports import Declaration, ProofState, ServerManager, TacticResult
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ except ImportError:
     LEAN_INTERACT_AVAILABLE = False
 
 
-class ProofStateInspectorImpl:
+class LeanInteractProofStateInspector:
     """
     Concrete implementation of ProofStateInspector using LeanInteract library.
 
@@ -39,16 +39,16 @@ class ProofStateInspectorImpl:
     Requirements: 16.1, 16.2, 16.3, 16.4
     """
 
-    def __init__(self, server: object | None = None):
+    def __init__(self, server_manager: ServerManager):
         """
-        Initialize ProofStateInspector.
+        Initialize ProofStateInspector with ServerManager via dependency injection.
 
         Args:
-            server: Optional LeanServer instance to use
+            server_manager: ServerManager instance for obtaining server instances
 
-        Requirements: 16.1
+        Requirements: 16.1, 8.2
         """
-        self.server = server
+        self._server_manager = server_manager
 
     def get_initial_proof_state(self, theorem: Declaration) -> ProofState:
         """
@@ -66,15 +66,15 @@ class ProofStateInspectorImpl:
         Raises:
             RuntimeError: If LeanInteract fails or not available
 
-        Requirements: 16.1, 16.2, 16.3, 16.4
+        Requirements: 16.1, 16.2, 16.3, 16.4, 8.4
         """
         if not LEAN_INTERACT_AVAILABLE or Command is None:
             raise RuntimeError(
                 "LeanInteract library not installed. Install with: pip install lean-interact"
             )
 
-        if self.server is None:
-            raise RuntimeError("No server instance available")
+        # Get server instance from ServerManager
+        server = self._server_manager.get_server("default")
 
         try:
             # Construct a proof harness with sorry
@@ -82,7 +82,7 @@ class ProofStateInspectorImpl:
 
             # Use Command to check the harness (note: parameter is 'cmd' not 'code')
             command = Command(cmd=harness)
-            response = self.server.run(command, timeout=10.0)  # type: ignore[attr-defined]
+            response = server.run(command, timeout=10.0)  # type: ignore[attr-defined]
 
             # Check for errors
             if isinstance(response, LeanError):
@@ -116,20 +116,20 @@ class ProofStateInspectorImpl:
         Raises:
             RuntimeError: If LeanInteract fails or not available
 
-        Requirements: 16.2
+        Requirements: 16.2, 8.4
         """
         if not LEAN_INTERACT_AVAILABLE or ProofStep is None:
             raise RuntimeError(
                 "LeanInteract library not installed. Install with: pip install lean-interact"
             )
 
-        if self.server is None:
-            raise RuntimeError("No server instance available")
+        # Get server instance from ServerManager
+        server = self._server_manager.get_server("default")
 
         try:
             # Use ProofStep to apply tactic
             proof_step = ProofStep(tactic=tactic, proof_state=proof_state_id)
-            response = self.server.run(proof_step, timeout=10.0)  # type: ignore[attr-defined]
+            response = server.run(proof_step, timeout=10.0)  # type: ignore[attr-defined]
 
             # Check for errors
             if isinstance(response, LeanError):

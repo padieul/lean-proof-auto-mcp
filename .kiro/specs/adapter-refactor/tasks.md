@@ -17,7 +17,7 @@ This plan refactors the adapter layer to establish unified architecture with con
   - Test that no protocols in ports.py have "LeanInteract" prefix
   - _Requirements: 1.2, 1.3_
 
-- [ ] 2. Rename ServerManagerImpl to LeanInteractServerManager
+- [x] 2. Rename ServerManagerImpl to LeanInteractServerManager
   - Rename class in `lean/server_manager.py`
   - Update all docstrings and comments
   - Update `lean/__init__.py` exports

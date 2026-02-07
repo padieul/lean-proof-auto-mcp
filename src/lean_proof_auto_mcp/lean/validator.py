@@ -79,8 +79,7 @@ class LeanInteractProofValidator:
         """
         Run Lean verification on file or theorem.
 
-        This method absorbs functionality from LeanInteractRunner.verify_file().
-        It performs file-level or theorem-level verification using LeanInteract.
+        This method performs file-level or theorem-level verification using LeanInteract.
 
         Args:
             workspace_path: Path to workspace root

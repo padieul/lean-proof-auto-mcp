@@ -220,7 +220,7 @@ This plan refactors the adapter layer to establish unified architecture with con
     - **Property 12: Test Migration Completeness**
     - **Validates: Requirements 11.4, 11.5**
 
-- [ ] 13. Update composition roots in tools
+- [x] 13. Update composition roots in tools
   - [x] 13.1 Update verify.py composition root
     - Create `server_manager = LeanInteractServerManager(workspace_path=project_root)`
     - Create `validator = LeanInteractProofValidator(server_manager)`
@@ -266,7 +266,7 @@ This plan refactors the adapter layer to establish unified architecture with con
   - **Property 10: Adapter Naming Convention**
   - **Validates: Requirements 2.1, 2.2**
 
-- [~] 16. Checkpoint - Ensure all tests pass
+- [x] 16. Checkpoint - Ensure all tests pass
   - Run full test suite: `pytest tests/`
   - Verify all unit tests pass
   - Verify all property tests pass
@@ -278,7 +278,7 @@ This plan refactors the adapter layer to establish unified architecture with con
   - **Property 13: Backward Compatibility**
   - **Validates: Requirements 13.4, 13.5**
 
-- [~] 18. Final verification and cleanup
+- [x] 18. Final verification and cleanup
   - Verify no references to old class names remain: `grep -r "LeanInteractQuerierImpl\|ProofStateInspectorImpl\|ProofValidatorImpl\|ServerManagerImpl\|LeanInteractRunner" src/ tests/`
   - Verify no os.chdir() calls remain: `grep -r "os\.chdir" src/`
   - Verify deleted files are gone

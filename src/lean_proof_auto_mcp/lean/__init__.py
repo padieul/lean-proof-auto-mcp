@@ -52,7 +52,7 @@ from .ports import (
 
 from .proof_state import ProofStateInspectorImpl
 
-from .querier import LeanInteractQuerierImpl
+from .querier import LeanInteractQuerier
 
 from .server_manager import LeanInteractServerManager
 
@@ -73,7 +73,7 @@ __all__ = [
     "TheoremContext",
     "ValidationResult",
     # Implementations
-    "LeanInteractQuerierImpl",
+    "LeanInteractQuerier",
     "ProofStateInspectorImpl",
     "ProofValidatorImpl",
     "LeanInteractServerManager",

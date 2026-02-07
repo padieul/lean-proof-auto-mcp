@@ -15,9 +15,7 @@ Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 10.6, 12.1, 12.2
 import logging
 
 
-from .ports import Declaration, DeclValue, Range, TheoremContext
-
-from .server_manager import LeanInteractServerManager
+from .ports import Declaration, DeclValue, Range, ServerManager, TheoremContext
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +50,7 @@ except ImportError:
 
 
 
-class LeanInteractQuerierImpl:
+class LeanInteractQuerier:
 
     """
 
@@ -72,7 +70,7 @@ class LeanInteractQuerierImpl:
     """
 
 
-    def __init__(self, server_manager: LeanInteractServerManager):
+    def __init__(self, server_manager: ServerManager):
 
         """
 
@@ -81,7 +79,7 @@ class LeanInteractQuerierImpl:
 
         Args:
 
-            server_manager: ServerManager instance for server lifecycle management
+            server_manager: ServerManager protocol instance for server lifecycle management
 
 
         Requirements: 1.1, 10.6, 28.4

@@ -23,25 +23,25 @@ This plan refactors the adapter layer to establish unified architecture with con
   - Update `lean/__init__.py` exports
   - _Requirements: 2.6, 10.4_
 
-- [ ] 3. Implement LRU eviction in LeanInteractServerManager
-  - [ ] 3.1 Replace plain dict with OrderedDict for _servers
+- [x] 3. Implement LRU eviction in LeanInteractServerManager
+  - [x] 3.1 Replace plain dict with OrderedDict for _servers
     - Import OrderedDict from collections
     - Change `self._servers: dict[str, object]` to `self._servers: OrderedDict[str, Any]`
     - _Requirements: 3.1_
   
-  - [ ] 3.2 Add MAX_SERVERS configuration
+  - [x] 3.2 Add MAX_SERVERS configuration
     - Add module-level constant: `MAX_SERVERS = int(os.environ.get("LEAN_MAX_SERVERS", "3"))`
     - Document the environment variable in docstring
     - _Requirements: 3.2, 3.3_
   
-  - [ ] 3.3 Implement LRU eviction logic in get_server()
+  - [x] 3.3 Implement LRU eviction logic in get_server()
     - Before creating new server, check if `len(self._servers) >= MAX_SERVERS`
     - If at capacity, evict oldest: `oldest_file, oldest_server = self._servers.popitem(last=False)`
     - Call `self._shutdown_server(oldest_server)` before eviction
     - Log eviction with file path
     - _Requirements: 3.4, 3.6_
   
-  - [ ] 3.4 Implement LRU tracking on access
+  - [x] 3.4 Implement LRU tracking on access
     - When returning existing server, call `self._servers.move_to_end(file_path)`
     - This marks the server as most recently used
     - _Requirements: 3.5_
@@ -54,14 +54,14 @@ This plan refactors the adapter layer to establish unified architecture with con
     - **Property 2: LRU Tracking on Access**
     - **Validates: Requirements 3.5**
 
-- [ ] 4. Add server health monitoring to LeanInteractServerManager
-  - [ ] 4.1 Implement _is_server_alive() method
+- [x] 4. Add server health monitoring to LeanInteractServerManager
+  - [x] 4.1 Implement _is_server_alive() method
     - Check if server has `run` and `kill` methods using hasattr()
     - Return True if both methods exist, False otherwise
     - Wrap in try-except to handle any exceptions
     - _Requirements: 4.1, 4.4, 4.5_
   
-  - [ ] 4.2 Add health check to get_server()
+  - [x] 4.2 Add health check to get_server()
     - When retrieving cached server, call `self._is_server_alive(server)`
     - If not alive, log warning, call `self._shutdown_server(server)`, delete from cache
     - Create new server if dead server was removed
@@ -75,21 +75,21 @@ This plan refactors the adapter layer to establish unified architecture with con
     - **Property 4: Health Check Correctness**
     - **Validates: Requirements 4.4, 4.5**
 
-- [ ] 5. Add graceful shutdown to LeanInteractServerManager
-  - [ ] 5.1 Implement _shutdown_server() method
+- [x] 5. Add graceful shutdown to LeanInteractServerManager
+  - [x] 5.1 Implement _shutdown_server() method
     - Check if server has `kill` method using hasattr()
     - Call `server.kill()` if available
     - Wrap in try-except to catch and log any exceptions
     - Never raise exceptions from this method
     - _Requirements: 5.1, 5.2, 5.3_
   
-  - [ ] 5.2 Update shutdown_all() to use _shutdown_server()
+  - [x] 5.2 Update shutdown_all() to use _shutdown_server()
     - Iterate over all cached servers
     - Call `self._shutdown_server(server)` for each
     - Clear the cache after all shutdowns
     - _Requirements: 5.4_
   
-  - [ ] 5.3 Update restart_server() to use _shutdown_server()
+  - [x] 5.3 Update restart_server() to use _shutdown_server()
     - Call `self._shutdown_server(server)` before deleting from cache
     - _Requirements: 5.5_
   
@@ -101,7 +101,7 @@ This plan refactors the adapter layer to establish unified architecture with con
     - **Property 6: Shutdown All Completeness**
     - **Validates: Requirements 5.4**
 
-- [ ] 6. Eliminate os.chdir() from LeanInteractServerManager
+- [x] 6. Eliminate os.chdir() from LeanInteractServerManager
   - Update `_create_server()` to pass workspace path explicitly to LocalProject
   - Change `LocalProject(directory=str(workspace))` to `LocalProject(path=str(workspace))`
   - Remove any `os.chdir()` calls if present
@@ -112,12 +112,12 @@ This plan refactors the adapter layer to establish unified architecture with con
   - **Property 9: LocalProject Path Injection**
   - **Validates: Requirements 9.3**
 
-- [ ] 7. Update LeanInteractServerManager to accept ServerManager protocol type
+- [x] 7. Update LeanInteractServerManager to accept ServerManager protocol type
   - Update type hints in `get_server()`, `restart_server()`, etc. to use protocol types
   - Ensure the class properly implements the ServerManager protocol
   - _Requirements: 8.1, 8.2, 8.3_
 
-- [ ] 8. Rename LeanInteractQuerierImpl to LeanInteractQuerier
+- [x] 8. Rename LeanInteractQuerierImpl to LeanInteractQuerier
   - Rename class in `lean/querier.py`
   - Update constructor to accept `ServerManager` protocol (not concrete ServerManagerImpl)
   - Update all docstrings and comments

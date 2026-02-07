@@ -10,8 +10,13 @@ Requirements: 10.6, 28.3, 28.4, 28.5, 28.6
 
 
 import logging
-
+import os
+from collections import OrderedDict
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .ports import LeanServer as LeanServerProtocol
 
 
 logger = logging.getLogger(__name__)
@@ -41,6 +46,11 @@ except ImportError:
     LEAN_INTERACT_AVAILABLE = False
 
 
+# Maximum number of concurrent servers (configurable via environment variable)
+# Set LEAN_MAX_SERVERS environment variable to override the default value of 3
+MAX_SERVERS = int(os.environ.get("LEAN_MAX_SERVERS", "3"))
+
+
 class LeanInteractServerManager:
     """
     Concrete implementation of ServerManager for managing LeanInteract servers.
@@ -48,7 +58,11 @@ class LeanInteractServerManager:
 
     This manager maintains one server instance per file to avoid startup overhead,
 
-    detects crashes, and automatically restarts servers.
+    detects crashes, and automatically restarts servers. Uses LRU eviction policy
+    
+    to limit the number of concurrent servers to MAX_SERVERS (default 3, configurable
+    
+    via LEAN_MAX_SERVERS environment variable).
 
 
     Requirements: 10.6, 28.3, 28.4, 28.5, 28.6
@@ -71,12 +85,12 @@ class LeanInteractServerManager:
 
         self.workspace_path = workspace_path
 
-        self._servers: dict[str, object] = {}  # file_path -> LeanServer
+        self._servers: OrderedDict[str, Any] = OrderedDict()  # file_path -> LeanServer
 
         self._request_log: list[tuple[str, str, object]] = []  # (file, request, response)
 
 
-    def get_server(self, file_path: str) -> object:
+    def get_server(self, file_path: str) -> "LeanServerProtocol":
         """
 
         Get or create server instance for file.
@@ -85,6 +99,10 @@ class LeanInteractServerManager:
         Maintains one server instance per file to avoid startup overhead.
 
         If server exists and is alive, returns it. Otherwise creates new server.
+        
+        Uses LRU eviction: when cache reaches MAX_SERVERS capacity, evicts the
+        
+        least recently used server before adding a new one.
 
 
         Args:
@@ -122,15 +140,26 @@ class LeanInteractServerManager:
             if self._is_server_alive(server):
 
                 logger.debug(f"Reusing existing server for {file_path}")
+                
+                # Move to end to mark as most recently used (LRU tracking)
+                self._servers.move_to_end(file_path)
+                
                 return server
             else:
 
                 logger.warning(f"Server for {file_path} is dead, creating new one")
 
-                self._cleanup_server(server)
+                self._shutdown_server(server)
 
                 del self._servers[file_path]
 
+
+        # Check if we need to evict (LRU eviction)
+        if len(self._servers) >= MAX_SERVERS:
+            # Evict least recently used (first item in OrderedDict)
+            oldest_file, oldest_server = self._servers.popitem(last=False)
+            self._shutdown_server(oldest_server)
+            logger.info(f"Evicted LRU server for {oldest_file} (cache at capacity: {MAX_SERVERS})")
 
         # Create new server
 
@@ -167,7 +196,7 @@ class LeanInteractServerManager:
 
             server = self._servers[file_path]
 
-            self._cleanup_server(server)
+            self._shutdown_server(server)
 
             del self._servers[file_path]
 
@@ -198,7 +227,7 @@ class LeanInteractServerManager:
 
         for _file_path, server in list(self._servers.items()):
 
-            self._cleanup_server(server)
+            self._shutdown_server(server)
 
 
         self._servers.clear()
@@ -246,7 +275,7 @@ class LeanInteractServerManager:
         return self._request_log.copy()
 
 
-    def _create_server(self, file_path: str) -> object:
+    def _create_server(self, file_path: str) -> "LeanServerProtocol":
         """
 
         Create a new LeanServer for the given file.
@@ -292,7 +321,7 @@ class LeanInteractServerManager:
 
                 try:
 
-                    project = LocalProject(directory=str(workspace), auto_build=False)
+                    project = LocalProject(path=str(workspace), auto_build=False)
 
                     config = LeanREPLConfig(project=project)
 
@@ -355,10 +384,10 @@ class LeanInteractServerManager:
             return False
 
 
-    def _cleanup_server(self, server: object) -> None:
+    def _shutdown_server(self, server: object) -> None:
         """
 
-        Cleanup a server by killing it.
+        Gracefully shutdown a server by killing it.
 
 
         Args:

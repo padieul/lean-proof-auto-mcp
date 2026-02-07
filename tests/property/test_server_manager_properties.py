@@ -183,7 +183,9 @@ def test_property_19_multiple_files_separate_servers(file_paths_list):
 
     For any set of different files, the system SHALL maintain separate server
 
-    instances for each file.
+    instances for each file, up to MAX_SERVERS limit. When limit is reached,
+    
+    LRU eviction applies.
 
 
     Validates: Requirements 10.6, 28.4
@@ -228,14 +230,18 @@ def test_property_19_multiple_files_separate_servers(file_paths_list):
             manager.get_server(file_path)
 
 
-        # Verify: One server per file
+        # Verify: One server per file, up to MAX_SERVERS limit
+        from lean_proof_auto_mcp.lean.server_manager import MAX_SERVERS
+        expected_count = min(len(file_paths_list), MAX_SERVERS)
 
-        assert len(manager._servers) == len(file_paths_list)
+        assert len(manager._servers) == expected_count
 
 
-        # Verify: Each file has its own server
+        # Verify: Most recent files are in cache (up to MAX_SERVERS)
+        # With LRU eviction, only the last MAX_SERVERS files should be cached
+        recent_files = file_paths_list[-expected_count:] if len(file_paths_list) > MAX_SERVERS else file_paths_list
 
-        for file_path in file_paths_list:
+        for file_path in recent_files:
 
             assert file_path in manager._servers
 

@@ -169,7 +169,7 @@ variable {G : Type*} [Group G]
 
 theorem Subgroup.mem_prod : p ∈ H.prod K ↔ p.1 ∈ H ∧ p.2 ∈ K := by
   sorry
-""")
+""", encoding="utf-8")
 
         # Mock querier with proper server_manager
         mock_querier = Mock()

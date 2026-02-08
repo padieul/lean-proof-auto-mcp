@@ -88,7 +88,7 @@ def discover_fixtures(eval_repo_path: Path) -> list[FixtureFile]:
     fixture_files = []
     
     # Search recursively for all .lean files
-    for lean_file in fixtures_dir.rglob("**/*.lean"):
+    for lean_file in fixtures_dir.rglob("*.lean"):
         # Compute relative path from Fixtures directory
         relative_path = lean_file.relative_to(fixtures_dir)
         path_parts = relative_path.parts
@@ -112,10 +112,20 @@ def discover_fixtures(eval_repo_path: Path) -> list[FixtureFile]:
 
 # Module-level constant for parametrization
 # This will be populated when the module is imported
-# Note: This may raise FileNotFoundError if eval repo is not configured
 try:
     ALL_FIXTURE_FILES: list[FixtureFile] = discover_fixtures(get_eval_repo_path())
 except FileNotFoundError:
-    # If eval repo is not found, set to empty list
-    # Tests will skip if fixtures are not available
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "Eval repository not found. ALL_FIXTURE_FILES is empty. "
+        "Set LEAN_EVAL_REPO environment variable or ensure the eval repo exists."
+    )
     ALL_FIXTURE_FILES = []
+
+
+# Domain-based fixture selection for tiered testing (deterministic, not index-based)
+SMOKE_FIXTURES = [f for f in ALL_FIXTURE_FILES if "Totient" in f.relative_path]
+QUICK_FIXTURES = [
+    f for f in ALL_FIXTURE_FILES
+    if f.domain in ("Data", "GroupTheory") or "Group" in f.subdomain
+]

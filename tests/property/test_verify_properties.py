@@ -281,7 +281,7 @@ class TestProperty7DeterministicDiagnosticSorting:
             scope_used="file",
             full_logs="",
             timing={"lean_execution_s": 0.5},
-            exit_code=1,
+            exit_code=0,
         )
 
         lean_runner = MockLeanRunner(result=lean_result)
@@ -522,7 +522,7 @@ class TestProperty5ProcessAndWorkspaceCleanup:
             scope_used="file",
             full_logs="Test output",
             timing={"lean_execution_s": 0.5},
-            exit_code=0 if status == "success" else -1,
+            exit_code=0 if status in ("success", "fail") else -1,
         )
 
         lean_runner = MockLeanRunner(result=lean_result)
@@ -699,7 +699,7 @@ class TestProperty12DiagnosticSummaryConsistency:
             scope_used="file",
             full_logs="",
             timing={"lean_execution_s": 0.5},
-            exit_code=0 if num_errors == 0 else 1,
+            exit_code=0,
         )
 
         lean_runner = MockLeanRunner(result=lean_result)

@@ -147,30 +147,30 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - Test tool calls return valid responses
     - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 4. Result Collection Module
-  - [ ] 4.1 Create `tests/lean-proof-auto-mcp-eval_tests/result_collector.py`
+- [x] 4. Result Collection Module
+  - [x] 4.1 Create `tests/lean-proof-auto-mcp-eval_tests/result_collector.py`
     - Create new Python module file
     - Add module docstring describing result collection functionality
     - _Requirements: 4.1_
 
   
-  - [ ] 4.2 Create `ToolResult` dataclass
+  - [x] 4.2 Create `ToolResult` dataclass
     - Add frozen dataclass with all required fields
     - Include tool, file_path, theorem_id, mode, status, elapsed_ms, raw_response, timestamp, domain, subdomain
     - Add docstring describing each field
     - _Requirements: 4.1_
   
-  - [ ] 4.3 Implement `ResultCollector.__init__()` method
+  - [x] 4.3 Implement `ResultCollector.__init__()` method
     - Initialize empty results list
     - _Requirements: 4.1_
   
-  - [ ] 4.4 Implement `ResultCollector.record()` method
+  - [x] 4.4 Implement `ResultCollector.record()` method
     - Create ToolResult with `datetime.now().isoformat()` timestamp
     - Append to results list
     - Handle concurrent access if needed
     - _Requirements: 4.1, 4.2, 4.8_
   
-  - [ ] 4.5 Implement `ResultCollector.save()` method
+  - [x] 4.5 Implement `ResultCollector.save()` method
     - Create output directory if it doesn't exist
     - Serialize results to `results.json`
     - Generate and save summary to `summary.json`
@@ -178,14 +178,14 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - Use custom JSON encoder for datetime
     - _Requirements: 4.3, 4.4_
   
-  - [ ] 4.6 Implement `ResultCollector.summary()` method
+  - [x] 4.6 Implement `ResultCollector.summary()` method
     - Use collections.Counter for aggregations
     - Group by tool, domain, and status
     - Calculate total_count and total_elapsed_ms
     - Return dictionary with all aggregations
     - _Requirements: 4.5_
   
-  - [ ] 4.7 Implement `ResultCollector.compare_baseline()` method
+  - [x] 4.7 Implement `ResultCollector.compare_baseline()` method
     - Load baseline JSON from file
     - Compare by (tool, file, theorem, mode) key
     - Identify regressions (success→failure)
@@ -194,13 +194,13 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - Return dictionary with categorized results
     - _Requirements: 4.6, 4.7_
   
-  - [ ] 4.8 Write unit tests for result recording
+  - [x] 4.8 Write unit tests for result recording
     - Test record() adds result to list
     - Test timestamps are unique
     - Test concurrent recording
     - _Requirements: 4.1, 4.2, 4.8_
   
-  - [ ] 4.9 Write unit tests for persistence
+  - [x] 4.9 Write unit tests for persistence
     - Test save() creates all required files
     - Test JSON serialization is valid
     - Test all results are saved
@@ -208,12 +208,12 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - _Requirements: 4.3, 4.4_
 
   
-  - [ ] 4.10 Write unit tests for summary aggregation
+  - [x] 4.10 Write unit tests for summary aggregation
     - Test summary counts match expected values
     - Test aggregations by tool, domain, status
     - _Requirements: 4.5_
   
-  - [ ] 4.11 Write unit tests for baseline comparison
+  - [x] 4.11 Write unit tests for baseline comparison
     - Create baseline and current result sets
     - Test regressions are identified correctly
     - Test improvements are identified correctly
@@ -226,89 +226,89 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - **Property 8: Summary Aggregation Correctness**
     - _Requirements: 4.5_
 
-- [ ] 5. Pytest Configuration
-  - [ ] 5.1 Create `tests/lean-proof-auto-mcp-eval_tests/conftest.py`
+- [x] 5. Pytest Configuration
+  - [x] 5.1 Create `tests/lean-proof-auto-mcp-eval_tests/conftest.py`
     - Create new Python module file
     - Add module docstring describing pytest configuration
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7_
   
-  - [ ] 5.2 Implement `eval_repo` fixture
+  - [x] 5.2 Implement `eval_repo` fixture
     - Session-scoped fixture
     - Call `get_eval_repo_path()`
     - Skip test if path doesn't exist
     - Return Path object
     - _Requirements: 5.1_
   
-  - [ ] 5.3 Implement `mcp_server_path` fixture
+  - [x] 5.3 Implement `mcp_server_path` fixture
     - Session-scoped fixture
     - Compute path relative to conftest.py
     - Return path to `src/lean_proof_auto_mcp/server.py`
     - _Requirements: 5.2_
   
-  - [ ] 5.4 Implement `result_collector` fixture
+  - [x] 5.4 Implement `result_collector` fixture
     - Session-scoped fixture
     - Create and return ResultCollector instance
     - _Requirements: 5.3_
   
-  - [ ] 5.5 Implement `mcp_client` fixture
+  - [x] 5.5 Implement `mcp_client` fixture
     - Module-scoped fixture
     - Use context manager with MCPClient
     - Yield client instance
     - Depends on eval_repo and mcp_server_path
     - _Requirements: 5.4_
   
-  - [ ] 5.6 Implement `fixture_file` parametrized fixture
+  - [x] 5.6 Implement `fixture_file` parametrized fixture
     - Parametrize over ALL_FIXTURE_FILES
     - Use relative_path as test ID
     - Return FixtureFile object
     - _Requirements: 5.5_
 
   
-  - [ ] 5.7 Register tier markers in `pytest_configure()`
+  - [x] 5.7 Register tier markers in `pytest_configure()`
     - Register eval_smoke, eval_quick, eval_normal, eval_full, eval_deep
     - Add descriptions with time estimates
     - _Requirements: 5.6_
   
-  - [ ] 5.8 Register domain markers in `pytest_configure()`
+  - [x] 5.8 Register domain markers in `pytest_configure()`
     - Register eval_algebra, eval_analysis, eval_data, eval_group_theory
     - Register eval_linear_algebra, eval_ring_theory, eval_topology
     - _Requirements: 5.7_
   
-  - [ ] 5.9 Write tests for fixture wiring
+  - [x] 5.9 Write tests for fixture wiring
     - Test all fixtures are available
     - Test fixtures have correct scopes
     - Test parametrization works correctly
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [ ] 6. Verify Tool Tests
-  - [ ] 6.1 Create `tests/lean-proof-auto-mcp-eval_tests/test_verify_eval.py`
+- [x] 6. Verify Tool Tests
+  - [x] 6.1 Create `tests/lean-proof-auto-mcp-eval_tests/test_verify_eval.py`
     - Create new test module file
     - Add module docstring
     - Set default tier marker to eval_normal
     - _Requirements: 6.1_
   
-  - [ ] 6.2 Implement smoke tier tests
+  - [x] 6.2 Implement smoke tier tests
     - Select 2 fixture files for smoke testing
     - Mark with @pytest.mark.eval_smoke
     - Test verify tool returns valid response
     - Record results with result_collector
     - _Requirements: 6.1, 6.2, 6.5_
   
-  - [ ] 6.3 Implement quick tier tests
+  - [x] 6.3 Implement quick tier tests
     - Select 5 fixture files for quick testing
     - Mark with @pytest.mark.eval_quick
     - Test verify tool on all selected files
     - Record results
     - _Requirements: 6.1, 6.2, 6.5_
   
-  - [ ] 6.4 Implement normal tier tests
+  - [x] 6.4 Implement normal tier tests
     - Test verify tool on all 23 fixture files
     - Mark with @pytest.mark.eval_normal
     - Validate response structure
     - Record success/failure status
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
   
-  - [ ] 6.5 Add response validation assertions
+  - [x] 6.5 Add response validation assertions
     - Assert status is in ["success", "failure", "error"]
     - Assert response has required fields
     - _Requirements: 6.2_
@@ -495,26 +495,26 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - **Property 15: Domain Coverage Completeness**
     - _Requirements: 12.1, 12.2_
 
-- [ ] 13. Execution Scripts - Linux/macOS
-  - [ ] 13.1 Create `tests/lean-proof-auto-mcp-eval_tests/run_eval.sh`
+- [x] 13. Execution Scripts - Linux/macOS
+  - [x] 13.1 Create `tests/lean-proof-auto-mcp-eval_tests/run_eval.sh`
     - Create bash script file
     - Add shebang: `#!/bin/bash`
     - Add `set -e` for error handling
     - _Requirements: 13.1, 13.2_
   
-  - [ ] 13.2 Implement tier argument parsing
+  - [x] 13.2 Implement tier argument parsing
     - Accept tier as first argument: `TIER=${1:-normal}`
     - Validate tier is one of: smoke, quick, normal, full, deep
     - Exit with error message if invalid tier
     - _Requirements: 13.3, 13.4, 13.5, 13.6, 13.7_
   
-  - [ ] 13.3 Implement timestamp and report directory creation
+  - [x] 13.3 Implement timestamp and report directory creation
     - Generate timestamp: `TIMESTAMP=$(date +%Y%m%d-%H%M%S)`
     - Create report directory: `REPORT_DIR="reports/eval-${TIMESTAMP}-${TIER}"`
     - Create directory: `mkdir -p "$REPORT_DIR"`
     - _Requirements: 14.1, 14.2_
   
-  - [ ] 13.4 Implement tier marker mapping
+  - [x] 13.4 Implement tier marker mapping
     - Map smoke to `-m eval_smoke`
     - Map quick to `-m 'eval_smoke or eval_quick'`
     - Map normal to `-m 'eval_smoke or eval_quick or eval_normal'`
@@ -522,7 +522,7 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - Map deep to no marker (all tests)
     - _Requirements: 13.3, 13.4, 13.5, 13.6, 13.7_
   
-  - [ ] 13.5 Implement pytest execution
+  - [x] 13.5 Implement pytest execution
     - Run pytest with tier markers
     - Add `-v` for verbose output
     - Add `--tb=short` for concise tracebacks
@@ -530,75 +530,75 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - Echo start and completion messages
     - _Requirements: 13.8, 14.3_
   
-  - [ ] 13.6 Add result persistence hook
+  - [x] 13.6 Add result persistence hook
     - After pytest completes, call result_collector.save()
     - Save to `$REPORT_DIR` directory
     - _Requirements: 14.3_
 
-- [ ] 14. Execution Scripts - Windows
-  - [ ] 14.1 Create `tests/lean-proof-auto-mcp-eval_tests/run_eval.bat`
+- [x] 14. Execution Scripts - Windows
+  - [x] 14.1 Create `tests/lean-proof-auto-mcp-eval_tests/run_eval.bat`
     - Create batch script file
     - Add `@echo off` and `setlocal enabledelayedexpansion`
     - _Requirements: 13.1, 13.2_
   
-  - [ ] 14.2 Implement tier argument parsing
+  - [x] 14.2 Implement tier argument parsing
     - Accept tier as first argument with default: `set TIER=%1` then `if "%TIER%"=="" set TIER=normal`
     - Validate tier is one of: smoke, quick, normal, full, deep
     - Exit with error message if invalid tier
     - _Requirements: 13.3, 13.4, 13.5, 13.6, 13.7_
   
-  - [ ] 14.3 Implement timestamp and report directory creation
+  - [x] 14.3 Implement timestamp and report directory creation
     - Generate timestamp using date and time commands
     - Create report directory: `set REPORT_DIR=reports\eval-%TIMESTAMP%-%TIER%`
     - Create directory: `mkdir "%REPORT_DIR%" 2>nul`
     - _Requirements: 14.1, 14.2_
   
-  - [ ] 14.4 Implement tier marker mapping
+  - [x] 14.4 Implement tier marker mapping
     - Use same marker mapping as Linux script
     - Store in MARKERS variable
     - _Requirements: 13.3, 13.4, 13.5, 13.6, 13.7_
   
-  - [ ] 14.5 Implement pytest execution
+  - [x] 14.5 Implement pytest execution
     - Run pytest with tier markers using Windows path separators
     - Add same flags as Linux script
     - Use `^` for line continuation in batch
     - Echo start and completion messages
     - _Requirements: 13.8, 14.3_
 
-- [ ] 15. Documentation - README
-  - [ ] 15.1 Create `tests/lean-proof-auto-mcp-eval_tests/README.md`
+- [x] 15. Documentation - README
+  - [x] 15.1 Create `tests/lean-proof-auto-mcp-eval_tests/README.md`
     - Create markdown file
     - Add title: "Evaluation Testing Framework"
     - Add overview section describing purpose
     - _Requirements: 15.1, 15.2_
   
-  - [ ] 15.2 Document framework architecture
+  - [x] 15.2 Document framework architecture
     - Add architecture section with component descriptions
     - Describe hexagonal architecture principles
     - List all modules and their responsibilities
     - _Requirements: 15.1_
   
-  - [ ] 15.3 Document tier system
+  - [x] 15.3 Document tier system
     - Add tier system section
     - Document all 5 tiers with time estimates
     - Explain tier hierarchy and marker usage
     - _Requirements: 15.2_
   
-  - [ ] 15.4 Document execution instructions
+  - [x] 15.4 Document execution instructions
     - Add quick start section
     - Document Linux execution: `./run_eval.sh [tier]`
     - Document Windows execution: `run_eval.bat [tier]`
     - Document environment variable: `LEAN_EVAL_REPO`
     - _Requirements: 15.2_
   
-  - [ ] 15.5 Document result interpretation
+  - [x] 15.5 Document result interpretation
     - Add results section
     - Explain result directory structure
     - Document results.json, summary.json, metadata.json formats
     - Explain how to compare against baseline
     - _Requirements: 15.2_
   
-  - [ ] 15.6 Document domain markers
+  - [x] 15.6 Document domain markers
     - Add domain filtering section
     - List all 7 domain markers
     - Show examples of running tests for specific domains

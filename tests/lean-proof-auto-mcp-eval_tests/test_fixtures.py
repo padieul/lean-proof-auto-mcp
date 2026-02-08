@@ -21,6 +21,9 @@ from fixtures import (
     FixtureFile,
     discover_fixtures,
     get_eval_repo_path,
+    SMOKE_FIXTURES,
+    QUICK_FIXTURES,
+    ALL_FIXTURE_FILES,
 )
 
 
@@ -230,3 +233,39 @@ class TestFixtureFile:
         assert fixture.domain == "Algebra"
         assert fixture.subdomain == "Group"
         assert fixture.relative_path == "Algebra/Group/path.lean"
+
+
+
+class TestTierFixtureSelection:
+    """Test that tier fixture selection is domain-based, not index-based."""
+
+    def test_smoke_fixtures_contain_only_totient(self):
+        """Smoke fixtures should only include Totient files."""
+        for f in SMOKE_FIXTURES:
+            assert "Totient" in f.relative_path, (
+                f"Smoke fixture {f.relative_path} does not contain 'Totient'"
+            )
+
+    def test_quick_fixtures_contain_data_or_group(self):
+        """Quick fixtures should include Data domain or Group subdomain."""
+        for f in QUICK_FIXTURES:
+            assert f.domain in ("Data", "GroupTheory") or "Group" in f.subdomain, (
+                f"Quick fixture {f.relative_path} is not in Data/GroupTheory domain "
+                f"or Group subdomain"
+            )
+
+    def test_smoke_is_subset_of_quick(self):
+        """Smoke fixtures should be a subset of quick fixtures."""
+        smoke_paths = {f.relative_path for f in SMOKE_FIXTURES}
+        quick_paths = {f.relative_path for f in QUICK_FIXTURES}
+        # Totient is in Data domain, so smoke should be subset of quick
+        if SMOKE_FIXTURES:
+            assert smoke_paths.issubset(quick_paths), (
+                f"Smoke fixtures not subset of quick: {smoke_paths - quick_paths}"
+            )
+
+    def test_all_fixtures_is_superset_of_quick(self):
+        """ALL_FIXTURE_FILES should be a superset of quick fixtures."""
+        all_paths = {f.relative_path for f in ALL_FIXTURE_FILES}
+        quick_paths = {f.relative_path for f in QUICK_FIXTURES}
+        assert quick_paths.issubset(all_paths)

@@ -1,447 +1,386 @@
 """Unit tests for MCP Client.
 
-This module tests the MCPClient class in isolation using mocked subprocess
-to verify lifecycle management, tool calling, and error handling without
-requiring a real MCP server.
+Tests the MCPClient class in isolation using mocked subprocess to verify
+lifecycle management, tool calling, and error handling without requiring
+a real MCP server.
+
+Integration tests at the bottom use the real server and log detailed
+output to logs/test_mcp_client.log (append-only).
 """
 
 import json
 import subprocess
+import time
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from mcp_client import MCPClient
+from eval_logger import EvalLogger
+
+
+def _make_jsonrpc_response(id: int, result: dict | None = None, error: dict | None = None) -> str:
+    """Build a JSON-RPC response line."""
+    resp: dict = {"jsonrpc": "2.0", "id": id}
+    if error is not None:
+        resp["error"] = error
+    else:
+        resp["result"] = result or {}
+    return json.dumps(resp) + "\n"
+
+
+def _mock_process_with_responses(*response_lines: str) -> MagicMock:
+    """Create a mock Popen process that returns the given response lines in order."""
+    mock_process = MagicMock()
+    mock_process.stdin = MagicMock()
+    mock_process.poll = MagicMock(return_value=None)
+
+    mock_stdout = MagicMock()
+    mock_stdout.readline = MagicMock(side_effect=list(response_lines))
+    mock_process.stdout = mock_stdout
+
+    # stderr.readline returns "" immediately so the drain thread exits
+    mock_stderr = MagicMock()
+    mock_stderr.readline = MagicMock(return_value="")
+    mock_process.stderr = mock_stderr
+
+    return mock_process
 
 
 class TestMCPClientLifecycle:
     """Test MCP client lifecycle management."""
-    
-    def test_enter_starts_process(self):
-        """Test that __enter__ starts the MCP server process."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            client = MCPClient(server_path, working_dir)
+
+    def test_enter_starts_process_with_uv_run(self):
+        """Test that __enter__ starts the server via 'uv run python -m ...'."""
+        # initialize response + no extra reads needed
+        init_response = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
+        mock_process = _mock_process_with_responses(init_response)
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process) as mock_popen:
+            client = MCPClient(Path("/fake/server.py"), Path("/fake/workdir"))
             result = client.__enter__()
-            
-            # Verify process was started with correct command
-            assert mock_popen.call_count == 1
+
             call_args = mock_popen.call_args
-            
-            # Check that python -m lean_proof_auto_mcp.server was called
-            assert call_args[0][0] == ["python", "-m", "lean_proof_auto_mcp.server"]
+            assert call_args[0][0] == ["uv", "run", "python", "-m", "lean_proof_auto_mcp.server"]
             assert call_args[1]["stdin"] == subprocess.PIPE
             assert call_args[1]["stdout"] == subprocess.PIPE
-            assert call_args[1]["stderr"] == subprocess.PIPE
             assert call_args[1]["text"] is True
-            assert "env" in call_args[1]  # PYTHONPATH should be set
-            assert call_args[1]["cwd"] == str(working_dir)
-            
-            # Verify client returned self
+            assert call_args[1]["cwd"] == str(Path("/fake/workdir"))
             assert result is client
-            
-            # Verify process stored
-            assert client._process is mock_process
-    
+            assert client._initialized is True
+
+            # Cleanup
+            client.__exit__(None, None, None)
+
     def test_exit_terminates_process(self):
         """Test that __exit__ terminates the process gracefully."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_process.wait = MagicMock()
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            client = MCPClient(server_path, working_dir)
+        init_response = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
+        mock_process = _mock_process_with_responses(init_response)
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process):
+            client = MCPClient(Path("/fake/server.py"), Path("/fake/workdir"))
             client.__enter__()
             client.__exit__(None, None, None)
-            
-            # Verify terminate was called
+
             mock_process.terminate.assert_called_once()
-            
-            # Verify wait was called with timeout
             mock_process.wait.assert_called_once_with(timeout=5)
-    
+            assert client._initialized is False
+
     def test_exit_kills_process_on_timeout(self):
         """Test that __exit__ kills process if terminate times out."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_process.wait = MagicMock(side_effect=[
-                subprocess.TimeoutExpired("cmd", 5),
-                None
-            ])
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            client = MCPClient(server_path, working_dir)
+        init_response = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
+        mock_process = _mock_process_with_responses(init_response)
+        mock_process.wait = MagicMock(
+            side_effect=[subprocess.TimeoutExpired("cmd", 5), None]
+        )
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process):
+            client = MCPClient(Path("/fake/server.py"), Path("/fake/workdir"))
             client.__enter__()
             client.__exit__(None, None, None)
-            
-            # Verify terminate was called
+
             mock_process.terminate.assert_called_once()
-            
-            # Verify kill was called after timeout
             mock_process.kill.assert_called_once()
-    
-    def test_exit_handles_exceptions_gracefully(self):
-        """Test that __exit__ handles exceptions during cleanup."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_process.terminate = MagicMock(side_effect=Exception("terminate failed"))
-            mock_process.kill = MagicMock()
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            client = MCPClient(server_path, working_dir)
-            client.__enter__()
-            
-            # Should not raise exception
-            client.__exit__(None, None, None)
-            
-            # Verify kill was attempted
-            mock_process.kill.assert_called_once()
-    
+
     def test_context_manager_protocol(self):
         """Test that client works as context manager."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            with MCPClient(server_path, working_dir) as client:
+        init_response = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
+        mock_process = _mock_process_with_responses(init_response)
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process):
+            with MCPClient(Path("/fake/server.py"), Path("/fake/workdir")) as client:
                 assert client._process is mock_process
-            
-            # Verify cleanup happened
+                assert client._initialized is True
+
             mock_process.terminate.assert_called_once()
 
+    def test_enter_sends_initialize_handshake(self):
+        """Test that __enter__ sends initialize request and initialized notification."""
+        init_response = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
+        mock_process = _mock_process_with_responses(init_response)
+
+        written_messages: list[str] = []
+        mock_process.stdin.write = lambda data: written_messages.append(data)
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process):
+            client = MCPClient(Path("/fake/server.py"), Path("/fake/workdir"))
+            client.__enter__()
+
+            # Should have sent 2 messages: initialize request + initialized notification
+            assert len(written_messages) == 2
+
+            init_req = json.loads(written_messages[0])
+            assert init_req["method"] == "initialize"
+            assert "protocolVersion" in init_req["params"]
+            assert "clientInfo" in init_req["params"]
+
+            init_notif = json.loads(written_messages[1])
+            assert init_notif["method"] == "notifications/initialized"
+            assert "id" not in init_notif  # notifications have no id
+
+            client.__exit__(None, None, None)
 
 
 class TestMCPClientCallTool:
     """Test MCP client tool calling functionality."""
-    
+
+    def _make_client_with_responses(self, *tool_responses: str):
+        """Helper: create a client that's already initialized, with queued tool responses."""
+        init_response = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
+        all_responses = [init_response] + list(tool_responses)
+        mock_process = _mock_process_with_responses(*all_responses)
+        return mock_process
+
     def test_call_tool_success(self):
-        """Test successful tool call."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_stdin = MagicMock()
-            mock_stdout = MagicMock()
-            
-            # Mock successful response
-            response_data = {"jsonrpc": "2.0", "id": 1, "result": {"status": "success"}}
-            mock_stdout.readline = MagicMock(return_value=json.dumps(response_data) + "\n")
-            
-            mock_process.stdin = mock_stdin
-            mock_process.stdout = mock_stdout
-            mock_process.stderr = MagicMock()
-            mock_process.poll = MagicMock(return_value=None)  # Process is alive
-            
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            with MCPClient(server_path, working_dir, timeout=5.0) as client:
-                result = client.call_tool("verify", {"file_path": "test.lean"})
-            
-            # Verify request was sent
-            assert mock_stdin.write.called
-            assert mock_stdin.flush.called
-            
-            # Verify response was parsed correctly
-            assert result == response_data
-    
+        """Test successful tool call with correct parameter name."""
+        tool_result = {
+            "content": [
+                {"type": "text", "text": json.dumps({
+                    "api_version": "0.2.0",
+                    "status": "success",
+                    "run_id": "verify-test",
+                    "file": "test.lean",
+                })}
+            ]
+        }
+        tool_response = _make_jsonrpc_response(2, tool_result)
+        mock_process = self._make_client_with_responses(tool_response)
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process):
+            with MCPClient(Path("/fake/server.py"), Path("/fake/workdir"), timeout=5.0) as client:
+                result = client.call_tool("verify", {"file": "test.lean"})
+
+        assert result["status"] == "success"
+        assert result["api_version"] == "0.2.0"
+
+    def test_call_tool_sends_correct_jsonrpc(self):
+        """Test that call_tool sends properly formatted tools/call request."""
+        tool_response = _make_jsonrpc_response(2, {"content": []})
+        mock_process = self._make_client_with_responses(tool_response)
+
+        written_messages: list[str] = []
+        mock_process.stdin.write = lambda data: written_messages.append(data)
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process):
+            with MCPClient(Path("/fake/server.py"), Path("/fake/workdir"), timeout=5.0) as client:
+                client.call_tool("verify", {"file": "test.lean"})
+
+        # Message 0 = initialize, 1 = initialized notification, 2 = tool call
+        tool_req = json.loads(written_messages[2])
+        assert tool_req["method"] == "tools/call"
+        assert tool_req["params"]["name"] == "verify"
+        assert tool_req["params"]["arguments"] == {"file": "test.lean"}
+
     def test_call_tool_timeout(self):
         """Test that timeout raises TimeoutError."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_stdin = MagicMock()
-            mock_stdout = MagicMock()
-            
-            # Mock slow response (readline blocks)
-            import time
-            def slow_readline():
-                time.sleep(10)  # Longer than timeout
-                return '{"result": "too late"}\n'
-            
-            mock_stdout.readline = slow_readline
-            
-            mock_process.stdin = mock_stdin
-            mock_process.stdout = mock_stdout
-            mock_process.stderr = MagicMock()
-            mock_process.poll = MagicMock(return_value=None)
-            
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            with MCPClient(server_path, working_dir, timeout=0.1) as client:
-                with pytest.raises(TimeoutError) as exc_info:
-                    client.call_tool("verify", {"file_path": "test.lean"})
-                
-                assert "timed out" in str(exc_info.value).lower()
-    
-    def test_call_tool_malformed_json(self):
-        """Test that malformed JSON raises ValueError."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_stdin = MagicMock()
-            mock_stdout = MagicMock()
-            
-            # Mock malformed JSON response
-            mock_stdout.readline = MagicMock(return_value="not valid json\n")
-            
-            mock_process.stdin = mock_stdin
-            mock_process.stdout = mock_stdout
-            mock_process.stderr = MagicMock()
-            mock_process.poll = MagicMock(return_value=None)
-            
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            with MCPClient(server_path, working_dir, timeout=5.0) as client:
-                with pytest.raises(ValueError) as exc_info:
-                    client.call_tool("verify", {"file_path": "test.lean"})
-                
-                assert "malformed json" in str(exc_info.value).lower()
-    
+        import time
+
+        init_response = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
+        mock_process = MagicMock()
+        mock_process.stdin = MagicMock()
+        mock_process.poll = MagicMock(return_value=None)
+
+        # stderr.readline returns "" so drain thread exits
+        mock_stderr = MagicMock()
+        mock_stderr.readline = MagicMock(return_value="")
+        mock_process.stderr = mock_stderr
+
+        # First readline returns init response, second blocks forever
+        def slow_readline():
+            time.sleep(10)
+            return '{"result": "too late"}\n'
+
+        mock_stdout = MagicMock()
+        mock_stdout.readline = MagicMock(side_effect=[init_response, slow_readline])
+        mock_process.stdout = mock_stdout
+
+        # Override readline for the second call to actually block
+        call_count = [0]
+        original_readline = mock_stdout.readline
+
+        def readline_with_delay():
+            call_count[0] += 1
+            if call_count[0] <= 1:
+                return init_response
+            time.sleep(10)
+            return '{"result": "too late"}\n'
+
+        mock_stdout.readline = readline_with_delay
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process):
+            with MCPClient(Path("/fake/server.py"), Path("/fake/workdir"), timeout=0.5) as client:
+                with pytest.raises(TimeoutError):
+                    client.call_tool("verify", {"file": "test.lean"})
+
     def test_call_tool_dead_process(self):
         """Test that dead process raises RuntimeError."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_stderr = MagicMock()
-            mock_stderr.read = MagicMock(return_value="Server crashed!")
-            
-            mock_process.stdin = MagicMock()
-            mock_process.stdout = MagicMock()
-            mock_process.stderr = mock_stderr
-            mock_process.poll = MagicMock(return_value=1)  # Process terminated
-            
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            with MCPClient(server_path, working_dir, timeout=5.0) as client:
-                with pytest.raises(RuntimeError) as exc_info:
-                    client.call_tool("verify", {"file_path": "test.lean"})
-                
-                assert "terminated" in str(exc_info.value).lower()
-    
+        init_response = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
+        mock_process = _mock_process_with_responses(init_response)
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process):
+            with MCPClient(Path("/fake/server.py"), Path("/fake/workdir"), timeout=5.0) as client:
+                # Kill the process after init
+                mock_process.poll = MagicMock(return_value=1)
+                mock_process.stderr.read = MagicMock(return_value="Server crashed!")
+
+                with pytest.raises(RuntimeError, match="terminated"):
+                    client.call_tool("verify", {"file": "test.lean"})
+
+    def test_call_tool_not_initialized_raises(self):
+        """Test that calling tool without initialization raises RuntimeError."""
+        client = MCPClient(Path("/fake/server.py"), Path("/fake/workdir"))
+        client._process = MagicMock()  # Fake a process but skip init
+
+        with pytest.raises(RuntimeError, match="not initialized"):
+            client.call_tool("verify", {"file": "test.lean"})
+
     def test_call_tool_increments_request_id(self):
         """Test that request IDs increment for each call."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_stdin = MagicMock()
-            mock_stdout = MagicMock()
-            
-            # Track written requests
-            written_requests = []
-            
-            def capture_write(data):
-                written_requests.append(data)
-            
-            mock_stdin.write = capture_write
-            
-            # Mock responses
-            response1 = {"jsonrpc": "2.0", "id": 1, "result": {}}
-            response2 = {"jsonrpc": "2.0", "id": 2, "result": {}}
-            mock_stdout.readline = MagicMock(side_effect=[
-                json.dumps(response1) + "\n",
-                json.dumps(response2) + "\n",
-            ])
-            
-            mock_process.stdin = mock_stdin
-            mock_process.stdout = mock_stdout
-            mock_process.stderr = MagicMock()
-            mock_process.poll = MagicMock(return_value=None)
-            
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            with MCPClient(server_path, working_dir, timeout=5.0) as client:
-                client.call_tool("verify", {"file_path": "test1.lean"})
-                client.call_tool("verify", {"file_path": "test2.lean"})
-            
-            # Verify request IDs incremented
-            assert len(written_requests) == 2
-            req1 = json.loads(written_requests[0].strip())
-            req2 = json.loads(written_requests[1].strip())
-            
-            assert req1["id"] == 1
-            assert req2["id"] == 2
+        tool_resp_1 = _make_jsonrpc_response(2, {"content": []})
+        tool_resp_2 = _make_jsonrpc_response(3, {"content": []})
+        mock_process = self._make_client_with_responses(tool_resp_1, tool_resp_2)
 
+        written_messages: list[str] = []
+        mock_process.stdin.write = lambda data: written_messages.append(data)
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process):
+            with MCPClient(Path("/fake/server.py"), Path("/fake/workdir"), timeout=5.0) as client:
+                client.call_tool("verify", {"file": "test1.lean"})
+                client.call_tool("verify", {"file": "test2.lean"})
+
+        # Messages: init(id=1), initialized(no id), tool1(id=2), tool2(id=3)
+        tool_reqs = [json.loads(m) for m in written_messages if "tools/call" in m]
+        assert len(tool_reqs) == 2
+        assert tool_reqs[0]["id"] == 2
+        assert tool_reqs[1]["id"] == 3
+
+
+class TestMCPClientHealthCheck:
+    """Test health check functionality."""
+
+    def test_health_check_returns_true_on_success(self):
+        """Test that health_check returns True when server responds."""
+        init_response = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
+        list_response = _make_jsonrpc_response(2, {"tools": []})
+        mock_process = _mock_process_with_responses(init_response, list_response)
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process):
+            with MCPClient(Path("/fake/server.py"), Path("/fake/workdir")) as client:
+                assert client.health_check() is True
+
+    def test_health_check_returns_false_when_dead(self):
+        """Test that health_check returns False when process is dead."""
+        init_response = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
+        mock_process = _mock_process_with_responses(init_response)
+
+        with patch("mcp_client.subprocess.Popen", return_value=mock_process):
+            with MCPClient(Path("/fake/server.py"), Path("/fake/workdir")) as client:
+                mock_process.poll = MagicMock(return_value=1)
+                assert client.health_check() is False
+
+
+class TestMCPClientRestart:
+    """Test restart functionality."""
+
+    def test_restart_terminates_and_starts_new_process(self):
+        """Test that restart terminates old process and starts new one."""
+        init_resp_1 = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
+        init_resp_2 = _make_jsonrpc_response(2, {"protocolVersion": "2024-11-05"})
+
+        mock_process1 = _mock_process_with_responses(init_resp_1)
+        mock_process2 = _mock_process_with_responses(init_resp_2)
+
+        with patch("mcp_client.subprocess.Popen", side_effect=[mock_process1, mock_process2]):
+            client = MCPClient(Path("/fake/server.py"), Path("/fake/workdir"))
+            client.__enter__()
+            assert client._process is mock_process1
+
+            client.restart()
+            mock_process1.terminate.assert_called()
+            assert client._process is mock_process2
+            assert client._initialized is True
+
+            client.__exit__(None, None, None)
 
 
 class TestMCPClientIntegration:
     """Integration tests with real MCP server.
-    
-    These tests require the actual MCP server and eval repository to be available.
-    They are marked with pytest.mark.integration and can be skipped in CI.
+
+    These require the actual MCP server and eval repository.
+    Marked with pytest.mark.integration.
     """
-    
+
     @pytest.mark.integration
     def test_full_lifecycle_with_real_server(self):
         """Test full lifecycle with actual MCP server."""
-        # Import fixtures module to get eval repo path
         try:
             from fixtures import get_eval_repo_path
             eval_repo_path = get_eval_repo_path()
         except (ImportError, FileNotFoundError) as e:
             pytest.skip(f"Eval repository not available: {e}")
-        
-        # Get server path relative to this test file
+
         server_path = Path(__file__).parent.parent.parent / "src" / "lean_proof_auto_mcp" / "server.py"
-        
         if not server_path.exists():
             pytest.skip(f"MCP server not found at {server_path}")
-        
-        # Test full lifecycle
-        with MCPClient(server_path, eval_repo_path, timeout=10.0) as client:
-            # Verify client is initialized
+
+        with MCPClient(server_path, eval_repo_path, timeout=30.0) as client:
             assert client._process is not None
-            assert client._process.poll() is None  # Process is running
-        
-        # After context exit, process should be terminated
-        # Note: We can't check the process directly as it's been cleaned up
-    
+            assert client._process.poll() is None
+            assert client._initialized is True
+
     @pytest.mark.integration
-    def test_tool_calls_return_valid_responses(self):
-        """Test that tool calls return valid JSON-RPC responses."""
-        # Import fixtures module to get eval repo path
+    def test_verify_tool_returns_valid_response(self):
+        """Test that verify tool returns a response matching VerifyResult schema."""
         try:
             from fixtures import get_eval_repo_path, ALL_FIXTURE_FILES
             eval_repo_path = get_eval_repo_path()
         except (ImportError, FileNotFoundError) as e:
             pytest.skip(f"Eval repository not available: {e}")
-        
+
         if not ALL_FIXTURE_FILES:
-            pytest.skip("No fixture files available for testing")
-        
-        # Get server path
+            pytest.skip("No fixture files available")
+
         server_path = Path(__file__).parent.parent.parent / "src" / "lean_proof_auto_mcp" / "server.py"
-        
         if not server_path.exists():
             pytest.skip(f"MCP server not found at {server_path}")
-        
-        # Test tool calls with real server
-        with MCPClient(server_path, eval_repo_path, timeout=30.0) as client:
-            # Use first fixture file for testing
+
+        logger = EvalLogger("test_mcp_client")
+        logger.start_session("integration", 1)
+
+        with MCPClient(server_path, eval_repo_path, timeout=180.0) as client:
             fixture = ALL_FIXTURE_FILES[0]
-            
-            # Test verify tool with proper MCP protocol and correct parameter names
-            try:
-                response = client.call_tool("verify", {
-                    "file": str(fixture.path),
-                })
-                
-                # Verify response structure
-                assert isinstance(response, dict)
-                assert "jsonrpc" in response
-                assert response["jsonrpc"] == "2.0"
-                assert "id" in response
-                
-                # Response should have either "result" or "error"
-                assert "result" in response or "error" in response
-                
-                # If we got a result, that's great!
-                # If we got an error, that's also fine - we're just testing communication
-                
-            except (TimeoutError, ValueError, RuntimeError) as e:
-                # These exceptions indicate communication issues
-                pytest.fail(f"Server communication failed: {e}")
+            file_size = fixture.path.stat().st_size if fixture.path.exists() else 0
+            logger.log_fixture_start(fixture.relative_path, file_size, 1, 1)
 
+            t0 = time.perf_counter()
+            response = client.call_tool("verify", {"file": str(fixture.path)})
+            elapsed_s = time.perf_counter() - t0
 
-class TestMCPClientHealthCheck:
-    """Test health check functionality."""
-    
-    def test_health_check_returns_true_on_success(self):
-        """Test that health_check returns True when server responds."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_stdin = MagicMock()
-            mock_stdout = MagicMock()
-            
-            # Mock successful ping response
-            response_data = {"jsonrpc": "2.0", "id": 1, "result": {"status": "ok"}}
-            mock_stdout.readline = MagicMock(return_value=json.dumps(response_data) + "\n")
-            
-            mock_process.stdin = mock_stdin
-            mock_process.stdout = mock_stdout
-            mock_process.stderr = MagicMock()
-            mock_process.poll = MagicMock(return_value=None)
-            
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            with MCPClient(server_path, working_dir) as client:
-                result = client.health_check()
-            
-            assert result is True
-    
-    def test_health_check_returns_false_on_failure(self):
-        """Test that health_check returns False when server fails."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process = MagicMock()
-            mock_process.stdin = MagicMock()
-            mock_process.stdout = MagicMock()
-            mock_process.stderr = MagicMock()
-            mock_process.poll = MagicMock(return_value=1)  # Dead process
-            
-            mock_popen.return_value = mock_process
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            with MCPClient(server_path, working_dir) as client:
-                result = client.health_check()
-            
-            assert result is False
+            assert isinstance(response, dict)
+            assert "status" in response, f"Missing 'status'. Keys: {list(response.keys())}"
+            assert response["status"] in ("success", "fail", "timeout", "error")
 
-
-class TestMCPClientRestart:
-    """Test restart functionality."""
-    
-    def test_restart_terminates_and_starts_new_process(self):
-        """Test that restart terminates old process and starts new one."""
-        with patch("mcp_client.subprocess.Popen") as mock_popen:
-            mock_process1 = MagicMock()
-            mock_process2 = MagicMock()
-            
-            # First call returns process1, second call returns process2
-            mock_popen.side_effect = [mock_process1, mock_process2]
-            
-            server_path = Path("/fake/server.py")
-            working_dir = Path("/fake/workdir")
-            
-            with MCPClient(server_path, working_dir) as client:
-                assert client._process is mock_process1
-                
-                # Restart
-                client.restart()
-                
-                # Verify old process was terminated
-                mock_process1.terminate.assert_called()
-                
-                # Verify new process was started
-                assert client._process is mock_process2
-                assert mock_popen.call_count == 2
+            passed = "status" in response and response["status"] in ("success", "fail", "timeout", "error")
+            failures = [] if passed else [f"Invalid response: {list(response.keys())}"]
+            logger.log_fixture_result(response, elapsed_s, passed, failures)

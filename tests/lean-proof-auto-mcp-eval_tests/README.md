@@ -1,83 +1,116 @@
-# Eval Investigation Tests
+# Evaluation Testing Framework
 
-This directory contains tests for investigating potential issues with the MCP server tools when working with real Lean code from the `lean-proof-auto-mcp-eval` repository.
+Systematic evaluation of all MCP tools against 23 mathlib fixture files across 7 mathematical domains.
 
-## Purpose
+## Quick Start
 
-These tests are designed to:
-1. Empirically verify whether reported issues actually exist
-2. Test all MCP tools (verify, probe, probe_file, try_automated_proof, search_automated_proof) on real Lean code
-3. Generate detailed output for analysis
-4. Provide evidence for or against implementing fixes
-
-## Key Characteristics
-
-- **Excluded from CI/CD**: These tests are marked with `@pytest.mark.eval_investigation` and are excluded from CI/CD pipelines
-- **Manual execution only**: Run these tests manually when investigating issues
-- **Requires external repository**: Tests require the `lean-proof-auto-mcp-eval` repository to be cloned at `~/Sources/lean-proof-auto-mcp-eval`
-- **Requires Lean 4**: Tests require a working Lean 4 installation
-
-## Running the Tests
-
-### Run all eval investigation tests:
 ```bash
-pytest tests/lean-proof-auto-mcp-eval_tests/ -v -s
+# Linux/macOS — using execution script
+./tests/lean-proof-auto-mcp-eval_tests/run_eval.sh smoke
+
+# Windows — using execution script
+tests\lean-proof-auto-mcp-eval_tests\run_eval.bat smoke
+
+# Or directly via pytest (any platform)
+uv run pytest tests/lean-proof-auto-mcp-eval_tests/ -m eval_smoke -v --tb=short
 ```
 
-### Run specific test class:
+## Path Configuration
+
+The framework locates the eval repository automatically:
+
+| Platform | Default Path |
+|----------|-------------|
+| Linux/macOS | `/home/paul_d/Sources/lean-proof-auto-mcp-eval/` |
+| Windows | `C:\Dev\lean-proof-auto-mcp-eval` |
+
+Override with: `LEAN_EVAL_REPO=/custom/path uv run pytest ...`
+
+## Execution Tiers
+
+| Tier | Marker | Scope | Time |
+|------|--------|-------|------|
+| smoke | `-m eval_smoke` | Totient fixtures only | ~2 min |
+| quick | `-m "eval_smoke or eval_quick"` | Data + Group domains | ~10 min |
+| normal | `-m "eval_smoke or eval_quick or eval_normal"` | All 23 files | ~30 min |
+| full | `-m "eval_smoke or eval_quick or eval_normal or eval_full"` | All + cross-tool | ~2 hours |
+| deep | (no marker filter) | Everything | ~8 hours |
+
+## Domain Filtering
+
+Run tests for a specific mathematical domain:
+
 ```bash
-pytest tests/lean-proof-auto-mcp-eval_tests/test_basic_lean_investigation.py::TestVerifyTool -v -s
+uv run pytest tests/lean-proof-auto-mcp-eval_tests/ -m eval_algebra -v
 ```
 
-### Run specific test:
-```bash
-pytest tests/lean-proof-auto-mcp-eval_tests/test_basic_lean_investigation.py::TestVerifyTool::test_verify_theorem -v -s
+Available: `eval_algebra`, `eval_analysis`, `eval_data`, `eval_group_theory`, `eval_linear_algebra`, `eval_ring_theory`, `eval_topology`
+
+## Architecture
+
+```
+conftest.py          ← Pytest fixtures (session/module/function scoped)
+fixtures.py          ← Path resolution + fixture discovery
+mcp_client.py        ← MCP client (stdio JSON-RPC with initialize handshake)
+result_collector.py  ← Result recording, persistence, baseline comparison
+test_verify_eval.py  ← Verify tool evaluation (smoke/quick/normal tiers)
+run_eval.sh          ← Tiered execution script (Linux/macOS)
+run_eval.bat         ← Tiered execution script (Windows)
+reports/             ← Persistent results (gitignored)
 ```
 
-## Test Structure
+## Result Files
 
-### `test_basic_lean_investigation.py`
+After running with `ResultCollector.save()`:
 
-Comprehensive investigation of MCP tools on `Basic.lean` theorems, focusing on:
-- **Scoped notation preservation**: Does `open scoped X in` get preserved in generated harnesses?
-- **Tool behavior**: How do different tools handle the same theorem?
-- **Edge cases**: Theorems with and without scoped notation
+- `results.json` — All individual tool results
+- `summary.json` — Aggregated stats by tool, domain, status
+- `metadata.json` — Execution metadata (count, timestamp)
 
-#### Test Classes:
-1. **TestVerifyTool**: Tests the `verify` tool
-2. **TestProbeTool**: Tests the `probe` tool
-3. **TestProbeFileTool**: Tests the `probe_file` tool
-4. **TestTryAutomatedProofTool**: Tests the `try_automated_proof` tool
-5. **TestSearchAutomatedProofTool**: Tests the `search_automated_proof` tool
-6. **TestHarnessGeneration**: Direct tests of harness construction logic
-7. **TestSummary**: Generates a summary report
+## Running Unit Tests (no MCP server needed)
 
-#### Target Theorems:
-- `Subgroup.prod_mono` - Has `open scoped Relator in` (key test case)
-- `Subgroup.mem_prod` - No scoped notation (control case)
-- `Subgroup.top_prod_top` - No scoped notation
-- `Subgroup.bot_prod_bot` - No scoped notation
+```bash
+uv run pytest tests/lean-proof-auto-mcp-eval_tests/test_fixtures.py tests/lean-proof-auto-mcp-eval_tests/test_result_collector.py tests/lean-proof-auto-mcp-eval_tests/test_mcp_client.py -v
+```
 
-## Output
+## Bugs Found and Fixed (2026-02-08)
 
-Tests generate detailed JSON output files in the pytest `tmp_path` directory, including:
-- Tool responses
-- Generated harnesses
-- Error messages
-- Diagnostic information
+### Bug 1: `LocalProject(path=...)` — wrong parameter name (server_manager.py)
 
-Check the test output for the location of these files.
+`LeanInteractServerManager._create_server()` called `LocalProject(path=str(workspace))` but the
+actual API is `LocalProject(directory=str(workspace))`. This caused a silent `TypeError`, falling
+through to standalone `LeanREPLConfig()` with no project context. The standalone config picked up
+whatever default toolchain was available (v4.27.0-rc1), whose REPL build was broken (Pickle.c null
+character warnings), causing an infinite hang on every verify call.
 
-## Current Investigation
+Fix: `LocalProject(path=...)` → `LocalProject(directory=...)` in `src/lean_proof_auto_mcp/lean/server_manager.py`.
 
-**Issue**: Scoped notation harness fix spec
-**Question**: Does the import-based harness construction actually fail to preserve `open scoped X in` declarations?
-**Approach**: Run all tools on theorems with and without scoped notation to gather empirical evidence
+### Bug 2: Windows `charmap` codec error (mcp_client.py)
 
-## Adding New Tests
+`MCPClient._start_process()` used `subprocess.Popen(..., text=True)` without specifying
+`encoding="utf-8"`. On Windows, `text=True` defaults to the system encoding (cp1252). Lean
+diagnostic messages contain Unicode math symbols (φ, ℕ, ∈, ⊢) which cp1252 cannot decode,
+causing `'charmap' codec can't decode byte 0x9d` errors and dropped MCP responses.
 
-When adding new investigation tests:
-1. Mark them with `@pytest.mark.eval_investigation`
-2. Add detailed print statements for analysis
-3. Save results to files for later review
-4. Document what you're investigating in the test docstring
+Fix: Added `encoding="utf-8"` to Popen and `PYTHONIOENCODING=utf-8` to the subprocess env
+in `tests/lean-proof-auto-mcp-eval_tests/mcp_client.py`.
+
+### Config 1: Verify budget too low (test_verify_eval.py)
+
+Default `budget_s=30.0` is too short for Mathlib projects. Lean cold start with Mathlib imports
+takes ~35-45s. Every first verify call timed out.
+
+Fix: Tests now pass `budget_s=120.0` explicitly.
+
+### Config 2: MCP client timeout too low (conftest.py)
+
+`MCPClient` timeout was 60s. With cold start + verification, responses can take 90s+.
+
+Fix: Increased to `timeout=180.0`.
+
+### Verification
+
+Debug script (`_debug_test_verify_eval.py`) confirmed all fixes:
+- Smoke tier: 1/1 PASS (33.8s)
+- Quick tier: 6/6 PASS (165s total, ~27s per fixture)
+- Pytest smoke: 1/1 PASS (29.37s)

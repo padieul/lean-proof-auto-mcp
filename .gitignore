@@ -47,3 +47,11 @@ tmp/
 .claude/settings.local.json
 
 .artifacts
+
+# Eval test reports (persistent results, not committed)
+tests/lean-proof-auto-mcp-eval_tests/reports/*
+!tests/lean-proof-auto-mcp-eval_tests/reports/.gitkeep
+
+# Eval test logs (append-only run logs, not committed)
+tests/lean-proof-auto-mcp-eval_tests/logs/*
+!tests/lean-proof-auto-mcp-eval_tests/logs/.gitkeep

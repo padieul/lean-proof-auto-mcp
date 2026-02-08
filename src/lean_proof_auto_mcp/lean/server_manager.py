@@ -321,7 +321,7 @@ class LeanInteractServerManager:
 
                 try:
 
-                    project = LocalProject(path=str(workspace), auto_build=False)
+                    project = LocalProject(directory=str(workspace), auto_build=False)
 
                     config = LeanREPLConfig(project=project)
 

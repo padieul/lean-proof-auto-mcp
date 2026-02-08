@@ -113,13 +113,19 @@ class LeanInteractProofValidator:
             diagnostics = self._parse_diagnostics_for_verify(response)
             status = self._determine_status(diagnostics)
 
+            # exit_code reflects the Lean *process* outcome, not the
+            # verification result. LeanInteract ran successfully (exit_code=0)
+            # even when the file contains errors — those are reported via
+            # diagnostics and status ("fail"). Setting exit_code=1 for "fail"
+            # caused the handler to escalate "fail" → "error", hiding valid
+            # diagnostic-only failures.
             return LeanRunResult(
                 status=status,
                 diagnostics=diagnostics,
                 scope_used="file" if theorem_id is None else "theorem",
                 full_logs="",  # LeanInteract doesn't provide full logs
                 timing={"verification_s": 0.0},  # TODO: Add timing
-                exit_code=0 if status == "success" else 1,
+                exit_code=0,
             )
 
         except TimeoutError as e:

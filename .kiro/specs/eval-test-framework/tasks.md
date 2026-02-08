@@ -313,22 +313,22 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - Assert response has required fields
     - _Requirements: 6.2_
 
-- [ ] 7. Probe Tool Tests
-  - [ ] 7.1 Create `tests/lean-proof-auto-mcp-eval_tests/test_probe_eval.py`
+- [x] 7. Probe Tool Tests
+  - [x] 7.1 Create `tests/lean-proof-auto-mcp-eval_tests/test_probe_eval.py`
     - Create new test module file
     - Add module docstring
     - Set default tier marker to eval_normal
     - _Requirements: 7.1_
 
   
-  - [ ] 7.2 Implement smoke tier tests
+  - [x] 7.2 Implement smoke tier tests
     - Select 2 files with 5 theorems each
     - Test in one mode (aesop or grind)
     - Mark with @pytest.mark.eval_smoke
     - Record results for each theorem
     - _Requirements: 7.1, 7.3, 7.4, 7.5_
   
-  - [ ] 7.3 Implement quick tier tests
+  - [x] 7.3 Implement quick tier tests
     - Select 5 files with 10 theorems each
     - Test in all three modes (aesop, grind, both)
     - Mark with @pytest.mark.eval_quick
@@ -336,7 +336,7 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - Record results
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.6_
   
-  - [ ] 7.4 Implement normal tier tests
+  - [x] 7.4 Implement normal tier tests
     - Test on all 23 files with selected theorems
     - Test in all three modes
     - Mark with @pytest.mark.eval_normal
@@ -344,33 +344,33 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - Record results
     - _Requirements: 7.1, 7.2, 7.3, 7.4_
   
-  - [ ] 7.5 Add theorem-mode parametrization
+  - [x] 7.5 Add theorem-mode parametrization
     - Create parametrize decorator for theorem-mode combinations
     - Generate test cases for each combination
     - _Requirements: 7.2, 7.4_
 
-- [ ] 8. Probe File Tool Tests
-  - [ ] 8.1 Create `tests/lean-proof-auto-mcp-eval_tests/test_probe_file_eval.py`
+- [x] 8. Probe File Tool Tests
+  - [x] 8.1 Create `tests/lean-proof-auto-mcp-eval_tests/test_probe_file_eval.py`
     - Create new test module file
     - Add module docstring
     - Set default tier marker to eval_normal
     - _Requirements: 8.1_
   
-  - [ ] 8.2 Implement smoke tier tests
+  - [x] 8.2 Implement smoke tier tests
     - Select 2 files
     - Test in one mode
     - Mark with @pytest.mark.eval_smoke
     - Validate response contains theorem list
     - _Requirements: 8.1, 8.3, 8.5_
   
-  - [ ] 8.3 Implement quick tier tests
+  - [x] 8.3 Implement quick tier tests
     - Select 5 files
     - Test in all three modes
     - Mark with @pytest.mark.eval_quick
     - Validate theorem counts
     - _Requirements: 8.1, 8.2, 8.3, 8.6_
   
-  - [ ] 8.4 Implement normal tier tests
+  - [x] 8.4 Implement normal tier tests
     - Test all 23 files in all three modes
     - Mark with @pytest.mark.eval_normal
     - Verify theorem counts match expected ranges
@@ -378,67 +378,67 @@ This plan implements a systematic test infrastructure for validating all 6 MCP t
     - _Requirements: 8.1, 8.2, 8.3, 8.4_
 
 
-- [ ] 9. Automated Proof Tool Tests
-  - [ ] 9.1 Create `tests/lean-proof-auto-mcp-eval_tests/test_search_automated_proof_eval.py`
+- [x] 9. Automated Proof Tool Tests
+  - [x] 9.1 Create `tests/lean-proof-auto-mcp-eval_tests/test_search_automated_proof_eval.py`
     - Create new test module file
     - Add module docstring
     - Set default tier marker to eval_normal
     - _Requirements: 9.1_
   
-  - [ ] 9.2 Select representative theorems from each domain
+  - [x] 9.2 Select representative theorems from each domain
     - Choose theorems that are good candidates for automated proof
     - Ensure coverage across all 7 domains
     - _Requirements: 9.1_
   
-  - [ ] 9.3 Implement normal tier tests for search_automated_proof
+  - [x] 9.3 Implement normal tier tests for search_automated_proof
     - Test on selected theorems
     - Mark with @pytest.mark.eval_normal
     - Record proof success/failure
     - Extract and record proof tactic when found
     - _Requirements: 9.1, 9.3, 9.4, 9.5_
   
-  - [ ] 9.4 Create `tests/lean-proof-auto-mcp-eval_tests/test_try_automated_proof_eval.py`
+  - [x] 9.4 Create `tests/lean-proof-auto-mcp-eval_tests/test_try_automated_proof_eval.py`
     - Create new test module file
     - Add module docstring
     - Set default tier marker to eval_normal
     - _Requirements: 9.2_
   
-  - [ ] 9.5 Select validation theorems from each domain
+  - [x] 9.5 Select validation theorems from each domain
     - Choose theorems for try_automated_proof validation
     - Ensure domain coverage
     - _Requirements: 9.2_
   
-  - [ ] 9.6 Implement normal tier tests for try_automated_proof
+  - [x] 9.6 Implement normal tier tests for try_automated_proof
     - Test on validation cases
     - Mark with @pytest.mark.eval_normal
     - Record proof validation results
     - _Requirements: 9.2, 9.3, 9.5_
 
-- [ ] 10. Get Proof Context Tool Tests
-  - [ ] 10.1 Create `tests/lean-proof-auto-mcp-eval_tests/test_get_proof_context_eval.py`
+- [x] 10. Get Proof Context Tool Tests
+  - [x] 10.1 Create `tests/lean-proof-auto-mcp-eval_tests/test_get_proof_context_eval.py`
     - Create new test module file
     - Add module docstring
     - Set default tier marker to eval_normal
     - _Requirements: 10.1_
   
-  - [ ] 10.2 Select theorems requiring context from each domain
+  - [x] 10.2 Select theorems requiring context from each domain
     - Choose theorems that need context extraction
     - Ensure domain coverage
     - _Requirements: 10.1_
   
-  - [ ] 10.3 Implement normal tier tests
+  - [x] 10.3 Implement normal tier tests
     - Test get_proof_context on selected theorems
     - Mark with @pytest.mark.eval_normal
     - Validate response contains relevant context
     - _Requirements: 10.1, 10.2_
   
-  - [ ] 10.4 Add context completeness validation
+  - [x] 10.4 Add context completeness validation
     - Verify context includes imports
     - Verify context includes definitions
     - Verify context includes related theorems
     - _Requirements: 10.3_
   
-  - [ ] 10.5 Add context quality metrics recording
+  - [x] 10.5 Add context quality metrics recording
     - Record completeness metrics
     - Record relevance metrics
     - _Requirements: 10.4_

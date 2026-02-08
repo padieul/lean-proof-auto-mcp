@@ -91,19 +91,31 @@ class EvalLogger:
         passed: bool,
         failures: list[str],
     ) -> None:
-        """Log the result of a fixture verification."""
+        """Log the result of a fixture verification.
+        
+        Tool-agnostic: works with verify (diagnostic_summary), probe
+        (probe_result), search (outcome/feedback), try (validation_status),
+        and get_proof_context (flat context fields).
+        """
         status = response.get("status", "???")
-        diag_count = len(response.get("diagnostics", []))
-        summary = response.get("diagnostic_summary", {})
         run_id = response.get("run_id", "N/A")
 
         self._log(f"  Status: {status}")
-        self._log(
-            f"  Diagnostics: {diag_count} ("
-            f"errors={summary.get('error_count', '?')}, "
-            f"warnings={summary.get('warning_count', '?')}, "
-            f"info={summary.get('info_count', '?')})"
-        )
+        
+        # Log diagnostics summary if present (verify-specific)
+        summary = response.get("diagnostic_summary")
+        diagnostics = response.get("diagnostics", [])
+        if isinstance(summary, dict):
+            diag_count = len(diagnostics) if isinstance(diagnostics, list) else 0
+            self._log(
+                f"  Diagnostics: {diag_count} ("
+                f"errors={summary.get('error_count', '?')}, "
+                f"warnings={summary.get('warning_count', '?')}, "
+                f"info={summary.get('info_count', '?')})"
+            )
+        elif isinstance(diagnostics, list) and diagnostics:
+            self._log(f"  Diagnostics: {len(diagnostics)} items")
+        
         self._log(f"  Run ID: {run_id}")
         self._log(f"  Elapsed: {elapsed_s:.1f}s")
 
@@ -114,16 +126,22 @@ class EvalLogger:
             for f in failures:
                 self._log(f"    - {f}")
 
-        # First 3 diagnostics for context
-        for j, d in enumerate(response.get("diagnostics", [])[:3]):
-            sev = d.get("severity", "?")
-            msg = d.get("message", "")[:120]
-            loc = d.get("location", {})
-            line_no = loc.get("line", "?") if isinstance(loc, dict) else "?"
-            self._log(f"  diag[{j}]: {sev} L{line_no}: {msg}")
+        # First 3 diagnostics for context (if present)
+        if isinstance(diagnostics, list):
+            for j, d in enumerate(diagnostics[:3]):
+                if isinstance(d, dict):
+                    sev = d.get("severity", "?")
+                    msg = d.get("message", "")[:120]
+                    loc = d.get("location", {})
+                    line_no = loc.get("line", "?") if isinstance(loc, dict) else "?"
+                    self._log(f"  diag[{j}]: {sev} L{line_no}: {msg}")
 
         if not passed:
             self._log(f"  FULL RESPONSE KEYS: {list(response.keys())}")
+
+    def log_info(self, msg: str) -> None:
+        """Log an informational message for tool-specific response details."""
+        self._log(f"  INFO: {msg}")
 
     def log_error(self, elapsed_s: float, error: str) -> None:
         """Log a timeout or exception."""

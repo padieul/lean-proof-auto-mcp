@@ -46,7 +46,7 @@ This implementation plan refactors all MCP tool composition roots to eliminate d
   - **Property 4: Injected constructor usage**
   - **Validates: Requirements 2.4**
 
-- [ ] 3. Update probe.py composition root
+- [x] 3. Update probe.py composition root
   - Create single LeanInteractServerManager instance
   - Create LeanInteractQuerier with ServerManager
   - Create LeanInteractProofValidator with ServerManager
@@ -66,10 +66,10 @@ This implementation plan refactors all MCP tool composition roots to eliminate d
   - **Property 20: No deprecated adapter references**
   - **Validates: Requirements 7.5, 7.6**
 
-- [ ] 4. Checkpoint - Ensure probe tool tests pass
+- [x] 4. Checkpoint - Ensure probe tool tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Update probe_file.py composition root
+- [x] 5. Update probe_file.py composition root
   - Create single LeanInteractServerManager instance (shared across all theorems)
   - Create single ImportBasedHarnessConstructor with caching (shared across all theorems)
   - Wire dependencies into ProbeCommandHandler

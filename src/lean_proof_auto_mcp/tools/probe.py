@@ -274,17 +274,19 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
     Create ProbeCommandHandler with real adapters (composition root).
 
 
-    This function wires together all dependencies:
+    This function wires together all dependencies following hexagonal architecture:
 
-    - ServerManager for Lean server lifecycle management
+    - Single LeanInteractServerManager instance
 
-    - LeanInteractProofValidator for Lean execution
+    - LeanInteractQuerier for querying Lean files
+
+    - LeanInteractProofValidator for proof validation
+
+    - ImportBasedHarnessConstructor with caching for harness construction
 
     - GitWorktreeProvider or TempCopyProvider for workspace isolation
 
     - HeuristicClassifier for outcome classification
-
-    - ImportBasedHarnessConstructor for harness construction
 
 
     Args:
@@ -297,7 +299,7 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
         Configured ProbeCommandHandler
 
 
-    Requirements: 1.1, 6.1, 6.2, 10.6, 28.4, 28.5
+    Requirements: 1.1, 1.2, 1.3, 1.4, 7.1, 7.2, 7.3, 7.5, 7.6
     """
 
     # Detect project root from file path
@@ -316,20 +318,48 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
         project_root = file_path_obj.parent
 
 
-    # Create ServerManager with workspace context
+    # 1. Create single LeanInteractServerManager instance
 
     from ..lean.server_manager import LeanInteractServerManager
-    from ..lean.validator import LeanInteractProofValidator
 
     server_manager = LeanInteractServerManager(workspace_path=project_root)
 
 
-    # Create LeanInteractProofValidator with ServerManager
+    # 2. Create LeanInteractQuerier with ServerManager
 
-    lean_runner = LeanInteractProofValidator(server_manager=server_manager)
+    from ..lean.querier import LeanInteractQuerier
+
+    querier = LeanInteractQuerier(server_manager=server_manager)
 
 
-    # Create workspace provider (auto-detect mode)
+    # 3. Create LeanInteractProofValidator with ServerManager
+
+    from ..lean.validator import LeanInteractProofValidator
+
+    validator = LeanInteractProofValidator(server_manager=server_manager)
+
+
+    # 4. Create ImportBasedHarnessConstructor with caching
+
+    from ..core.harness_construction import (
+
+        ImportBasedHarnessConstructor,
+
+        LeanInteractTheoremTypeExtractor,
+
+    )
+
+    from ..core.import_path_converter import StandardImportPathConverter
+
+
+    type_extractor = LeanInteractTheoremTypeExtractor(querier)
+
+    path_converter = StandardImportPathConverter()
+
+    constructor = ImportBasedHarnessConstructor(type_extractor, path_converter)
+
+
+    # 5. Create workspace provider (auto-detect mode)
 
     workspace_provider = create_workspace_provider(
 
@@ -342,35 +372,36 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
     )
 
 
-    # Create classifier
+    # 6. Create classifier
 
     classifier = HeuristicClassifier()
 
 
-    # Create artifact store
+    # 7. Create artifact store
 
     artifact_store = FilesystemArtifactStore(ARTIFACTS_DIR)
 
 
-    # Create metadata collector
+    # 8. Create metadata collector
 
     from ..observability import SubprocessMetadataCollector
-
 
     metadata_collector = SubprocessMetadataCollector()
 
 
-    # Wire dependencies into handler
+    # 9. Wire all dependencies into ProbeCommandHandler
 
     return ProbeCommandHandler(
 
-        lean_runner=lean_runner,
+        validator=validator,
+
+        querier=querier,
 
         workspace_provider=workspace_provider,
 
         classifier=classifier,
 
-        harness_constructor=None,  # Created per-workspace in _construct_harness
+        harness_constructor=constructor,
 
         artifact_store=artifact_store,
 

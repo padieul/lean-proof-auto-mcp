@@ -40,6 +40,7 @@ class TestSearchAutomatedProofMetadata:
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
+            constructor=Mock(),
             metadata_collector=mock_collector,
         )
 
@@ -64,6 +65,7 @@ class TestSearchAutomatedProofMetadata:
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
+            constructor=Mock(),
             metadata_collector=None,
         )
 
@@ -92,6 +94,7 @@ class TestSearchAutomatedProofMetadata:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=mock_collector,
         )
 
@@ -120,6 +123,7 @@ class TestMetadataCollectorGracefulHandling:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=None,
         )
 
@@ -135,6 +139,7 @@ class TestMetadataCollectorGracefulHandling:
                 candidate_gen=Mock(),
                 feedback_builder=Mock(),
                 validator=Mock(),
+                constructor=Mock(),
                 metadata_collector=None,
             )
             assert orchestrator.metadata_collector is None
@@ -162,6 +167,7 @@ class TestMetadataConsistency:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=mock_collector,
         )
 
@@ -186,6 +192,7 @@ class TestMetadataConsistency:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=mock_collector,
         )
 
@@ -208,6 +215,7 @@ class TestMetadataConsistency:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=mock_collector,
         )
 
@@ -219,6 +227,7 @@ class TestMetadataConsistency:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=None,
         )
 
@@ -243,6 +252,7 @@ class TestToolLevelMetadataIntegration:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=mock_collector,
         )
 
@@ -255,6 +265,7 @@ class TestToolLevelMetadataIntegration:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=None,
         )
 
@@ -273,6 +284,7 @@ class TestToolLevelMetadataIntegration:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             # metadata_collector not provided - should default to None
         )
 
@@ -285,6 +297,7 @@ class TestToolLevelMetadataIntegration:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=Mock(spec=MetadataCollector),
         )
 
@@ -292,6 +305,7 @@ class TestToolLevelMetadataIntegration:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=None,
         )
 
@@ -331,6 +345,7 @@ class TestMetadataCollectorContract:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=mock_collector,
         )
 
@@ -351,6 +366,7 @@ class TestMetadataCollectorContract:
             candidate_gen=Mock(),
             feedback_builder=Mock(),
             validator=Mock(),
+            constructor=Mock(),
             metadata_collector=mock_collector,
         )
 

@@ -128,7 +128,7 @@ This implementation plan refactors all MCP tool composition roots to eliminate d
 - [x] 8. Checkpoint - Ensure try_automated_proof tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Refactor SearchOrchestrator to use ProofValidator
+- [x] 9. Refactor SearchOrchestrator to use ProofValidator
   - Change constructor signature: replace lean_runner with validator, make constructor required
   - Update _test_hint_combination() to use validator.validate_proof()
   - Implement harness construction with caching

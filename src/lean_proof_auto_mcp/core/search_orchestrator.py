@@ -27,7 +27,6 @@ from .search_automated_proof_domain import (
 
 if TYPE_CHECKING:
     from .harness_construction import HarnessConstructor
-    from .verify_domain import LeanRunner
 
 logger = logging.getLogger(__name__)
 
@@ -150,8 +149,7 @@ class SearchOrchestrator:
         candidate_gen: CandidateGenerator,
         feedback_builder: FeedbackBuilder,
         validator: ProofValidator,
-        harness_constructor: "HarnessConstructor | None" = None,
-        lean_runner: "LeanRunner | None" = None,
+        constructor: "HarnessConstructor",
         proof_state_inspector: ProofStateInspector | None = None,
         metadata_collector: MetadataCollector | None = None,
     ):
@@ -162,18 +160,16 @@ class SearchOrchestrator:
             candidate_gen: CandidateGenerator for extracting hints
             feedback_builder: FeedbackBuilder for building feedback
             validator: ProofValidator for validating proofs
-            harness_constructor: Optional HarnessConstructor for building test harnesses
-            lean_runner: Optional LeanRunner for running Lean verification
+            constructor: HarnessConstructor for building test harnesses
             proof_state_inspector: Optional ProofStateInspector for proof states
             metadata_collector: Optional MetadataCollector for environment metadata
 
-        Requirements: 4.1, 9.2, 9.5, 29.2
+        Requirements: 4.1, 5.1, 5.2, 9.2, 9.5, 29.2
         """
         self.candidate_gen = candidate_gen
         self.feedback_builder = feedback_builder
         self.validator = validator
-        self.harness_constructor = harness_constructor
-        self.lean_runner = lean_runner
+        self.constructor = constructor
         self.proof_state_inspector = proof_state_inspector
         self.metadata_collector = metadata_collector
 
@@ -207,11 +203,6 @@ class SearchOrchestrator:
             f"Starting search for {theorem_id} with depth={config.search_depth}, "
             f"strategy={config.search_strategy}"
         )
-
-        # If harness_constructor is not provided, return placeholder result
-        if self.harness_constructor is None:
-            logger.warning("No harness_constructor provided, returning placeholder result")
-            return self._build_placeholder_result(config)
 
         # 1. Generate candidates from configured sources
         try:
@@ -479,10 +470,10 @@ class SearchOrchestrator:
         config: SearchConfig,
     ) -> bool:
         """
-        Test a specific hint combination using harness constructor.
+        Test a specific hint combination using ProofValidator.
 
         This method constructs a test harness with the given hints and
-        runs automation to check if the proof succeeds.
+        validates the proof using the ProofValidator port.
 
         Args:
             file_path: Path to Lean file
@@ -493,18 +484,14 @@ class SearchOrchestrator:
         Returns:
             True if proof succeeds with these hints, False otherwise
 
-        Requirements: 4.1
+        Requirements: 5.3, 5.4, 5.5, 5.6
         """
-        if self.harness_constructor is None or self.lean_runner is None:
-            logger.warning("Cannot test hints without harness_constructor and lean_runner")
-            return False
-
         try:
             # Build proof attempt with hints
             proof_attempt = self._build_proof_with_hints(hints, config)
 
-            # Construct harness
-            from .harness_construction import HarnessConfig, HarnessError, HarnessSuccess
+            # Construct harness (uses cache)
+            from .harness_construction import HarnessConfig, HarnessError
 
             harness_config = HarnessConfig(
                 theorem_id=theorem_id,
@@ -513,21 +500,25 @@ class SearchOrchestrator:
                 additional_imports=self._get_additional_imports(config),
             )
 
-            result = self.harness_constructor.construct(harness_config)
+            harness_result = self.constructor.construct(harness_config)
 
             # Handle construction errors
-            if isinstance(result, HarnessError):
-                logger.debug(f"Harness construction failed: {result.message}")
+            if isinstance(harness_result, HarnessError):
+                logger.debug(f"Harness construction failed: {harness_result.message}")
                 return False
 
-            # Extract harness code
-            assert isinstance(result, HarnessSuccess)
+            # Validate proof using ProofValidator port
+            # Calculate timeout per attempt
+            timeout_per_attempt = config.search_budget_s / config.max_search_steps
 
-            # Run Lean verification
-            # TODO: Implement actual Lean verification
-            # For now, return False (no successful proofs)
-            logger.debug(f"Testing hint combination with {len(hints)} hints")
-            return False
+            validation_result = self.validator.validate_proof(
+                theorem_statement=harness_result.code,
+                proof_attempt=proof_attempt,
+                timeout_s=timeout_per_attempt,
+            )
+
+            # Map result status: success → True, others → False
+            return validation_result.status == "success"
 
         except Exception as e:
             logger.debug(f"Error testing hint combination: {e}")
@@ -597,43 +588,6 @@ class SearchOrchestrator:
             imports.append("import Aesop")
 
         return imports
-
-    def _build_placeholder_result(self, config: SearchConfig) -> SearchResultEnhanced:
-        """
-        Build placeholder result when harness_constructor is not available.
-
-        Args:
-            config: Search configuration
-
-        Returns:
-            SearchResultEnhanced with placeholder data
-
-        Requirements: 4.1
-        """
-        metadata = self._build_metadata()
-
-        feedback = self.feedback_builder.build_search_feedback(
-            search_result=SearchResult(
-                outcome="failed",
-                best_hint_set=None,
-                attempts=0,
-                explored_sets=0,
-                evidence=None,
-            ),
-            initial_proof_state=None,
-            final_proof_state=None,
-            candidates=[],
-        )
-
-        return SearchResultEnhanced(
-            outcome="failed",
-            best_hint_set=None,
-            attempts=0,
-            explored_sets=0,
-            feedback=feedback,
-            metadata=metadata,
-            search_trace=None if not config.return_search_trace else [],
-        )
 
     def _build_error_result(self, config: SearchConfig, error_message: str) -> SearchResultEnhanced:
         """

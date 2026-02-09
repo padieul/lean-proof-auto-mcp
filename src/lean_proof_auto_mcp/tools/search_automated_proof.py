@@ -985,7 +985,7 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
     # Create LeanInteractProofValidator for executing harnesses
 
 
-    lean_runner = LeanInteractProofValidator(server_manager)
+
 
 
 
@@ -1004,10 +1004,10 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
         validator=validator,
 
 
-        harness_constructor=harness_constructor,
+        constructor=harness_constructor,
 
 
-        lean_runner=lean_runner,
+
 
 
         proof_state_inspector=proof_state_inspector,

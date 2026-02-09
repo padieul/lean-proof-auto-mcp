@@ -88,7 +88,7 @@ This implementation plan refactors all MCP tool composition roots to eliminate d
   - **Property 8: Batch operation caching**
   - **Validates: Requirements 6.4, 8.1, 8.2**
 
-- [ ] 6. Create ValidateProofCommand and ValidateProofCommandHandler
+- [x] 6. Create ValidateProofCommand and ValidateProofCommandHandler
   - Create new file: core/validate_proof_domain.py
   - Define ValidateProofCommand as frozen dataclass with file_path, theorem_id, proof_attempt, timeout_s, return_proof_state
   - Define ValidateProofCommandHandler with querier, validator, constructor, proof_state_inspector, metadata_collector
@@ -110,7 +110,7 @@ This implementation plan refactors all MCP tool composition roots to eliminate d
   - Test that handler validates using validator
   - _Requirements: 4.2, 4.6_
 
-- [ ] 7. Refactor try_automated_proof.py to use Command/Handler pattern
+- [x] 7. Refactor try_automated_proof.py to use Command/Handler pattern
   - Implement _build_command() to create ValidateProofCommand from args
   - Implement _create_handler() composition root
   - Update try_automated_proof() to use command/handler workflow
@@ -125,7 +125,7 @@ This implementation plan refactors all MCP tool composition roots to eliminate d
   - **Property 12: No monkey-patching**
   - **Validates: Requirements 4.7, 9.4**
 
-- [ ] 8. Checkpoint - Ensure try_automated_proof tests pass
+- [x] 8. Checkpoint - Ensure try_automated_proof tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 9. Refactor SearchOrchestrator to use ProofValidator

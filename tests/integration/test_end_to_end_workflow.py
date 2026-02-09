@@ -33,12 +33,12 @@ class TestCompleteWorkflow:
     """Test complete end-to-end workflow with all three tools."""
 
     @patch("lean_proof_auto_mcp.tools.search_automated_proof._create_orchestrator")
-    @patch("lean_proof_auto_mcp.tools.try_automated_proof._create_validator")
+    @patch("lean_proof_auto_mcp.tools.try_automated_proof._create_handler")
     @patch("lean_proof_auto_mcp.tools.get_proof_context._create_extractor")
     def test_search_validate_iterate_cycle(
         self,
         mock_create_extractor,
-        mock_create_validator,
+        mock_create_handler,
         mock_create_orchestrator,
     ):
         """Test complete search → validate → iterate cycle.
@@ -60,7 +60,7 @@ class TestCompleteWorkflow:
 
         # Setup mocks
         mock_orchestrator = MagicMock()
-        mock_validator = MagicMock()
+        mock_handler = MagicMock()
         mock_context_extractor = MagicMock()
 
         # Mock search result
@@ -109,8 +109,9 @@ class TestCompleteWorkflow:
             time_s=1.5,
         )
 
-        mock_validator.validate_proof.return_value = validation_result
-        mock_create_validator.return_value = mock_validator
+        mock_handler = MagicMock()
+        mock_handler.handle.return_value = validation_result
+        mock_create_handler.return_value = mock_handler
 
         # Mock context
         from lean_proof_auto_mcp.core.context_extractor import ProofContext
@@ -173,7 +174,7 @@ class TestCompleteWorkflow:
         # Verify all three tools were called
         assert mock_context_extractor.extract_context.called
         assert mock_orchestrator.search.called
-        assert mock_validator.validate_proof.called
+        assert mock_handler.handle.called
 
     @patch("lean_proof_auto_mcp.tools.search_automated_proof._create_orchestrator")
     def test_iterative_refinement_workflow(self, mock_create_orchestrator):
@@ -293,9 +294,9 @@ class TestCompleteWorkflow:
         assert len(result_dict2["best_hint_set"]) == 2
 
     @patch("lean_proof_auto_mcp.tools.search_automated_proof._create_orchestrator")
-    @patch("lean_proof_auto_mcp.tools.try_automated_proof._create_validator")
+    @patch("lean_proof_auto_mcp.tools.try_automated_proof._create_handler")
     def test_validation_failure_feedback_loop(
-        self, mock_create_validator, mock_create_orchestrator
+        self, mock_create_handler, mock_create_orchestrator
     ):
         """Test feedback loop when validation fails.
 
@@ -363,8 +364,9 @@ class TestCompleteWorkflow:
             time_s=2.0,
         )
 
-        mock_validator.validate_proof.return_value = validation_result
-        mock_create_validator.return_value = mock_validator
+        mock_handler = MagicMock()
+        mock_handler.handle.return_value = validation_result
+        mock_create_handler.return_value = mock_handler
 
         # Search for hints
         search_result_dict = search_automated_proof(
@@ -535,9 +537,9 @@ class TestToolInteraction:
         assert mock_orchestrator.search.called
 
     @patch("lean_proof_auto_mcp.tools.search_automated_proof._create_orchestrator")
-    @patch("lean_proof_auto_mcp.tools.try_automated_proof._create_validator")
+    @patch("lean_proof_auto_mcp.tools.try_automated_proof._create_handler")
     def test_search_feedback_guides_validation(
-        self, mock_create_validator, mock_create_orchestrator
+        self, mock_create_handler, mock_create_orchestrator
     ):
         """Test that search feedback guides validation attempts.
 
@@ -600,7 +602,7 @@ class TestToolInteraction:
         mock_create_orchestrator.return_value = mock_orchestrator
 
         # Mock validator
-        mock_validator = MagicMock()
+        mock_handler = MagicMock()
         validation_result = ValidationResult(
             status="success",
             error_message=None,
@@ -610,8 +612,8 @@ class TestToolInteraction:
             time_s=1.0,
         )
 
-        mock_validator.validate_proof.return_value = validation_result
-        mock_create_validator.return_value = mock_validator
+        mock_handler.handle.return_value = validation_result
+        mock_create_handler.return_value = mock_handler
 
         # Search
         search_result_dict = search_automated_proof(

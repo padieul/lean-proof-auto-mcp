@@ -23,8 +23,13 @@ class TestProbeCommandHandler:
     """Test ProbeCommandHandler orchestration logic."""
 
     @pytest.fixture
-    def mock_lean_runner(self):
-        """Create mock LeanRunner."""
+    def mock_validator(self):
+        """Create mock ProofValidator."""
+        return Mock()
+
+    @pytest.fixture
+    def mock_querier(self):
+        """Create mock Querier."""
         return Mock()
 
     @pytest.fixture
@@ -46,16 +51,23 @@ class TestProbeCommandHandler:
         return classifier
 
     @pytest.fixture
-    def handler(self, mock_lean_runner, mock_workspace_provider, mock_classifier):
+    def mock_harness_constructor(self):
+        """Create mock HarnessConstructor."""
+        return Mock()
+
+    @pytest.fixture
+    def handler(self, mock_validator, mock_querier, mock_workspace_provider, mock_classifier, mock_harness_constructor):
         """Create ProbeCommandHandler with mocked dependencies."""
         return ProbeCommandHandler(
-            lean_runner=mock_lean_runner,
+            validator=mock_validator,
+            querier=mock_querier,
             workspace_provider=mock_workspace_provider,
             classifier=mock_classifier,
+            harness_constructor=mock_harness_constructor,
         )
 
     def test_successful_probe_execution(
-        self, handler, mock_lean_runner, mock_workspace_provider, mock_classifier
+        self, handler, mock_validator, mock_workspace_provider, mock_classifier, mock_harness_constructor
     ):
         """Test successful probe execution with mocked dependencies."""
         # Setup
@@ -66,8 +78,16 @@ class TestProbeCommandHandler:
             budget_s=10.0,
         )
 
+        # Mock harness construction
+        from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+        mock_harness_constructor.construct.return_value = HarnessSuccess(
+            code="-- harness code",
+            theorem_id="MyTheorem",
+            file_path="test.lean",
+        )
+
         # Mock Lean execution result
-        mock_lean_runner.verify_file.return_value = LeanRunResult(
+        mock_validator.verify_file.return_value = LeanRunResult(
             status="success",
             diagnostics=[],
             scope_used="theorem",
@@ -76,16 +96,10 @@ class TestProbeCommandHandler:
             exit_code=0,
         )
 
-        # Mock harness construction and writing to avoid file I/O
-        with (
-            patch(
-                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
-                return_value="mocked harness",
-            ),
-            patch(
-                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
-                return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
-            ),
+        # Mock harness writing to avoid file I/O
+        with patch(
+            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
+            return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
         ):
             # Execute
             result = handler.handle(cmd)
@@ -129,7 +143,7 @@ class TestProbeCommandHandler:
         # Verify cleanup was not called (workspace was never created)
         mock_workspace_provider.cleanup_workspace.assert_not_called()
 
-    def test_theorem_not_found_error(self, handler, mock_lean_runner, mock_workspace_provider):
+    def test_theorem_not_found_error(self, handler, mock_validator, mock_workspace_provider, mock_harness_constructor):
         """Test error handling for theorem not found."""
         # Setup
         cmd = ProbeCommand(
@@ -139,9 +153,13 @@ class TestProbeCommandHandler:
             budget_s=10.0,
         )
 
-        # Mock Lean execution raising ValueError for theorem not found
-        mock_lean_runner.verify_file.side_effect = ValueError(
-            "Theorem 'NonExistentTheorem' not found"
+        # Mock harness construction failure
+        from lean_proof_auto_mcp.core.harness_construction import HarnessError
+        mock_harness_constructor.construct.return_value = HarnessError(
+            error_type="theorem_not_found",
+            message="Theorem 'NonExistentTheorem' not found",
+            theorem_id="NonExistentTheorem",
+            file_path="test.lean",
         )
 
         # Execute
@@ -156,7 +174,7 @@ class TestProbeCommandHandler:
         # Verify cleanup was called
         mock_workspace_provider.cleanup_workspace.assert_called_once()
 
-    def test_toolchain_error_handling(self, handler, mock_lean_runner, mock_workspace_provider):
+    def test_toolchain_error_handling(self, handler, mock_validator, mock_workspace_provider, mock_harness_constructor):
         """Test error handling for toolchain failures."""
         # Setup
         cmd = ProbeCommand(
@@ -166,19 +184,21 @@ class TestProbeCommandHandler:
             budget_s=10.0,
         )
 
-        # Mock harness construction and writing to avoid file I/O
-        with (
-            patch(
-                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
-                return_value="mocked harness",
-            ),
-            patch(
-                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
-                return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
-            ),
+        # Mock harness construction
+        from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+        mock_harness_constructor.construct.return_value = HarnessSuccess(
+            code="-- harness code",
+            theorem_id="MyTheorem",
+            file_path="test.lean",
+        )
+
+        # Mock harness writing to avoid file I/O
+        with patch(
+            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
+            return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
         ):
             # Mock Lean execution raising RuntimeError for toolchain failure
-            mock_lean_runner.verify_file.side_effect = RuntimeError("Lean process failed")
+            mock_validator.verify_file.side_effect = RuntimeError("Lean process failed")
 
             # Execute
             result = handler.handle(cmd)
@@ -192,7 +212,7 @@ class TestProbeCommandHandler:
         # Verify cleanup was called
         mock_workspace_provider.cleanup_workspace.assert_called_once()
 
-    def test_timeout_handling(self, handler, mock_lean_runner, mock_workspace_provider):
+    def test_timeout_handling(self, handler, mock_validator, mock_workspace_provider, mock_harness_constructor):
         """Test timeout handling."""
         # Setup
         cmd = ProbeCommand(
@@ -202,19 +222,21 @@ class TestProbeCommandHandler:
             budget_s=10.0,
         )
 
-        # Mock harness construction and writing to avoid file I/O
-        with (
-            patch(
-                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
-                return_value="mocked harness",
-            ),
-            patch(
-                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
-                return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
-            ),
+        # Mock harness construction
+        from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+        mock_harness_constructor.construct.return_value = HarnessSuccess(
+            code="-- harness code",
+            theorem_id="MyTheorem",
+            file_path="test.lean",
+        )
+
+        # Mock harness writing to avoid file I/O
+        with patch(
+            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
+            return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
         ):
             # Mock Lean execution raising TimeoutError
-            mock_lean_runner.verify_file.side_effect = TimeoutError("Execution timed out")
+            mock_validator.verify_file.side_effect = TimeoutError("Execution timed out")
 
             # Execute
             result = handler.handle(cmd)
@@ -228,7 +250,7 @@ class TestProbeCommandHandler:
         mock_workspace_provider.cleanup_workspace.assert_called_once()
 
     def test_workspace_cleanup_always_runs(
-        self, handler, mock_lean_runner, mock_workspace_provider
+        self, handler, mock_validator, mock_workspace_provider, mock_harness_constructor
     ):
         """Test that workspace cleanup always runs even on errors."""
         # Setup
@@ -239,8 +261,16 @@ class TestProbeCommandHandler:
             budget_s=10.0,
         )
 
+        # Mock harness construction
+        from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+        mock_harness_constructor.construct.return_value = HarnessSuccess(
+            code="-- harness code",
+            theorem_id="MyTheorem",
+            file_path="test.lean",
+        )
+
         # Mock Lean execution raising an error
-        mock_lean_runner.verify_file.side_effect = RuntimeError("Unexpected error")
+        mock_validator.verify_file.side_effect = RuntimeError("Unexpected error")
 
         # Execute
         handler.handle(cmd)
@@ -249,7 +279,7 @@ class TestProbeCommandHandler:
         mock_workspace_provider.cleanup_workspace.assert_called_once()
 
     def test_workspace_cleanup_error_logged_not_propagated(
-        self, handler, mock_lean_runner, mock_workspace_provider
+        self, handler, mock_validator, mock_workspace_provider, mock_harness_constructor
     ):
         """Test that workspace cleanup errors are logged but not propagated."""
         # Setup
@@ -260,8 +290,16 @@ class TestProbeCommandHandler:
             budget_s=10.0,
         )
 
+        # Mock harness construction
+        from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+        mock_harness_constructor.construct.return_value = HarnessSuccess(
+            code="-- harness code",
+            theorem_id="MyTheorem",
+            file_path="test.lean",
+        )
+
         # Mock successful Lean execution
-        mock_lean_runner.verify_file.return_value = LeanRunResult(
+        mock_validator.verify_file.return_value = LeanRunResult(
             status="success",
             diagnostics=[],
             scope_used="theorem",
@@ -273,16 +311,10 @@ class TestProbeCommandHandler:
         # Mock cleanup failure
         mock_workspace_provider.cleanup_workspace.side_effect = RuntimeError("Cleanup failed")
 
-        # Mock harness construction and writing to avoid file I/O
-        with (
-            patch(
-                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
-                return_value="mocked harness",
-            ),
-            patch(
-                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
-                return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
-            ),
+        # Mock harness writing to avoid file I/O
+        with patch(
+            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
+            return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
         ):
             # Execute - should not raise exception
             result = handler.handle(cmd)
@@ -315,130 +347,9 @@ class TestProbeCommandHandler:
             parts = run_id.split("-")
             assert len(parts) == 5  # probe-YYYYMMDD-HHMMSS-hash-random
 
-    @pytest.mark.requires_lean
-    def test_harness_construction_for_aesop(self, handler, mock_workspace_provider):
-        """Test harness construction for aesop mode."""
-        # Setup
-        cmd = ProbeCommand(
-            file_path="MyModule/Test.lean",
-            theorem_id="my_theorem",
-            mode="aesop",
-            budget_s=10.0,
-        )
-
-        workspace_path = Path("/tmp/workspace")
-
-        # Create a test file with a theorem
-        test_file_content = """
-theorem my_theorem : True := by
-  trivial
-"""
-        test_file = workspace_path / "MyModule" / "Test.lean"
-        test_file.parent.mkdir(parents=True, exist_ok=True)
-        test_file.write_text(test_file_content)
-
-        # Execute
-        harness = handler._construct_harness(cmd, workspace_path)
-
-        # Verify harness structure
-        assert "import MyModule.Test" in harness
-        assert "theorem my_theorem" in harness
-        assert ":= by" in harness
-        assert "aesop" in harness
-
-        # Cleanup
-        test_file.unlink()
-        test_file.parent.rmdir()
-
-    @pytest.mark.requires_lean
-    def test_harness_construction_for_grind(self, handler, mock_workspace_provider):
-        """Test harness construction for grind mode."""
-        # Setup
-        cmd = ProbeCommand(
-            file_path="Test.lean",
-            theorem_id="my_theorem",
-            mode="grind",
-            budget_s=10.0,
-        )
-
-        workspace_path = Path("/tmp/workspace")
-
-        # Create a test file with a theorem
-        test_file_content = """
-theorem my_theorem : True := by
-  trivial
-"""
-        test_file = workspace_path / "Test.lean"
-        test_file.write_text(test_file_content)
-
-        # Execute
-        harness = handler._construct_harness(cmd, workspace_path)
-
-        # Verify harness structure
-        assert "import Test" in harness
-        assert "theorem my_theorem" in harness
-        assert ":= by" in harness
-        assert "grind" in harness
-
-        # Cleanup
-        test_file.unlink()
-
-    def test_harness_construction_with_trace_config(
-        self, handler, mock_workspace_provider, tmp_path
-    ):
-        """Test harness construction with trace configuration."""
-        # Setup
-        cmd = ProbeCommand(
-            file_path="Test.lean",
-            theorem_id="my_theorem",
-            mode="aesop",
-            budget_s=10.0,
-            trace_config={"trace.aesop": True},
-        )
-
-        workspace_path = tmp_path / "workspace"
-        workspace_path.mkdir()
-
-        # Create a test file with a theorem
-        test_file_content = """
-theorem my_theorem : True := by
-  trivial
-"""
-        test_file = workspace_path / "Test.lean"
-        test_file.write_text(test_file_content)
-
-        # Execute
-        harness = handler._construct_harness(cmd, workspace_path)
-
-        # Verify trace configuration is included
-        assert "set_option trace.aesop true" in harness
-
-    def test_harness_construction_theorem_not_found(
-        self, handler, mock_workspace_provider, tmp_path
-    ):
-        """Test harness construction raises error when theorem not found."""
-        # Setup
-        cmd = ProbeCommand(
-            file_path="Test.lean",
-            theorem_id="nonexistent_theorem",
-            mode="aesop",
-            budget_s=10.0,
-        )
-
-        workspace_path = tmp_path / "workspace"
-        workspace_path.mkdir()
-
-        # Create a test file without the theorem
-        test_file_content = """
-theorem other_theorem : True := by
-  trivial
-"""
-        test_file = workspace_path / "Test.lean"
-        test_file.write_text(test_file_content)
-
-        # Execute and verify error
-        with pytest.raises(ValueError, match="Theorem 'nonexistent_theorem' not found"):
-            handler._construct_harness(cmd, workspace_path)
+    # Tests for _construct_harness removed - method no longer exists
+    # Harness construction is now handled by injected HarnessConstructor
+    # See test_harness_construction.py for harness construction tests
 
     def test_diagnostic_normalization(self, handler):
         """Test diagnostic normalization and sorting."""
@@ -477,7 +388,7 @@ theorem other_theorem : True := by
         assert normalized[2]["location"] is None
 
     def test_classification_integration(
-        self, handler, mock_lean_runner, mock_workspace_provider, mock_classifier
+        self, handler, mock_validator, mock_workspace_provider, mock_classifier, mock_harness_constructor
     ):
         """Test that classification is called with correct parameters."""
         # Setup
@@ -488,8 +399,16 @@ theorem other_theorem : True := by
             budget_s=10.0,
         )
 
+        # Mock harness construction
+        from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+        mock_harness_constructor.construct.return_value = HarnessSuccess(
+            code="-- harness code",
+            theorem_id="MyTheorem",
+            file_path="test.lean",
+        )
+
         # Mock Lean execution result
-        mock_lean_runner.verify_file.return_value = LeanRunResult(
+        mock_validator.verify_file.return_value = LeanRunResult(
             status="fail",
             diagnostics=[{"severity": "error", "message": "Unsolved goals", "location": None}],
             scope_used="theorem",
@@ -500,16 +419,10 @@ theorem other_theorem : True := by
 
         mock_classifier.classify.return_value = "promising"
 
-        # Mock harness construction and writing to avoid file I/O
-        with (
-            patch(
-                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._construct_harness",
-                return_value="mocked harness",
-            ),
-            patch(
-                "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
-                return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
-            ),
+        # Mock harness writing to avoid file I/O
+        with patch(
+            "lean_proof_auto_mcp.core.probe_domain.ProbeCommandHandler._write_harness",
+            return_value="/tmp/workspace/_probe_harness_MyTheorem.lean",
         ):
             # Execute
             result = handler.handle(cmd)

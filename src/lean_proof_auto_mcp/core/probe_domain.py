@@ -499,13 +499,15 @@ class ProbeCommandHandler:
 
         self,
 
-        lean_runner: "LeanRunner",
+        validator: "ProofValidator",
+
+        querier: "Querier",
 
         workspace_provider: "WorkspaceProvider",
 
         classifier: AutomationClassifier,
 
-        harness_constructor: "HarnessConstructor | None" = None,
+        harness_constructor: "HarnessConstructor",
 
         artifact_store: ArtifactStore | None = None,
 
@@ -519,28 +521,33 @@ class ProbeCommandHandler:
 
         Args:
 
-            lean_runner: Port for running Lean verification
+            validator: Port for validating proofs (renamed from lean_runner)
+
+            querier: Port for querying Lean files (NEW: injected)
 
             workspace_provider: Port for workspace isolation
 
             classifier: Port for classifying automation outcomes
 
-            harness_constructor: Optional port for constructing test harnesses
+            harness_constructor: Port for constructing test harnesses (now required)
 
             artifact_store: Optional port for artifact storage
 
             metadata_collector: Optional port for collecting environment metadata
 
 
-        Requirements: 1.1, 6.1, 6.2
+        Requirements: 1.1, 6.1, 6.2, 2.1, 2.2, 2.3, 9.1, 9.2, 9.3
         """
-        self.lean_runner = lean_runner
+        self.validator = validator
+
+        self.querier = querier
 
         self.workspace_provider = workspace_provider
         self.classifier = classifier
         self.harness_constructor = harness_constructor
         self.artifact_store = artifact_store
         self.metadata_collector = metadata_collector
+
 
 
     def handle(self, cmd: ProbeCommand, lean_server: "LeanServer | None" = None) -> ProbeResult:
@@ -668,7 +675,123 @@ class ProbeCommandHandler:
 
             try:
 
-                harness_content = self._construct_harness(cmd, workspace.path)
+                # Import HarnessConfig for construction
+
+                from .harness_construction import HarnessConfig, HarnessError
+
+
+                # Determine additional imports based on mode
+
+                additional_imports = []
+
+                if cmd.mode in ("aesop", "aesop?"):
+
+                    additional_imports.append("import Aesop")
+
+
+                # Convert absolute file_path to relative path from project root
+
+                file_path_obj = Path(cmd.file_path)
+
+                if file_path_obj.is_absolute():
+
+                    # Find the project root by looking for lakefile.toml or lakefile.lean
+
+                    project_root = self._find_project_root(file_path_obj)
+
+                    if project_root:
+
+                        try:
+
+                            relative_path = file_path_obj.relative_to(project_root)
+
+                            file_path_for_harness = str(relative_path)
+
+                        except ValueError:
+
+                            # Fallback: use the original path
+
+                            file_path_for_harness = cmd.file_path
+
+                    else:
+
+                        # No project root found, use original path
+
+                        file_path_for_harness = cmd.file_path
+
+                else:
+
+                    file_path_for_harness = cmd.file_path
+
+
+                # Build harness config
+
+                config = HarnessConfig(
+
+                    theorem_id=cmd.theorem_id,
+
+                    file_path=file_path_for_harness,
+
+                    proof_attempt=cmd.mode,
+
+                    additional_imports=additional_imports,
+
+                )
+
+
+                # Use injected harness constructor
+
+                result = self.harness_constructor.construct(config)
+
+
+                # Check if construction was successful
+
+                if isinstance(result, HarnessError):
+
+                    logger.error(f"Harness construction failed: {result.message}")
+
+                    return self._build_error_result(
+
+                        cmd, run_id, result.error_type, result.message, start_time
+
+                    )
+
+
+                harness_content = result.code
+
+
+                # Add trace configuration if requested
+
+                if cmd.trace_config:
+
+                    # Insert trace options after imports
+
+                    lines = harness_content.split("\n")
+
+                    import_end = 0
+
+                    for i, line in enumerate(lines):
+
+                        if line.strip() and not line.strip().startswith("import"):
+
+                            import_end = i
+
+                            break
+
+
+                    trace_lines = []
+
+                    for key, value in cmd.trace_config.items():
+
+                        trace_lines.append(f"set_option {key} {str(value).lower()}")
+
+
+                    # Insert trace options after imports
+
+                    lines = lines[:import_end] + trace_lines + [""] + lines[import_end:]
+
+                    harness_content = "\n".join(lines)
+
 
                 harness_file_path = self._write_harness(cmd, workspace.path, harness_content)
 
@@ -701,7 +824,7 @@ class ProbeCommandHandler:
 
             try:
 
-                lean_result = self.lean_runner.verify_file(
+                lean_result = self.validator.verify_file(
 
                     workspace_path=workspace.path,
 
@@ -1153,228 +1276,6 @@ class ProbeCommandHandler:
 
             raise OSError(f"Failed to write harness file: {e}") from e
 
-
-    def _construct_harness(self, cmd: ProbeCommand, workspace_path: Path) -> str:
-        """
-
-        Build automation test harness using ImportBasedHarnessConstructor.
-
-
-        This method creates a HarnessConstructor with the workspace context
-        to ensure correct import path resolution.
-
-
-        Args:
-
-            cmd: Probe command with file, theorem, mode
-
-            workspace_path: Path to workspace
-
-
-        Returns:
-
-            Harness content as string
-
-
-        Raises:
-
-            ValueError: If theorem not found or invalid
-
-
-        Requirements: 1.2, 3.2
-        """
-
-        # Always use ImportBasedHarnessConstructor with workspace context
-
-        # This ensures correct import path resolution
-
-        from ..lean.querier import LeanInteractQuerier
-
-        from ..lean.server_manager import LeanInteractServerManager
-        from .harness_construction import (
-            HarnessConfig,
-            HarnessError,
-            ImportBasedHarnessConstructor,
-
-            LeanInteractTheoremTypeExtractor,
-
-            StandardImportPathConverter,
-
-        )
-
-
-        # Create ServerManager with workspace context
-
-        server_manager = LeanInteractServerManager(workspace_path=workspace_path)
-
-
-        # Build HarnessConstructor with workspace context
-
-        querier = LeanInteractQuerier(server_manager=server_manager)
-
-        type_extractor = LeanInteractTheoremTypeExtractor(querier)
-
-        path_converter = StandardImportPathConverter()
-
-        harness_constructor = ImportBasedHarnessConstructor(
-
-            type_extractor=type_extractor, path_converter=path_converter
-
-        )
-
-
-        # Convert absolute file_path to relative path from project root
-
-        # The workspace is a copy of the project, so we need the relative path
-
-        file_path_obj = Path(cmd.file_path)
-
-        if file_path_obj.is_absolute():
-
-            # Find the project root by looking for lakefile.toml or lakefile.lean
-
-            project_root = self._find_project_root(file_path_obj)
-
-            if project_root:
-
-                try:
-
-                    relative_path = file_path_obj.relative_to(project_root)
-
-                    file_path_for_harness = str(relative_path)
-
-                except ValueError:
-
-                    # Fallback: use the original path
-                    file_path_for_harness = cmd.file_path
-            else:
-
-                # No project root found, use original path
-                file_path_for_harness = cmd.file_path
-        else:
-            file_path_for_harness = cmd.file_path
-
-
-        # For type extraction, we need to find the file in the workspace
-
-        # The workspace_path is the Lean project root (where lakefile is)
-
-        # We need to find where the file is relative to that workspace
-
-        #
-
-        # Strategy: Look for the file in the workspace by checking if it exists
-
-        # at workspace_path / file_path_for_harness
-
-        file_in_workspace = workspace_path / file_path_for_harness
-
-        if file_in_workspace.exists():
-
-            # File exists at this location, use relative path for extraction
-            pass
-        else:
-
-            # File doesn't exist there, try to find it
-
-            # Maybe the workspace is at a different level
-
-            # Try using just the filename parts after "Fixtures" or other capital letter
-
-            parts = Path(file_path_for_harness).parts
-
-            # Find first capitalized part (likely the module root)
-
-            for i, part in enumerate(parts):
-
-                if part and part[0].isupper():
-
-                    # Try from this part onwards
-
-                    relative_from_capital = Path(*parts[i:])
-
-                    candidate = workspace_path / relative_from_capital
-
-                    if candidate.exists():
-
-                        str(relative_from_capital)
-
-                        file_path_for_harness = str(relative_from_capital)
-
-                        break
-            else:
-
-                # Fallback: use the relative path as-is
-                pass
-
-
-        # Determine additional imports based on mode
-
-        additional_imports = []
-
-        if cmd.mode in ("aesop", "aesop?"):
-
-            additional_imports.append("import Aesop")
-
-
-        # Use ImportBasedHarnessConstructor to build the harness properly
-
-        config = HarnessConfig(
-
-            theorem_id=cmd.theorem_id,
-
-            file_path=file_path_for_harness,
-
-            proof_attempt=cmd.mode,
-
-            additional_imports=additional_imports,
-
-        )
-
-
-        result = harness_constructor.construct(config)
-
-
-        # Check if construction was successful
-
-        if isinstance(result, HarnessError):
-
-            raise ValueError(f"Harness construction failed: {result.message}")
-
-        harness_content = result.code
-
-
-        # Add trace configuration if requested
-        if cmd.trace_config:
-
-            # Insert trace options after imports
-
-            lines = harness_content.split("\n")
-
-            import_end = 0
-
-            for i, line in enumerate(lines):
-
-                if line.strip() and not line.strip().startswith("import"):
-                    import_end = i
-
-                    break
-
-
-            trace_lines = []
-
-            for key, value in cmd.trace_config.items():
-
-                trace_lines.append(f"set_option {key} {str(value).lower()}")
-
-
-            # Insert trace options after imports
-
-            lines = lines[:import_end] + trace_lines + [""] + lines[import_end:]
-
-            harness_content = "\n".join(lines)
-
-        return harness_content
 
 
     def _find_project_root(self, file_path: Path) -> Path | None:
@@ -2228,11 +2129,129 @@ class ProbeFileCommandHandler:
 
                     try:
 
-                        harness_content = self.probe_handler._construct_harness(
+                        # Import HarnessConfig for construction
 
-                            probe_cmd, workspace.path
+                        from .harness_construction import HarnessConfig, HarnessError
+
+
+                        # Determine additional imports based on mode
+
+                        additional_imports = []
+
+                        if cmd.mode in ("aesop", "aesop?"):
+
+                            additional_imports.append("import Aesop")
+
+
+                        # Convert absolute file_path to relative path from project root
+
+                        file_path_obj = Path(cmd.file_path)
+
+                        if file_path_obj.is_absolute():
+
+                            # Find the project root by looking for lakefile.toml or lakefile.lean
+
+                            project_root = self.probe_handler._find_project_root(file_path_obj)
+
+                            if project_root:
+
+                                try:
+
+                                    relative_path = file_path_obj.relative_to(project_root)
+
+                                    file_path_for_harness = str(relative_path)
+
+                                except ValueError:
+
+                                    # Fallback: use the original path
+
+                                    file_path_for_harness = cmd.file_path
+
+                            else:
+
+                                # No project root found, use original path
+
+                                file_path_for_harness = cmd.file_path
+
+                        else:
+
+                            file_path_for_harness = cmd.file_path
+
+
+                        # Build harness config
+
+                        config = HarnessConfig(
+
+                            theorem_id=theorem_id,
+
+                            file_path=file_path_for_harness,
+
+                            proof_attempt=cmd.mode,
+
+                            additional_imports=additional_imports,
 
                         )
+
+
+                        # Use injected harness constructor
+
+                        result = self.probe_handler.harness_constructor.construct(config)
+
+
+                        # Check if construction was successful
+
+                        if isinstance(result, HarnessError):
+
+                            logger.warning(
+
+                                f"Failed to construct harness for theorem '{theorem_id}': {result.message}"
+
+                            )
+
+                            errors.append(
+
+                                {"theorem_id": theorem_id, "error": f"Harness construction failed: {result.message}"}
+
+                            )
+
+                            continue
+
+
+                        harness_content = result.code
+
+
+                        # Add trace configuration if requested
+
+                        if cmd.trace_config:
+
+                            # Insert trace options after imports
+
+                            lines = harness_content.split("\n")
+
+                            import_end = 0
+
+                            for i, line in enumerate(lines):
+
+                                if line.strip() and not line.strip().startswith("import"):
+
+                                    import_end = i
+
+                                    break
+
+
+                            trace_lines = []
+
+                            for key, value in cmd.trace_config.items():
+
+                                trace_lines.append(f"set_option {key} {str(value).lower()}")
+
+
+                            # Insert trace options after imports
+
+                            lines = lines[:import_end] + trace_lines + [""] + lines[import_end:]
+
+                            harness_content = "\n".join(lines)
+
 
                         harness_file = self.probe_handler._write_harness(
 

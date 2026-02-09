@@ -449,6 +449,11 @@ class ImportBasedHarnessConstructor:
         """
         self.type_extractor = type_extractor
         self.path_converter = path_converter
+        
+        # Caching infrastructure
+        self._file_cache: dict[str, str] = {}
+        self._decl_cache: dict[str, TheoremType] = {}
+        self._theorem_verified: dict[str, bool] = {}
 
     def construct(self, config: HarnessConfig) -> HarnessResult:
         """
@@ -458,8 +463,16 @@ class ImportBasedHarnessConstructor:
         Returns: HarnessSuccess or HarnessError
         """
         try:
-            # Step 1: Extract theorem type (which triggers file reading)
-            theorem_type = self.type_extractor.extract_type(config.file_path, config.theorem_id)
+            # Step 1: Extract theorem type (with caching)
+            cache_key = f"{config.file_path}::{config.theorem_id}"
+            
+            if cache_key in self._decl_cache:
+                theorem_type = self._decl_cache[cache_key]
+            else:
+                theorem_type = self.type_extractor.extract_type(config.file_path, config.theorem_id)
+                self._decl_cache[cache_key] = theorem_type
+                # Also cache theorem verification
+                self._theorem_verified[cache_key] = True
         except TheoremNotFoundError as e:
             return HarnessError(
                 error_type="theorem_not_found",
@@ -505,8 +518,14 @@ class ImportBasedHarnessConstructor:
                                 full_file_path = candidate
                                 break
 
-                with open(full_file_path, encoding="utf-8") as f:
-                    file_content = f.read()
+                # Check file content cache
+                file_path_str = str(full_file_path)
+                if file_path_str in self._file_cache:
+                    file_content = self._file_cache[file_path_str]
+                else:
+                    with open(full_file_path, encoding="utf-8") as f:
+                        file_content = f.read()
+                    self._file_cache[file_path_str] = file_content
 
                 # Build harness by copying whole file and modifying proofs
                 harness = self._build_harness_by_proof_replacement(
@@ -798,3 +817,9 @@ example : {theorem_type.type_expr} := by
             raise HarnessConstructionError(
                 "Harness must contain at least one theorem or lemma", generated_code=harness
             )
+
+    def clear_cache(self) -> None:
+        """Clear all caches after batch operation."""
+        self._file_cache.clear()
+        self._decl_cache.clear()
+        self._theorem_verified.clear()

@@ -108,14 +108,16 @@ def test_property_19_server_instance_reuse(file_path, num_calls):
 
     For any file being processed, the system SHALL maintain a single LeanInteract
 
-    server instance for that file across multiple operations.
+    server instance for that project across multiple operations.
 
 
     Validates: Requirements 10.6, 28.4
     """
 
-    # Setup: Create manager with mocked LeanServer
-    manager = LeanInteractServerManager()
+    # Setup: Create manager with workspace_path so cache key is the project root
+    project_root = Path("/test/project")
+    manager = LeanInteractServerManager(workspace_path=project_root)
+    cache_key = str(project_root)
 
 
     # Mock LeanServer creation
@@ -153,11 +155,11 @@ def test_property_19_server_instance_reuse(file_path, num_calls):
             assert server is mock_server
 
 
-        # Verify: Only one server instance in cache
+        # Verify: Only one server instance in cache (keyed by project root)
 
         assert len(manager._servers) == 1
 
-        assert file_path in manager._servers
+        assert cache_key in manager._servers
 
 
         # Verify: _create_server was called only once
@@ -178,46 +180,32 @@ def test_property_19_multiple_files_separate_servers(file_paths_list):
 
     Feature: iterative-orchestration-enhancements
 
-    Property 19: Server Instance Reuse (Multiple Files)
+    Property 19: Server Instance Reuse (Multiple Files in Same Project)
 
 
-    For any set of different files, the system SHALL maintain separate server
-
-    instances for each file, up to MAX_SERVERS limit. When limit is reached,
-    
-    LRU eviction applies.
+    For any set of different files in the same project, the system SHALL
+    maintain a single server instance (keyed by project root, not file path).
 
 
     Validates: Requirements 10.6, 28.4
     """
 
-    # Setup: Create manager
-    manager = LeanInteractServerManager()
+    # Setup: Create manager with workspace_path (all files share one project)
+    project_root = Path("/test/project")
+    manager = LeanInteractServerManager(workspace_path=project_root)
+    cache_key = str(project_root)
 
 
-    # Mock LeanServer creation
+    # Mock LeanServer creation — only one server should be created
 
-    mock_servers = {}
-
-
-    def create_mock_server(fp):
-
-        if fp not in mock_servers:
-
-            mock_server = Mock()
-
-            mock_server.run = Mock(return_value=Mock())
-
-            mock_server.kill = Mock()
-
-            mock_servers[fp] = mock_server
-
-        return mock_servers[fp]
+    mock_server = Mock()
+    mock_server.run = Mock(return_value=Mock())
+    mock_server.kill = Mock()
 
 
     with (
 
-        patch.object(manager, "_create_server", side_effect=create_mock_server),
+        patch.object(manager, "_create_server", return_value=mock_server),
 
         patch.object(manager, "_is_server_alive", return_value=True),
 
@@ -227,25 +215,16 @@ def test_property_19_multiple_files_separate_servers(file_paths_list):
 
         for file_path in file_paths_list:
 
-            manager.get_server(file_path)
+            server = manager.get_server(file_path)
+            assert server is mock_server
 
 
-        # Verify: One server per file, up to MAX_SERVERS limit
-        from lean_proof_auto_mcp.lean.server_manager import MAX_SERVERS
-        expected_count = min(len(file_paths_list), MAX_SERVERS)
+        # Verify: Only ONE server in cache (project-keyed, not file-keyed)
+        assert len(manager._servers) == 1
+        assert cache_key in manager._servers
 
-        assert len(manager._servers) == expected_count
-
-
-        # Verify: Most recent files are in cache (up to MAX_SERVERS)
-        # With LRU eviction, only the last MAX_SERVERS files should be cached
-        recent_files = file_paths_list[-expected_count:] if len(file_paths_list) > MAX_SERVERS else file_paths_list
-
-        for file_path in recent_files:
-
-            assert file_path in manager._servers
-
-            assert manager._servers[file_path] is mock_servers[file_path]
+        # Verify: _create_server called only once (all files share one REPL)
+        manager._create_server.assert_called_once()
 
 
 
@@ -272,8 +251,10 @@ def test_property_19_dead_server_recreation(file_path):
     Validates: Requirements 28.5
     """
 
-    # Setup: Create manager
-    manager = LeanInteractServerManager()
+    # Setup: Create manager with workspace_path so cache key is predictable
+    project_root = Path("/test/project")
+    manager = LeanInteractServerManager(workspace_path=project_root)
+    cache_key = str(project_root)
 
 
     # Mock LeanServer creation
@@ -330,9 +311,9 @@ def test_property_19_dead_server_recreation(file_path):
             mock_server_1.kill.assert_called_once()
 
 
-            # Verify: New server is in cache
+            # Verify: New server is in cache (keyed by project root)
 
-            assert manager._servers[file_path] is mock_server_2
+            assert manager._servers[cache_key] is mock_server_2
 
 
 
@@ -359,8 +340,10 @@ def test_property_19_restart_server(file_path):
     Validates: Requirements 28.5
     """
 
-    # Setup: Create manager with existing server
-    manager = LeanInteractServerManager()
+    # Setup: Create manager with workspace_path so cache key is predictable
+    project_root = Path("/test/project")
+    manager = LeanInteractServerManager(workspace_path=project_root)
+    cache_key = str(project_root)
 
 
     mock_server_1 = Mock()
@@ -373,9 +356,9 @@ def test_property_19_restart_server(file_path):
     mock_server_2.kill = Mock()
 
 
-    # Add existing server to cache
+    # Add existing server to cache (keyed by project root)
 
-    manager._servers[file_path] = mock_server_1
+    manager._servers[cache_key] = mock_server_1
 
 
     with patch.object(manager, "_create_server", return_value=mock_server_2):
@@ -390,9 +373,9 @@ def test_property_19_restart_server(file_path):
         mock_server_1.kill.assert_called_once()
 
 
-        # Verify: New server is in cache
+        # Verify: New server is in cache (keyed by project root)
 
-        assert manager._servers[file_path] is mock_server_2
+        assert manager._servers[cache_key] is mock_server_2
 
 
         # Verify: New server was created
@@ -424,19 +407,20 @@ def test_property_19_shutdown_all(file_paths_list):
     Validates: Requirements 28.6
     """
 
-    # Setup: Create manager with multiple servers
+    # Setup: Create manager with multiple servers (using arbitrary keys)
     manager = LeanInteractServerManager()
 
 
     mock_servers = []
 
-    for file_path in file_paths_list:
+    for i, file_path in enumerate(file_paths_list):
 
         mock_server = Mock()
 
         mock_server.kill = Mock()
 
-        manager._servers[file_path] = mock_server
+        # Use index-based keys to avoid collisions from project-root keying
+        manager._servers[f"project_{i}"] = mock_server
 
         mock_servers.append(mock_server)
 
@@ -686,14 +670,16 @@ def test_property_19_cleanup_failure_graceful(file_path):
     """
 
     # Setup: Create manager with server that fails to kill
-    manager = LeanInteractServerManager()
+    project_root = Path("/test/project")
+    manager = LeanInteractServerManager(workspace_path=project_root)
+    cache_key = str(project_root)
 
 
     mock_server = Mock()
 
     mock_server.kill = Mock(side_effect=Exception("Kill failed"))
 
-    manager._servers[file_path] = mock_server
+    manager._servers[cache_key] = mock_server
 
 
     # Execute: Shutdown should not raise exception

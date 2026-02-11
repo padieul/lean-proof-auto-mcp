@@ -22,7 +22,7 @@ class TestBuildCommand:
 
         assert cmd.file_path == "test.lean"
         assert cmd.mode == "aesop"
-        assert cmd.budget_s_per == 5.0  # Default
+        assert cmd.budget_s_per == 30.0  # Default
         assert cmd.limit == 50  # Default
         assert cmd.ordering == "file_order"  # Default
 

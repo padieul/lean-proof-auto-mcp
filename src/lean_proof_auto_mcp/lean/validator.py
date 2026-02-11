@@ -11,9 +11,13 @@ Requirements: 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8
 import logging
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 
 from .ports import ProofState, ServerManager, ValidationResult
+
+if TYPE_CHECKING:
+    from ..core.harness_construction import HarnessConstructor
 
 
 logger = logging.getLogger(__name__)
@@ -45,6 +49,22 @@ except ImportError:
     LEAN_INTERACT_AVAILABLE = False
 
 
+def _is_server_dead_error(exc: Exception) -> bool:
+    """Check if an exception indicates the REPL process has died.
+
+    LeanInteract signals server death through:
+    - ChildProcessError: "The Lean server is not running" (_proc is None)
+    - ConnectionAbortedError: "The Lean server closed unexpectedly" (broken pipe)
+
+    These are distinct from verification errors (wrong proof, type mismatch)
+    which come back as normal responses, not exceptions.
+    """
+    if isinstance(exc, (ChildProcessError, ConnectionAbortedError)):
+        return True
+    msg = str(exc).lower()
+    return "server is not running" in msg or "server closed unexpectedly" in msg
+
+
 class LeanInteractProofValidator:
     """
     LeanInteract-based adapter implementing the ProofValidator protocol.
@@ -58,16 +78,18 @@ class LeanInteractProofValidator:
     """
 
 
-    def __init__(self, server_manager: "ServerManager"):
+    def __init__(self, server_manager: "ServerManager", harness_constructor: "HarnessConstructor | None" = None):
         """
         Initialize ProofValidator with ServerManager via dependency injection.
 
         Args:
             server_manager: ServerManager instance for obtaining server instances
+            harness_constructor: Optional HarnessConstructor for import-based validation
 
         Requirements: 8.3
         """
         self._server_manager = server_manager
+        self._harness_constructor = harness_constructor
 
     def verify_file(
         self,
@@ -80,6 +102,10 @@ class LeanInteractProofValidator:
         Run Lean verification on file or theorem.
 
         This method performs file-level or theorem-level verification using LeanInteract.
+        Includes automatic server recovery: if the REPL process has died (e.g. killed
+        by a previous timeout or OOM), the server is restarted and the command retried
+        once. This prevents a single crashed probe from cascading failures across an
+        entire batch.
 
         Args:
             workspace_path: Path to workspace root
@@ -96,6 +122,43 @@ class LeanInteractProofValidator:
             RuntimeError: If Lean process fails unexpectedly
 
         Requirements: 6.3, 6.4, 6.5, 7.1, 7.4
+        """
+        return self._verify_file_with_retry(
+            file_path=file_path,
+            theorem_id=theorem_id,
+            budget_s=budget_s,
+            retries_left=1,
+        )
+
+    def _verify_file_with_retry(
+        self,
+        file_path: str,
+        theorem_id: str | None,
+        budget_s: float,
+        retries_left: int,
+    ) -> "LeanRunResult":
+        """
+        Internal verify_file implementation with dead-server retry.
+
+        When LeanInteract raises ChildProcessError ("The Lean server is not
+        running"), the REPL was killed by a previous timeout or crash. We
+        restart the server via ServerManager and retry the command once.
+
+        This keeps recovery logic in the adapter layer (hexagonal architecture)
+        so the core domain never sees infrastructure failures it can't handle.
+
+        Args:
+            file_path: Path to Lean file
+            theorem_id: Optional theorem identifier
+            budget_s: Time budget in seconds
+            retries_left: Number of restart-and-retry attempts remaining
+
+        Returns:
+            LeanRunResult
+
+        Raises:
+            TimeoutError: If verification exceeds budget
+            RuntimeError: If Lean process fails after all retries
         """
         from ..core.verify_domain import LeanRunResult
 
@@ -130,11 +193,42 @@ class LeanInteractProofValidator:
 
         except TimeoutError as e:
             raise TimeoutError(f"Verification timed out after {budget_s}s") from e
+        except ChildProcessError:
+            # LeanInteract raises ChildProcessError when _proc is None
+            # (killed by previous timeout). Restart and retry once.
+            if retries_left > 0:
+                logger.warning(
+                    f"Server dead for {file_path}, restarting and retrying "
+                    f"({retries_left} retries left)"
+                )
+                self._server_manager.restart_server(file_path)
+                return self._verify_file_with_retry(
+                    file_path=file_path,
+                    theorem_id=theorem_id,
+                    budget_s=budget_s,
+                    retries_left=retries_left - 1,
+                )
+            logger.error(f"Server dead for {file_path}, no retries left")
+            raise RuntimeError(
+                "Lean verification failed: server not running after restart"
+            )
         except Exception as e:
             logger.error(f"Verification failed: {e}")
+            # Check if the error message indicates a dead server
+            # (ConnectionAbortedError from broken pipe also means server died)
+            if retries_left > 0 and _is_server_dead_error(e):
+                logger.warning(
+                    f"Server appears dead for {file_path}, restarting and retrying "
+                    f"({retries_left} retries left)"
+                )
+                self._server_manager.restart_server(file_path)
+                return self._verify_file_with_retry(
+                    file_path=file_path,
+                    theorem_id=theorem_id,
+                    budget_s=budget_s,
+                    retries_left=retries_left - 1,
+                )
             raise RuntimeError(f"Lean verification failed: {e}") from e
-
-
 
     def validate_proof(
         self,
@@ -447,6 +541,14 @@ class LeanInteractProofValidator:
         except Exception as e:
 
             elapsed = time.time() - start_time
+
+            # If the server died, restart it so the next call gets a fresh one.
+            # We don't retry here (validate_proof is a single-shot call), but
+            # restarting ensures the next tool invocation doesn't hit the same
+            # dead server.
+            if _is_server_dead_error(e):
+                logger.warning(f"Server died during validate_proof, restarting: {e}")
+                self._server_manager.restart_server(file_path or "default")
 
             logger.error(f"Failed to validate proof: {e}")
 
@@ -772,9 +874,10 @@ class LeanInteractProofValidator:
         Construct validation code using import-based harness construction.
 
 
-        This method uses the ImportBasedHarnessConstructor to create a proper
-
-        test harness that preserves ALL context from the original file.
+        This method uses the injected HarnessConstructor (if available) or falls
+        back to a simple import-based approach. Dependencies are NOT created
+        internally — they must be injected via the constructor or passed as
+        pre-constructed harness code through proof_attempt.
 
 
         Args:
@@ -783,9 +886,9 @@ class LeanInteractProofValidator:
 
             theorem_id: Theorem identifier
 
-            theorem_statement: Theorem type (not used - we get it from the file)
+            theorem_statement: Theorem type expression
 
-            proof_attempt: Proof to validate
+            proof_attempt: Proof to validate (or pre-constructed harness code)
 
 
         Returns:
@@ -796,77 +899,63 @@ class LeanInteractProofValidator:
         Requirements: 7.2, 7.3
         """
 
-        from ..core.harness_construction import (
+        if self._harness_constructor is not None:
 
-            HarnessConfig,
+            from ..core.harness_construction import (
 
-            HarnessError,
+                HarnessConfig,
 
-            ImportBasedHarnessConstructor,
+                HarnessError,
 
-            LeanInteractTheoremTypeExtractor,
-
-            StandardImportPathConverter,
-
-        )
-
-        from ..lean.querier import LeanInteractQuerier
+            )
 
 
-        # Use the injected server manager
-        server_manager = self._server_manager
+            # Build harness config
+
+            config = HarnessConfig(
+
+                theorem_id=theorem_id,
+
+                file_path=file_path,
+
+                proof_attempt=proof_attempt,
+
+                additional_imports=[],
+
+            )
 
 
-        # Create harness constructor components
+            # Construct harness using injected constructor
 
-        querier = LeanInteractQuerier(server_manager)
-
-        type_extractor = LeanInteractTheoremTypeExtractor(querier)
-
-        path_converter = StandardImportPathConverter()
+            result = self._harness_constructor.construct(config)
 
 
-        harness_constructor = ImportBasedHarnessConstructor(
+            if isinstance(result, HarnessError):
 
-            type_extractor=type_extractor, path_converter=path_converter
+                # Fall back to simple approach if construction fails
 
-        )
+                logger.warning(f"Harness construction failed: {result.message}, using fallback")
 
+                return self._construct_validation_with_import_fallback(
 
-        # Build harness config
+                    file_path, theorem_id, theorem_statement, proof_attempt
 
-        config = HarnessConfig(
-
-            theorem_id=theorem_id,
-
-            file_path=file_path,
-
-            proof_attempt=proof_attempt,
-
-            additional_imports=[],
-
-        )
+                )
 
 
-        # Construct harness
+            return result.code
 
-        result = harness_constructor.construct(config)
+        else:
 
+            # No harness constructor injected — use simple fallback
 
-        if isinstance(result, HarnessError):
-
-            # Fall back to simple approach if construction fails
-
-            logger.warning(f"Harness construction failed: {result.message}, using fallback")
+            logger.warning("No HarnessConstructor injected, using simple import fallback")
 
             return self._construct_validation_with_import_fallback(
 
                 file_path, theorem_id, theorem_statement, proof_attempt
 
             )
-
-
-        return result.code
 
 
     def _construct_validation_with_import_fallback(

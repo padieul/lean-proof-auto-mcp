@@ -102,6 +102,7 @@ def build_index(source: SourceText) -> FileIndex:
 
     # Track namespace context for proper theorem_id generation
     current_namespace_stack: list[str] = []
+    last_scanned_line: int = 0
 
     for match in re.finditer(decl_pattern, text, re.MULTILINE):
         kind = match.group(1)
@@ -119,9 +120,9 @@ def build_index(source: SourceText) -> FileIndex:
         # Find the line number where this declaration starts
         decl_start_line = text[:match_start_pos].count("\n") + 1
 
-        # Update namespace context up to this line
-        current_namespace_stack = _update_namespace_context(
-            lines, current_namespace_stack, decl_start_line
+        # Update namespace context up to this line (incremental, no rescan)
+        current_namespace_stack, last_scanned_line = _update_namespace_context(
+            lines, current_namespace_stack, decl_start_line, last_scanned_line
         )
 
         # Verify this is actually a declaration by looking for a colon within reasonable distance
@@ -890,28 +891,35 @@ def _get_line_indent(line: str) -> int:
 
 
 def _update_namespace_context(
-    lines: list[str], current_stack: list[str], up_to_line: int
-) -> list[str]:
-    """Update namespace context by scanning lines up to the given line.
+    lines: list[str],
+    current_stack: list[str],
+    up_to_line: int,
+    last_scanned_line: int = 0,
+) -> tuple[list[str], int]:
+    """Update namespace context by scanning lines from last_scanned_line to up_to_line.
+
+    Tracks scan position to avoid rescanning already-processed lines, which
+    would cause duplicate namespace entries on the stack.
 
     Args:
         lines: Lines of the source file
         current_stack: Current namespace stack
         up_to_line: Line number to scan up to (1-indexed)
+        last_scanned_line: Last line already scanned (0-indexed, exclusive)
 
     Returns:
-        Updated namespace stack
+        Tuple of (updated namespace stack, new last_scanned_line)
     """
-    # Pattern to match namespace declarations and ends
-    namespace_pattern = r"^\s*namespace\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*$"
-    end_pattern = r"^\s*end(?:\s+([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*))?\s*$"
+    namespace_pattern = r"^\s*namespace\s+([a-zA-Z_\u0391-\u03C9][a-zA-Z0-9_\u0391-\u03C9]*(?:\.[a-zA-Z_\u0391-\u03C9][a-zA-Z0-9_\u0391-\u03C9]*)*)"
+    end_pattern = r"^\s*end(?:\s+([a-zA-Z_\u0391-\u03C9][a-zA-Z0-9_\u0391-\u03C9]*(?:\.[a-zA-Z_\u0391-\u03C9][a-zA-Z0-9_\u0391-\u03C9]*)*))?\s*$"
 
-    # Start from where we left off or from the beginning
-    start_line = 1
     namespace_stack = current_stack.copy()
 
-    # Scan lines up to the target line
-    for line_idx in range(start_line - 1, min(up_to_line, len(lines))):
+    # Only scan lines we haven't processed yet
+    start_idx = last_scanned_line
+    end_idx = min(up_to_line, len(lines))
+
+    for line_idx in range(start_idx, end_idx):
         line = lines[line_idx]
 
         # Check for namespace declarations
@@ -937,7 +945,7 @@ def _update_namespace_context(
                             break
             continue
 
-    return namespace_stack
+    return namespace_stack, end_idx
 
 
 def _generate_unique_theorem_id_with_namespace(

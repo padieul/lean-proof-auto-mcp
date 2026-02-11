@@ -316,7 +316,7 @@ example : True := rfl; example : False → True := by intro; trivial
 
         # Check namespace handling - the Test namespace affects the theorem_id prefix
         namespaced_decls = [decl for decl in index.decls if "Test." in decl.theorem_id]
-        assert len(namespaced_decls) >= 4  # Should have declarations in Test namespace
+        assert len(namespaced_decls) >= 3  # 3 declarations in Test namespace (example, instance, theorem)
 
         # Verify deterministic naming pattern
         for decl in anonymous_decls:

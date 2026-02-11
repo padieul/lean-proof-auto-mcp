@@ -181,11 +181,19 @@ class ValidateProofCommandHandler:
             )
 
         # Step 3: Validate proof using ProofValidator port
+        #
+        # Pass file_path and theorem_id so the validator uses the import-based
+        # harness path (which re-uses the constructor's caches) instead of the
+        # standalone fallback that wraps proof_attempt in a bare
+        # "theorem ... := by\n{proof_attempt}" — which would double-wrap the
+        # already-constructed harness code and produce invalid Lean.
         try:
             result = self.validator.validate_proof(
                 theorem_statement=theorem.type,
-                proof_attempt=harness_result.code,
+                proof_attempt=cmd.proof_attempt,
                 timeout_s=cmd.timeout_s,
+                file_path=cmd.file_path,
+                theorem_id=cmd.theorem_id,
             )
         except Exception as e:
             logger.error(f"Proof validation failed: {e}")

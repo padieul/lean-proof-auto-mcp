@@ -80,7 +80,7 @@ from .proof_state import LeanInteractProofStateInspector
 from .querier import LeanInteractQuerier
 
 
-from .server_manager import LeanInteractServerManager
+from .server_manager import LeanInteractServerManager, get_shared_server_manager, shutdown_all_shared_managers
 
 
 from .validator import LeanInteractProofValidator
@@ -118,6 +118,8 @@ __all__ = [
     "LeanInteractProofStateInspector",
     "LeanInteractProofValidator",
     "LeanInteractServerManager",
+    "get_shared_server_manager",
+    "shutdown_all_shared_managers",
 ]
 
 

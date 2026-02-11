@@ -71,7 +71,7 @@ def probe(args: dict[str, Any]) -> dict[str, Any]:
 
             - mode: Automation mode - "aesop", "aesop?", or "grind" (required)
 
-            - budget_s: Time budget in seconds (default: 10.0)
+            - budget_s: Time budget in seconds (default: 30.0)
 
             - trace_config: Optional trace configuration dict
 
@@ -226,9 +226,10 @@ def _build_command(args: dict[str, Any]) -> ProbeCommand:
         raise ValueError("'mode' must be 'aesop', 'aesop?', or 'grind'")
 
 
-    # Validate and extract budget_s (optional, default: 10.0)
-
-    budget_s = args.get("budget_s", 10.0)
+    # Validate and extract budget_s (optional, default: 30.0)
+    # 30s accommodates Mathlib-scale projects where the Lean REPL needs
+    # 10-20s to load the environment on first use.
+    budget_s = args.get("budget_s", 30.0)
 
     if not isinstance(budget_s, int | float):
 
@@ -318,11 +319,11 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
         project_root = file_path_obj.parent
 
 
-    # 1. Create single LeanInteractServerManager instance
+    # 1. Get shared ServerManager (persists across tool calls, project-keyed)
 
-    from ..lean.server_manager import LeanInteractServerManager
+    from ..lean.server_manager import get_shared_server_manager
 
-    server_manager = LeanInteractServerManager(workspace_path=project_root)
+    server_manager = get_shared_server_manager(project_root)
 
 
     # 2. Create LeanInteractQuerier with ServerManager
@@ -332,14 +333,7 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
     querier = LeanInteractQuerier(server_manager=server_manager)
 
 
-    # 3. Create LeanInteractProofValidator with ServerManager
-
-    from ..lean.validator import LeanInteractProofValidator
-
-    validator = LeanInteractProofValidator(server_manager=server_manager)
-
-
-    # 4. Create ImportBasedHarnessConstructor with caching
+    # 3. Create ImportBasedHarnessConstructor with caching
 
     from ..core.harness_construction import (
 
@@ -347,9 +341,9 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
 
         LeanInteractTheoremTypeExtractor,
 
-    )
+        StandardImportPathConverter,
 
-    from ..core.import_path_converter import StandardImportPathConverter
+    )
 
 
     type_extractor = LeanInteractTheoremTypeExtractor(querier)
@@ -357,6 +351,13 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
     path_converter = StandardImportPathConverter()
 
     constructor = ImportBasedHarnessConstructor(type_extractor, path_converter)
+
+
+    # 4. Create LeanInteractProofValidator with ServerManager and HarnessConstructor
+
+    from ..lean.validator import LeanInteractProofValidator
+
+    validator = LeanInteractProofValidator(server_manager=server_manager, harness_constructor=constructor)
 
 
     # 5. Create workspace provider (auto-detect mode)

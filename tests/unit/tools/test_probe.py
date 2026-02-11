@@ -24,7 +24,7 @@ class TestBuildCommand:
         assert cmd.file_path == "test.lean"
         assert cmd.theorem_id == "MyTheorem"
         assert cmd.mode == "aesop"
-        assert cmd.budget_s == 10.0  # Default
+        assert cmd.budget_s == 30.0  # Default
         assert cmd.trace_config is None  # Default
 
     def test_valid_full_args(self):

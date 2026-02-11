@@ -72,6 +72,9 @@ markers = [
   "requires_lean: marks tests that require Lean 4 installation (deselect with '-m \"not requires_lean\"')",
   "xfail: marks tests as expected to fail (known issues or limitations)",
   "eval_investigation: marks tests as eval investigation tests (excluded from CI/CD, for manual investigation only)",
+  "eval_smoke: marks smoke-tier eval tests (minimal subset, fast feedback)",
+  "eval_quick: marks quick-tier eval tests (moderate subset, < 10 minutes)",
+  "eval_normal: marks normal-tier eval tests (selected theorems from all domains)",
 ]
 # Run xfail tests but don't fail the build if they fail
 xfail_strict = false

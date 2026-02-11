@@ -92,7 +92,7 @@ def create_app(cfg: Config) -> FastMCP:
         file: str,
         theorem_id: str,
         mode: str,
-        budget_s: float = 10.0,
+        budget_s: float = 30.0,
         trace_config: dict | None = None,
     ) -> dict:
         """Run single-theorem automation probe with deterministic classification.
@@ -101,11 +101,16 @@ def create_app(cfg: Config) -> FastMCP:
         to a single theorem under controlled conditions. Returns structured outcome
         with classification (trivial, promising, failed, timed_out).
 
+        IMPORTANT: For Mathlib-scale projects, the Lean REPL environment loads in
+        10-20 seconds on first use. Set budget_s to at least 30 seconds to allow
+        the environment to load before verification begins. Budgets under 15 seconds
+        will almost always timeout on first probe of a file.
+
         Args:
             file: Path to Lean file
             theorem_id: Theorem identifier to probe
             mode: Automation mode - "aesop", "aesop?", or "grind"
-            budget_s: Time budget in seconds (default: 10.0)
+            budget_s: Time budget in seconds (default: 30.0, minimum recommended: 30.0 for Mathlib)
             trace_config: Optional trace configuration dict
 
         Returns:
@@ -126,7 +131,7 @@ def create_app(cfg: Config) -> FastMCP:
     def probe_file_tool(
         file: str,
         mode: str,
-        budget_s_per: float = 5.0,
+        budget_s_per: float = 30.0,
         limit: int = 50,
         ordering: str = "file_order",
     ) -> dict:
@@ -136,10 +141,17 @@ def create_app(cfg: Config) -> FastMCP:
         Runs probe on each theorem with fixed parameters and aggregates results
         into summary statistics.
 
+        IMPORTANT: For Mathlib-scale projects, the Lean REPL environment loads in
+        10-20 seconds on first use, then stays warm for subsequent theorems in the
+        same batch. Set budget_s_per to at least 30 seconds to allow the first
+        theorem's environment load. Budgets under 15 seconds will almost always
+        timeout on the first theorem, then create a new REPL for each subsequent
+        theorem (defeating batch efficiency).
+
         Args:
             file: Path to Lean file
             mode: Automation mode - "aesop", "aesop?", or "grind"
-            budget_s_per: Time budget per theorem in seconds (default: 5.0)
+            budget_s_per: Time budget per theorem in seconds (default: 30.0, minimum recommended: 30.0 for Mathlib)
             limit: Maximum number of theorems to probe (default: 50)
             ordering: Ordering mode - "file_order" or "rank_targets" (default: "file_order")
 
@@ -330,12 +342,13 @@ def main() -> None:
 
     # Change to the configured working directory
     import os
+    import sys
 
     if cfg.working_directory != os.getcwd():
-        print(f"{cfg.server_name}: changing working directory to {cfg.working_directory}")
+        print(f"{cfg.server_name}: changing working directory to {cfg.working_directory}", file=sys.stderr)
         os.chdir(cfg.working_directory)
 
-    print(f"{cfg.server_name}: server started (api_version={cfg.api_version}, cwd={os.getcwd()})")
+    print(f"{cfg.server_name}: server started (api_version={cfg.api_version}, cwd={os.getcwd()})", file=sys.stderr)
     create_app(cfg).run()  # stdio transport by default
 
 

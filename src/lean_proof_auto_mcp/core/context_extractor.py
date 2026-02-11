@@ -309,6 +309,9 @@ class ContextExtractor:
         Clear the context cache.
 
         This should be called when the file changes to ensure fresh context.
+        Also cascades to the querier's declarations cache.
         """
         self._context_cache.clear()
+        if hasattr(self.querier, 'clear_cache'):
+            self.querier.clear_cache()
         logger.debug("Cleared context cache")

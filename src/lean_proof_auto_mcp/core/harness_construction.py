@@ -64,6 +64,7 @@ class HarnessSuccess:
     code: str
     theorem_id: str
     file_path: str
+    theorem_statement: str = ""  # The theorem type expression (for passing to validate_proof)
 
 
 @dataclass(frozen=True)
@@ -278,6 +279,17 @@ class LeanInteractTheoremTypeExtractor:
         from ..lean.ports import Querier
 
         self.querier: Querier = querier
+        # Cache declarations per file path to avoid O(n) extract_declarations
+        # calls when probing multiple theorems in the same file.
+        self._declarations_cache: dict[str, list] = {}
+        # Cache extraction failures per file path so we fail fast instead of
+        # repeatedly hitting a dead server (negative caching).
+        self._declarations_errors: dict[str, Exception] = {}
+
+    def clear_cache(self) -> None:
+        """Clear the declarations cache after batch operations."""
+        self._declarations_cache.clear()
+        self._declarations_errors.clear()
 
     def extract_type(self, file_path: str, theorem_id: str) -> TheoremType:
         """
@@ -286,6 +298,11 @@ class LeanInteractTheoremTypeExtractor:
         This method returns the ENTIRE source file content, which preserves
         all variable declarations, imports, and context. The caller will
         replace just the theorem proof with the test tactic.
+
+        Declarations are cached per file_path so that probing N theorems
+        in the same file calls extract_declarations only once (O(1) not O(n)).
+        Failures are also cached (negative caching) to avoid hammering a dead
+        server when the first call fails.
 
         Args:
             file_path: Path to Lean file (absolute or relative to workspace)
@@ -301,7 +318,23 @@ class LeanInteractTheoremTypeExtractor:
         file_path_obj = Path(file_path)
         file_path_str = str(file_path_obj) if not file_path_obj.is_absolute() else file_path
 
-        declarations = self.querier.extract_declarations(file_path_str)
+        # Fail fast if we already know this file's declarations can't be extracted
+        if file_path_str in self._declarations_errors:
+            cached_err = self._declarations_errors[file_path_str]
+            raise type(cached_err)(str(cached_err)) from cached_err
+
+        # Use cached declarations if available (critical for batch probe_file)
+        if file_path_str in self._declarations_cache:
+            declarations = self._declarations_cache[file_path_str]
+        else:
+            try:
+                declarations = self.querier.extract_declarations(file_path_str)
+                self._declarations_cache[file_path_str] = declarations
+            except Exception as e:
+                # Negative cache: remember the failure so subsequent theorems
+                # in the same file fail immediately instead of waiting for timeout
+                self._declarations_errors[file_path_str] = e
+                raise
 
         # Extract the local name (without namespace) for matching
         local_name = theorem_id.split(".")[-1] if "." in theorem_id else theorem_id
@@ -434,6 +467,87 @@ class LeanInteractTheoremTypeExtractor:
         return "\n".join(var_decls)
 
 
+# ============================================================================
+# Pure helpers for harness construction
+# ============================================================================
+
+# Keywords that signal a new top-level Lean construct.
+# Used by _skip_proof_block to detect where a proof ends.
+_DECLARATION_STARTERS: tuple[str, ...] = (
+    "theorem ",
+    "lemma ",
+    "def ",
+    "instance ",
+    "variable ",
+    "namespace ",
+    "section ",
+    "end ",
+    "open ",
+    "set_option ",
+    "attribute ",
+    "class ",
+    "structure ",
+    "inductive ",
+    "abbrev ",
+    "noncomputable ",
+    "protected ",
+    "private ",
+    "nonrec ",
+    "#check ",
+    "#eval ",
+    "#print ",
+    "import ",
+    "@[",
+    "/-",
+)
+
+
+def _is_declaration_start(stripped: str) -> bool:
+    """Check whether a stripped line begins a new Lean declaration or scope.
+
+    Pure function — no side effects, no I/O.
+    """
+    if stripped == "end" or stripped == "section":
+        return True
+    return any(stripped.startswith(kw) for kw in _DECLARATION_STARTERS)
+
+
+def _is_theorem_or_lemma(stripped: str) -> bool:
+    """Check whether a stripped line declares a theorem or lemma.
+
+    Handles prefixed variants: noncomputable, protected, private.
+    Pure function — no side effects, no I/O.
+    """
+    return (
+        stripped.startswith("theorem ")
+        or stripped.startswith("lemma ")
+        or " theorem " in stripped
+        or " lemma " in stripped
+    )
+
+
+def _find_proof_assignment(line: str) -> int:
+    """Find the index of the proof-starting ':=' in a line.
+
+    Skips ':=' that appear inside brace-delimited type signatures
+    (e.g., ``{x : Nat := 0}``).  Returns -1 if no proof ':=' is found.
+
+    Pure function — no side effects, no I/O.
+    """
+    depth = 0  # brace nesting depth
+    i = 0
+    while i < len(line) - 1:
+        ch = line[i]
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth = max(0, depth - 1)
+        elif ch == ':' and line[i + 1] == '=' and depth == 0:
+            return i
+        i += 1
+    return -1
+
+
 class ImportBasedHarnessConstructor:
     """Construct test harnesses using import-based approach."""
 
@@ -465,13 +579,18 @@ class ImportBasedHarnessConstructor:
         try:
             # Step 1: Extract theorem type (with caching)
             cache_key = f"{config.file_path}::{config.theorem_id}"
-            
+
+            # Check theorem_verified cache to short-circuit repeated lookups
             if cache_key in self._decl_cache:
                 theorem_type = self._decl_cache[cache_key]
+            elif cache_key in self._theorem_verified:
+                # Theorem was verified to exist but type not cached (shouldn't happen,
+                # but handle gracefully by re-extracting)
+                theorem_type = self.type_extractor.extract_type(config.file_path, config.theorem_id)
+                self._decl_cache[cache_key] = theorem_type
             else:
                 theorem_type = self.type_extractor.extract_type(config.file_path, config.theorem_id)
                 self._decl_cache[cache_key] = theorem_type
-                # Also cache theorem verification
                 self._theorem_verified[cache_key] = True
         except TheoremNotFoundError as e:
             return HarnessError(
@@ -487,6 +606,13 @@ class ImportBasedHarnessConstructor:
                 theorem_id=config.theorem_id,
                 file_path=config.file_path,
             )
+
+        # Determine the actual theorem statement (type expression)
+        # Strip FULL_FILE: prefix if present
+        if theorem_type.type_expr.startswith("FULL_FILE:"):
+            theorem_stmt = theorem_type.type_expr[len("FULL_FILE:"):]
+        else:
+            theorem_stmt = theorem_type.type_expr
 
         try:
             # Step 2: Check if we got the full file marker
@@ -536,7 +662,10 @@ class ImportBasedHarnessConstructor:
                 )
 
                 return HarnessSuccess(
-                    code=harness, theorem_id=config.theorem_id, file_path=config.file_path
+                    code=harness,
+                    theorem_id=config.theorem_id,
+                    file_path=config.file_path,
+                    theorem_statement=theorem_stmt,
                 )
 
             else:
@@ -547,13 +676,16 @@ class ImportBasedHarnessConstructor:
                 import_block = "\n".join(imports)
 
                 example_block = f"""-- Test harness for {config.theorem_id}
-example : {theorem_type.type_expr} := by
-  {config.proof_attempt}
-"""
+    example : {theorem_type.type_expr} := by
+      {config.proof_attempt}
+    """
                 harness = f"{import_block}\n\n{example_block}"
 
                 return HarnessSuccess(
-                    code=harness, theorem_id=config.theorem_id, file_path=config.file_path
+                    code=harness,
+                    theorem_id=config.theorem_id,
+                    file_path=config.file_path,
+                    theorem_statement=theorem_stmt,
                 )
 
         except Exception as e:
@@ -564,6 +696,7 @@ example : {theorem_type.type_expr} := by
                 file_path=config.file_path,
                 generated_code=None,
             )
+
 
     def _build_harness_by_proof_replacement(
         self, file_content: str, theorem_id: str, proof_attempt: str, additional_imports: list[str]
@@ -588,7 +721,7 @@ example : {theorem_type.type_expr} := by
         """
 
         lines = file_content.split("\n")
-        result_lines = []
+        result_lines: list[str] = []
 
         # Step 1: Add any additional imports at the top (after existing imports)
         if additional_imports:
@@ -630,7 +763,7 @@ example : {theorem_type.type_expr} := by
                 in_doc_comment = True
             if in_doc_comment:
                 result_lines.append(line)
-                if stripped.endswith("-/") or "-/" in stripped:
+                if "-/" in stripped:
                     in_doc_comment = False
                 i += 1
                 continue
@@ -641,19 +774,14 @@ example : {theorem_type.type_expr} := by
                 j = i + 1
                 while j < len(lines) and not lines[j].strip():
                     j += 1
-                if j < len(lines):
-                    next_stripped = lines[j].strip()
-                    if next_stripped.startswith("theorem ") or next_stripped.startswith("lemma "):
-                        # Skip this attribute line
-                        i += 1
-                        continue
+                if j < len(lines) and _is_theorem_or_lemma(lines[j].strip()):
+                    # Skip this attribute line — the theorem handler will emit sorry
+                    i += 1
+                    continue
                 # Not a theorem/lemma attribute, keep it
 
             # Check if this is a theorem or lemma declaration
-            is_theorem = stripped.startswith("theorem ") or " theorem " in stripped
-            is_lemma = stripped.startswith("lemma ") or " lemma " in stripped
-
-            if is_theorem or is_lemma:
+            if _is_theorem_or_lemma(stripped):
                 # Extract the declaration name
                 decl_name = self._extract_declaration_name(stripped)
                 is_target = (
@@ -662,55 +790,59 @@ example : {theorem_type.type_expr} := by
                     or stripped.startswith(f"lemma {local_name}")
                 )
 
-                # Check if ':=' is on the same line
-                if ":=" in line:
-                    # Single-line or ':=' on first line
-                    before_proof = line.split(":=")[0]
+                # Find ':=' — use brace-aware search to skip ':=' inside type sigs
+                assign_pos = _find_proof_assignment(line)
+
+                if assign_pos >= 0:
+                    # ':=' on the same line as the declaration
+                    before_proof = line[:assign_pos]
 
                     if is_target:
-                        # Replace with test tactic
-                        result_lines.append(f"{before_proof}:= by\n")
-                        result_lines.append(f"  {proof_attempt}\n")
+                        result_lines.append(f"{before_proof}:= by")
+                        result_lines.append(f"  {proof_attempt}")
                     else:
-                        # Replace with sorry
-                        result_lines.append(f"{before_proof}:= by sorry\n")
+                        result_lines.append(f"{before_proof}:= by sorry")
 
                     # Skip the original proof
                     i += 1
                     i = self._skip_proof_block(lines, i)
                 else:
-                    # Multi-line declaration - collect until we find ':='
+                    # Multi-line declaration — collect until we find ':='
                     decl_lines = [line]
                     i += 1
 
-                    while i < len(lines) and ":=" not in lines[i]:
+                    while i < len(lines):
+                        assign_pos = _find_proof_assignment(lines[i])
+                        if assign_pos >= 0:
+                            break
+                        # Stop collecting if we hit a new declaration (malformed source)
+                        if _is_declaration_start(lines[i].strip()):
+                            break
                         decl_lines.append(lines[i])
                         i += 1
 
-                    # Now we're at the ':=' line
-                    if i < len(lines):
+                    # Now we're at the ':=' line (or ran out of lines)
+                    if i < len(lines) and assign_pos >= 0:
                         proof_line = lines[i]
-                        before_proof = proof_line.split(":=")[0]
+                        before_proof = proof_line[:assign_pos]
 
                         # Add all declaration lines
                         result_lines.extend(decl_lines)
 
                         if is_target:
-                            # Replace with test tactic
-                            result_lines.append(f"{before_proof}:= by\n")
-                            result_lines.append(f"  {proof_attempt}\n")
+                            result_lines.append(f"{before_proof}:= by")
+                            result_lines.append(f"  {proof_attempt}")
                         else:
-                            # Replace with sorry
-                            result_lines.append(f"{before_proof}:= by sorry\n")
+                            result_lines.append(f"{before_proof}:= by sorry")
 
                         # Skip the original proof (start from next line)
                         i += 1
                         i = self._skip_proof_block(lines, i)
                     else:
-                        # No ':=' found (shouldn't happen in valid Lean)
+                        # No ':=' found — copy declaration as-is (e.g., axiom)
                         result_lines.extend(decl_lines)
             else:
-                # Not a theorem/lemma - copy as-is
+                # Not a theorem/lemma — copy as-is
                 result_lines.append(line)
                 i += 1
 
@@ -739,6 +871,9 @@ example : {theorem_type.type_expr} := by
         A proof ends when we return to the same indentation level
         and hit a new declaration or end of block.
 
+        Uses the module-level ``_is_declaration_start`` helper to detect
+        Lean keywords that signal the start of a new top-level construct.
+
         Args:
             lines: All lines
             start_idx: Index after ':=' line
@@ -748,15 +883,13 @@ example : {theorem_type.type_expr} := by
         if start_idx >= len(lines):
             return start_idx
 
-        # Simple heuristic: skip until we hit a line that starts a new declaration
-        # or has same/less indentation and isn't part of the proof
+        # Base indentation is the indentation of the ':=' line (the line before start_idx)
         base_indent = len(lines[start_idx - 1]) - len(lines[start_idx - 1].lstrip())
 
         i = start_idx
-        in_proof = True
         in_doc_comment = False
 
-        while i < len(lines) and in_proof:
+        while i < len(lines):
             line = lines[i]
             stripped = line.strip()
 
@@ -764,12 +897,12 @@ example : {theorem_type.type_expr} := by
             if stripped.startswith("/-"):
                 in_doc_comment = True
             if in_doc_comment:
-                if stripped.endswith("-/") or "-/" in stripped:
+                if "-/" in stripped:
                     in_doc_comment = False
                 i += 1
                 continue
 
-            # Empty lines or single-line comments - keep going
+            # Empty lines or single-line comments — keep skipping
             if not stripped or stripped.startswith("--"):
                 i += 1
                 continue
@@ -777,24 +910,13 @@ example : {theorem_type.type_expr} := by
             # Check for new declarations at same or lower indentation
             current_indent = len(line) - len(line.lstrip())
 
-            if current_indent <= base_indent and (
-                stripped.startswith("theorem ")
-                or stripped.startswith("lemma ")
-                or stripped.startswith("def ")
-                or stripped.startswith("instance ")
-                or stripped.startswith("variable ")
-                or stripped.startswith("namespace ")
-                or stripped.startswith("section ")
-                or stripped.startswith("end ")
-                or stripped.startswith("/-")
-            ):  # Doc comment for next declaration
-                # New declaration - proof is done
-                in_proof = False
+            if current_indent <= base_indent and _is_declaration_start(stripped):
                 break
 
             i += 1
 
         return i
+
 
     def _validate_harness(self, harness: str) -> None:
         """
@@ -823,3 +945,6 @@ example : {theorem_type.type_expr} := by
         self._file_cache.clear()
         self._decl_cache.clear()
         self._theorem_verified.clear()
+        # Also clear the type extractor's declarations cache if it supports it
+        if hasattr(self.type_extractor, 'clear_cache'):
+            self.type_extractor.clear_cache()

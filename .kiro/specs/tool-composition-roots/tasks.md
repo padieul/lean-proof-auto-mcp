@@ -151,14 +151,14 @@ This implementation plan refactors all MCP tool composition roots to eliminate d
   - **Property 16: probe_fn result mapping**
   - **Validates: Requirements 5.6**
 
-- [ ] 10. Update search_automated_proof.py composition root
+- [x] 10. Update search_automated_proof.py composition root
   - Create LeanInteractProofValidator with ServerManager
   - Create ImportBasedHarnessConstructor with caching
   - Wire validator and constructor into SearchOrchestrator
   - Remove LeanInteractRunner references
   - _Requirements: 5.1, 5.2, 7.3, 7.5_
 
-- [ ] 11. Update verify.py composition root
+- [x] 11. Update verify.py composition root
   - Change from LeanInteractRunner to LeanInteractProofValidator
   - Update VerifyCommandHandler to use ProofValidator port
   - _Requirements: 7.3, 7.5_

@@ -4,19 +4,19 @@ This module tests the probe tool across fixture files and theorems in the
 evaluation repository. Tests are organized into tiers (smoke, quick, normal)
 using domain-based fixture selection and theorem sampling.
 
-The probe tool tests individual theorems with automation modes (aesop, grind, both)
-and returns a ProbeResult with outcome classification, suggested script, timing,
-and diagnostics.
+The probe tool tests individual theorems with automation modes (aesop, grind,
+aesop?) and returns a ProbeResult with outcome classification, suggested script,
+timing, and diagnostics.
 
 Tier Selection:
-- Smoke: 2 files with 5 theorems each in one mode (~2 min)
-- Quick: 5 files with 10 theorems each in all modes (~10 min)
-- Normal: All 23 files with selected theorems in all modes (~30 min)
+- Smoke: 2 files, first 5 theorems each, one mode (~2 min)
+- Quick: 5 files, first 10 theorems each, all modes (~10 min)
+- Normal: All 23 files, first 5 theorems each, all modes (~30 min)
 
-Theorem Selection Strategy:
-- Use probe_file to discover available theorems in each fixture
-- Select representative theorems from each file for testing
-- Test each theorem-mode combination independently
+Theorem Discovery:
+- Uses scan_file (lightweight regex scan) to discover theorem IDs
+- Filters to theorem/lemma kinds only (no instances/examples)
+- Falls back gracefully if scan_file returns no theorems
 """
 
 import pytest
@@ -32,8 +32,15 @@ from eval_logger import EvalLogger
 pytestmark = [pytest.mark.eval_normal]
 
 
-# Probe modes to test
-PROBE_MODES = ["aesop", "grind", "both"]
+# Probe modes to test (must match probe tool's accepted values)
+PROBE_MODES = ["aesop", "grind", "aesop?"]
+
+# Tier-specific fixture slices
+_SMOKE_SLICE = SMOKE_FIXTURES[:2]
+_QUICK_SLICE = QUICK_FIXTURES[:5]
+
+# Non-probeable declaration kinds (instances/examples can't have proofs replaced)
+_NON_PROBEABLE_KINDS = {"instance", "example"}
 
 
 def _skip_if_no_fixtures(fixture_list: list[FixtureFile], tier: str) -> None:
@@ -45,40 +52,135 @@ def _skip_if_no_fixtures(fixture_list: list[FixtureFile], tier: str) -> None:
 def _discover_theorems(
     mcp_client: MCPClient,
     fixture_file: FixtureFile,
-    mode: str = "aesop",
     max_theorems: int | None = None,
 ) -> list[str]:
-    """Discover theorems in a fixture file using probe_file tool.
-    
+    """Discover probeable theorems in a fixture file using scan_file.
+
+    Uses scan_file (lightweight regex scan) rather than probe_file to avoid
+    paying the Lean REPL cost just for discovery. Filters out instance and
+    example declarations since those can't have proofs replaced with aesop/grind.
+
     Args:
         mcp_client: MCP client instance
-        fixture_file: Fixture file to probe
-        mode: Probe mode to use for discovery
-        max_theorems: Maximum number of theorems to return (None = all)
-        
+        fixture_file: Fixture file to scan
+        max_theorems: Maximum number of theorem IDs to return
+
     Returns:
         List of theorem IDs discovered in the file
     """
     try:
         response = mcp_client.call_tool(
-            "probe_file",
-            {"file": str(fixture_file.path), "mode": mode, "budget_s": 60.0},
+            "scan_file",
+            {"file": str(fixture_file.path)},
         )
-        
-        # Extract theorem list from probe_file response
-        if response.get("status") == "success":
-            probe_file_result = response.get("probe_file_result", {})
-            theorem_results = probe_file_result.get("theorem_results", [])
-            theorem_ids = [tr.get("theorem_id") for tr in theorem_results if tr.get("theorem_id")]
-            
-            if max_theorems is not None:
-                return theorem_ids[:max_theorems]
-            return theorem_ids
-        
-        return []
+
+        if response.get("status") != "success":
+            return []
+
+        theorems = response.get("theorems", [])
+        # Filter to probeable kinds only
+        theorem_ids = [
+            t["theorem_id"]
+            for t in theorems
+            if t.get("theorem_id") and t.get("kind") not in _NON_PROBEABLE_KINDS
+        ]
+
+        if max_theorems is not None:
+            return theorem_ids[:max_theorems]
+        return theorem_ids
     except Exception:
-        # If probe_file fails, return empty list
         return []
+
+
+
+def _check_probe_response_structure(response: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Check probe response structure without raising.
+
+    Validates against the ProbeResult schema:
+    api_version, status, run_id, probe_result, diagnostics, timing.
+
+    Returns (passed, failures) for logging purposes.
+    """
+    failures: list[str] = []
+
+    if "status" not in response:
+        failures.append(f"Response missing 'status' field. Keys: {list(response.keys())}")
+        return False, failures
+
+    status = response["status"]
+    if status not in ("success", "fail", "timeout", "error"):
+        failures.append(f"Invalid status: {status}")
+        return False, failures
+
+    if status != "error":
+        for key in ("api_version", "run_id", "probe_result", "diagnostics", "timing"):
+            if key not in response:
+                failures.append(f"Missing '{key}'")
+
+        if "probe_result" in response:
+            probe_result = response["probe_result"]
+            if not isinstance(probe_result, dict):
+                failures.append("probe_result must be a dict")
+            else:
+                for key in ("mode", "outcome", "classification"):
+                    if key not in probe_result:
+                        failures.append(f"probe_result missing '{key}'")
+
+    return len(failures) == 0, failures
+
+
+def _assert_probe_response_structure(response: dict[str, Any]) -> None:
+    """Assert the probe tool response conforms to the ProbeResult schema.
+
+    Delegates to _check_probe_response_structure and raises on failure.
+    """
+    passed, failures = _check_probe_response_structure(response)
+    if not passed:
+        raise AssertionError(
+            f"probe response structure invalid: {'; '.join(failures)}"
+        )
+
+
+def _log_probe_details(logger: EvalLogger, response: dict[str, Any]) -> None:
+    """Log probe-specific response details.
+
+    Extracted to keep _run_probe_and_record focused on orchestration.
+    """
+    logger.log_info(f"response_keys={list(response.keys())}")
+    logger.log_info(f"status={response.get('status', 'N/A')}")
+
+    probe_result = response.get("probe_result", {})
+    if isinstance(probe_result, dict):
+        outcome = probe_result.get("outcome", "N/A")
+        classification = probe_result.get("classification", "N/A")
+        probe_mode = probe_result.get("mode", "N/A")
+        logger.log_info(f"mode={probe_mode}, outcome={outcome}, classification={classification}")
+        suggested_script = probe_result.get("suggested_script")
+        if suggested_script:
+            logger.log_info(f"suggested_script={suggested_script[:150]}")
+
+    diagnostics = response.get("diagnostics", [])
+    if isinstance(diagnostics, list):
+        logger.log_info(f"diagnostics_count={len(diagnostics)}")
+        for i, d in enumerate(diagnostics[:3]):
+            if isinstance(d, dict):
+                sev = d.get("severity", "?")
+                msg = d.get("message", "")[:120]
+                logger.log_info(f"  diag[{i}]: {sev}: {msg}")
+
+    timing = response.get("timing", {})
+    if isinstance(timing, dict):
+        logger.log_info(f"timing: elapsed_ms={timing.get('elapsed_ms', '?')}, budget_s={timing.get('budget_s', '?')}")
+
+    error = response.get("error")
+    if error:
+        logger.log_info(f"error={str(error)[:200]}")
+
+    metadata = response.get("metadata", {})
+    if isinstance(metadata, dict):
+        error_code = metadata.get("error_code")
+        if error_code:
+            logger.log_info(f"metadata.error_code={error_code}")
 
 
 def _run_probe_and_record(
@@ -92,30 +194,31 @@ def _run_probe_and_record(
     total: int = 0,
 ) -> dict[str, Any]:
     """Run probe tool on a theorem, record result, log details, return response.
-    
+
     Args:
         mcp_client: MCP client instance
         fixture_file: Fixture file containing the theorem
         theorem_id: Theorem identifier to probe
-        mode: Probe mode (aesop, grind, both)
+        mode: Probe mode (aesop, grind, aesop?)
         result_collector: Result collector for recording outcomes
         logger: Optional logger for detailed output
         index: Current test index (for logging)
         total: Total number of tests (for logging)
-        
+
     Returns:
         The parsed tool response dict
     """
+    file_size = fixture_file.path.stat().st_size if fixture_file.path.exists() else 0
     if logger:
         logger.log_fixture_start(
             f"{fixture_file.relative_path}::{theorem_id} (mode={mode})",
-            0,  # File size not relevant for probe
+            file_size,
             index,
             total,
         )
-    
+
     start = time.perf_counter()
-    
+
     try:
         response = mcp_client.call_tool(
             "probe",
@@ -127,8 +230,7 @@ def _run_probe_and_record(
             },
         )
         elapsed_ms = (time.perf_counter() - start) * 1000
-        
-        # Determine status from probe tool's response schema
+
         tool_status = response.get("status", "")
         if tool_status in ("success", "fail", "timeout"):
             status = tool_status if tool_status != "fail" else "failure"
@@ -136,7 +238,7 @@ def _run_probe_and_record(
             status = "error"
         else:
             status = "failure"
-    
+
     except TimeoutError:
         elapsed_ms = (time.perf_counter() - start) * 1000
         status = "timeout"
@@ -149,7 +251,7 @@ def _run_probe_and_record(
         response = {"error": str(e), "status": "error"}
         if logger:
             logger.log_error(elapsed_ms / 1000, str(e))
-    
+
     result_collector.record(
         tool="probe",
         file_path=str(fixture_file.path),
@@ -161,114 +263,19 @@ def _run_probe_and_record(
         theorem_id=theorem_id,
         mode=mode,
     )
-    
-    # Log the result details — always log structure check and tool-specific info
-    if logger:
-        elapsed_s = elapsed_ms / 1000
-        
-        if status == "timeout":
-            # Already logged via log_error above
-            pass
-        else:
-            # Always run structure check and log result
-            passed, failures = _check_probe_response_structure(response)
-            logger.log_fixture_result(response, elapsed_s, passed, failures)
-        
-        # Log tool-specific response details for ALL non-timeout responses
-        if status != "timeout":
-            logger.log_info(f"response_keys={list(response.keys())}")
-            logger.log_info(f"status={response.get('status', 'N/A')}")
-            
-            probe_result = response.get("probe_result", {})
-            if isinstance(probe_result, dict):
-                outcome = probe_result.get("outcome", "N/A")
-                classification = probe_result.get("classification", "N/A")
-                probe_mode = probe_result.get("mode", "N/A")
-                logger.log_info(f"mode={probe_mode}, outcome={outcome}, classification={classification}")
-                suggested_script = probe_result.get("suggested_script")
-                if suggested_script:
-                    logger.log_info(f"suggested_script={suggested_script[:150]}")
-            else:
-                logger.log_info(f"probe_result missing or not dict: {type(probe_result)}")
-            
-            diagnostics = response.get("diagnostics", [])
-            if isinstance(diagnostics, list):
-                logger.log_info(f"diagnostics_count={len(diagnostics)}")
-                for i, d in enumerate(diagnostics[:3]):
-                    sev = d.get("severity", "?") if isinstance(d, dict) else "?"
-                    msg = d.get("message", "")[:120] if isinstance(d, dict) else str(d)[:120]
-                    logger.log_info(f"  diag[{i}]: {sev}: {msg}")
-            
-            # Log error details if present
-            error = response.get("error")
-            if error:
-                logger.log_info(f"error={str(error)[:200]}")
-    
+
+    if logger and status != "timeout":
+        passed, failures = _check_probe_response_structure(response)
+        logger.log_fixture_result(response, elapsed_ms / 1000, passed, failures)
+        _log_probe_details(logger, response)
+
     return response
 
 
-def _check_probe_response_structure(response: dict[str, Any]) -> tuple[bool, list[str]]:
-    """Check probe response structure without raising.
-    
-    Returns (passed, failures) for logging purposes.
-    """
-    failures: list[str] = []
-    
-    if "status" not in response:
-        failures.append(f"Response missing 'status' field. Keys: {list(response.keys())}")
-        return False, failures
-    
-    status = response["status"]
-    if status not in ("success", "fail", "timeout", "error"):
-        failures.append(f"Invalid status: {status}")
-        return False, failures
-    
-    if status != "error":
-        for key in ("api_version", "run_id", "probe_result", "diagnostics", "timing"):
-            if key not in response:
-                failures.append(f"Missing '{key}'")
-        
-        if "probe_result" in response:
-            probe_result = response["probe_result"]
-            for key in ("mode", "outcome", "classification"):
-                if key not in probe_result:
-                    failures.append(f"probe_result missing '{key}'")
-    
-    return len(failures) == 0, failures
-
-
-def _assert_probe_response_structure(response: dict[str, Any]) -> None:
-    """Assert the probe tool response conforms to the ProbeResult schema.
-    
-    Validates fields defined in core/probe_domain.py ProbeResult:
-    api_version, status, run_id, probe_result, diagnostics, timing.
-    """
-    assert "status" in response, (
-        f"Response missing 'status' field. Keys: {list(response.keys())}"
-    )
-    assert response["status"] in ("success", "fail", "timeout", "error"), (
-        f"Invalid status: {response['status']}"
-    )
-    
-    # For non-error responses, validate the full schema
-    if response["status"] != "error":
-        assert "api_version" in response, "Missing 'api_version'"
-        assert "run_id" in response, "Missing 'run_id'"
-        assert "probe_result" in response, "Missing 'probe_result'"
-        assert "diagnostics" in response, "Missing 'diagnostics'"
-        assert isinstance(response["diagnostics"], list), "diagnostics must be a list"
-        assert "timing" in response, "Missing 'timing'"
-        
-        # Validate probe_result structure
-        probe_result = response["probe_result"]
-        assert "mode" in probe_result, "probe_result missing 'mode'"
-        assert "outcome" in probe_result, "probe_result missing 'outcome'"
-        assert "classification" in probe_result, "probe_result missing 'classification'"
-
 
 class TestProbeSmoke:
-    """Smoke tier: 2 files with 5 theorems each in one mode. Should complete in < 2 minutes."""
-    
+    """Smoke tier: 2 files, first 5 theorems each, one mode."""
+
     @pytest.mark.eval_smoke
     def test_probe_smoke(
         self,
@@ -277,23 +284,19 @@ class TestProbeSmoke:
         eval_logger: EvalLogger,
     ):
         """Test probe tool on smoke tier fixtures with limited theorems."""
-        _skip_if_no_fixtures(SMOKE_FIXTURES, "smoke")
-        
-        # Select first 2 files from smoke fixtures
-        test_fixtures = SMOKE_FIXTURES[:2]
-        mode = "aesop"  # Use single mode for smoke tier
-        
-        test_cases = []
-        for fixture in test_fixtures:
-            theorems = _discover_theorems(mcp_client, fixture, mode, max_theorems=5)
+        _skip_if_no_fixtures(_SMOKE_SLICE, "smoke")
+
+        mode = "aesop"
+        test_cases: list[tuple[FixtureFile, str]] = []
+        for fixture in _SMOKE_SLICE:
+            theorems = _discover_theorems(mcp_client, fixture, max_theorems=5)
             for theorem_id in theorems:
-                test_cases.append((fixture, theorem_id, mode))
-        
+                test_cases.append((fixture, theorem_id))
+
         if not test_cases:
             pytest.skip("No theorems discovered in smoke fixtures")
-        
-        # Run probe on each test case
-        for idx, (fixture, theorem_id, mode) in enumerate(test_cases):
+
+        for idx, (fixture, theorem_id) in enumerate(test_cases):
             response = _run_probe_and_record(
                 mcp_client,
                 fixture,
@@ -308,8 +311,8 @@ class TestProbeSmoke:
 
 
 class TestProbeQuick:
-    """Quick tier: 5 files with 10 theorems each in all modes. Should complete in < 10 minutes."""
-    
+    """Quick tier: 5 files, first 10 theorems each, all modes."""
+
     @pytest.mark.eval_quick
     @pytest.mark.parametrize("mode", PROBE_MODES)
     def test_probe_quick(
@@ -320,21 +323,17 @@ class TestProbeQuick:
         mode: str,
     ):
         """Test probe tool on quick tier fixtures with multiple theorems and modes."""
-        _skip_if_no_fixtures(QUICK_FIXTURES, "quick")
-        
-        # Select first 5 files from quick fixtures
-        test_fixtures = QUICK_FIXTURES[:5]
-        
-        test_cases = []
-        for fixture in test_fixtures:
-            theorems = _discover_theorems(mcp_client, fixture, mode, max_theorems=10)
+        _skip_if_no_fixtures(_QUICK_SLICE, "quick")
+
+        test_cases: list[tuple[FixtureFile, str]] = []
+        for fixture in _QUICK_SLICE:
+            theorems = _discover_theorems(mcp_client, fixture, max_theorems=10)
             for theorem_id in theorems:
                 test_cases.append((fixture, theorem_id))
-        
+
         if not test_cases:
             pytest.skip(f"No theorems discovered in quick fixtures for mode={mode}")
-        
-        # Run probe on each test case
+
         for idx, (fixture, theorem_id) in enumerate(test_cases):
             response = _run_probe_and_record(
                 mcp_client,
@@ -350,8 +349,8 @@ class TestProbeQuick:
 
 
 class TestProbeNormal:
-    """Normal tier: All 23 files with selected theorems in all modes. Should complete in < 30 minutes."""
-    
+    """Normal tier: All files, first 5 theorems each, all modes."""
+
     @pytest.mark.eval_normal
     @pytest.mark.parametrize("mode", PROBE_MODES)
     def test_probe_normal(
@@ -363,18 +362,16 @@ class TestProbeNormal:
     ):
         """Test probe tool on all fixtures with selected theorems and all modes."""
         _skip_if_no_fixtures(ALL_FIXTURE_FILES, "normal")
-        
-        test_cases = []
+
+        test_cases: list[tuple[FixtureFile, str]] = []
         for fixture in ALL_FIXTURE_FILES:
-            # Discover up to 5 theorems per file for normal tier
-            theorems = _discover_theorems(mcp_client, fixture, mode, max_theorems=5)
+            theorems = _discover_theorems(mcp_client, fixture, max_theorems=5)
             for theorem_id in theorems:
                 test_cases.append((fixture, theorem_id))
-        
+
         if not test_cases:
             pytest.skip(f"No theorems discovered in fixtures for mode={mode}")
-        
-        # Run probe on each test case
+
         for idx, (fixture, theorem_id) in enumerate(test_cases):
             response = _run_probe_and_record(
                 mcp_client,

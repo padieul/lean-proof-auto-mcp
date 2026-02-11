@@ -946,7 +946,7 @@ def test_property_3_infrastructure_reuse(cmd):
         # Execute
         result = handler.handle(cmd)
 
-    # Verify: LeanRunner was used
+    # Verify: ProofValidator was used
     mock_validator.verify_file.assert_called_once()
 
     # Verify: Diagnostics were normalized (severity normalized to lowercase)
@@ -1028,7 +1028,7 @@ def test_property_4_hard_timeout_enforcement(file_path, theorem_id, mode, budget
     assert result.status == "timeout"
     assert result.probe_result.classification == "timed_out"
 
-    # Verify: Budget was passed to lean_runner
+    # Verify: Budget was passed to validator
     call_args = mock_validator.verify_file.call_args
     assert call_args[1]["budget_s"] == budget_s
 

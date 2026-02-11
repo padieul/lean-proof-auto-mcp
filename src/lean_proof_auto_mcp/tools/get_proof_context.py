@@ -334,11 +334,11 @@ def _create_extractor(file_path: str) -> ContextExtractor:
         project_root = file_path_obj.parent
 
 
-    # Create ServerManager with workspace context
+    # Get shared ServerManager (persists across tool calls, project-keyed)
 
-    from ..lean.server_manager import LeanInteractServerManager
+    from ..lean.server_manager import get_shared_server_manager
 
-    server_manager = LeanInteractServerManager(workspace_path=project_root)
+    server_manager = get_shared_server_manager(project_root)
 
 
     # Create Querier with ServerManager

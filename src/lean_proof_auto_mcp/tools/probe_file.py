@@ -52,7 +52,7 @@ def probe_file(args: dict[str, Any]) -> dict[str, Any]:
         args: Dictionary with probe_file parameters:
             - file: Path to Lean file (required)
             - mode: Automation mode - "aesop", "aesop?", or "grind" (required)
-            - budget_s_per: Time budget per theorem in seconds (default: 5.0)
+            - budget_s_per: Time budget per theorem in seconds (default: 30.0)
             - limit: Maximum number of theorems to probe (default: 50)
             - ordering: Ordering mode - "file_order" or "rank_targets" (default: "file_order")
 
@@ -133,8 +133,11 @@ def _build_command(args: dict[str, Any]) -> ProbeFileCommand:
     if mode not in ("aesop", "aesop?", "grind"):
         raise ValueError("'mode' must be 'aesop', 'aesop?', or 'grind'")
 
-    # Validate and extract budget_s_per (optional, default: 5.0)
-    budget_s_per = args.get("budget_s_per", 5.0)
+    # Validate and extract budget_s_per (optional, default: 30.0)
+    # 30s accommodates Mathlib-scale projects where the Lean REPL needs
+    # 10-20s to load the environment on first use. A 5s budget causes a
+    # timeout death spiral: timeout → kill REPL → cold restart → timeout.
+    budget_s_per = args.get("budget_s_per", 30.0)
     if not isinstance(budget_s_per, int | float):
         raise ValueError("'budget_s_per' must be a number")
     budget_s_per = float(budget_s_per)
@@ -193,19 +196,15 @@ def _create_handler(file_path: str) -> tuple[ProbeFileCommandHandler, "HarnessCo
     if project_root is None:
         project_root = file_path_obj.parent
 
-    # 1. Create single LeanInteractServerManager instance (shared across all theorems)
-    from ..lean.server_manager import LeanInteractServerManager
-    server_manager = LeanInteractServerManager(workspace_path=project_root)
+    # 1. Get shared ServerManager (persists across tool calls, project-keyed)
+    from ..lean.server_manager import get_shared_server_manager
+    server_manager = get_shared_server_manager(project_root)
 
     # 2. Create LeanInteractQuerier with ServerManager
     from ..lean.querier import LeanInteractQuerier
     querier = LeanInteractQuerier(server_manager=server_manager)
 
-    # 3. Create LeanInteractProofValidator with ServerManager
-    from ..lean.validator import LeanInteractProofValidator
-    validator = LeanInteractProofValidator(server_manager=server_manager)
-
-    # 4. Create single ImportBasedHarnessConstructor with caching (shared across all theorems)
+    # 3. Create single ImportBasedHarnessConstructor with caching (shared across all theorems)
     from ..core.harness_construction import (
         ImportBasedHarnessConstructor,
         LeanInteractTheoremTypeExtractor,
@@ -215,6 +214,10 @@ def _create_handler(file_path: str) -> tuple[ProbeFileCommandHandler, "HarnessCo
     type_extractor = LeanInteractTheoremTypeExtractor(querier)
     path_converter = StandardImportPathConverter()
     constructor = ImportBasedHarnessConstructor(type_extractor, path_converter)
+
+    # 4. Create LeanInteractProofValidator with ServerManager and HarnessConstructor
+    from ..lean.validator import LeanInteractProofValidator
+    validator = LeanInteractProofValidator(server_manager=server_manager, harness_constructor=constructor)
 
     # 5. Create workspace provider (auto-detect mode)
     workspace_provider = create_workspace_provider(

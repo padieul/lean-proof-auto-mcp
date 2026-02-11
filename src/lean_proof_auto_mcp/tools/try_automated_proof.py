@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from ..core.validate_proof_domain import ValidateProofCommand, ValidateProofCommandHandler
-from ..lean.server_manager import LeanInteractServerManager
+from ..lean.server_manager import get_shared_server_manager
 from ..lean.validator import LeanInteractProofValidator
 from ..lean.querier import LeanInteractQuerier
 from ..lean.proof_state import LeanInteractProofStateInspector
@@ -218,19 +218,21 @@ def _create_handler(file_path: str) -> ValidateProofCommandHandler:
     if project_root is None:
         project_root = file_path_obj.parent
 
-    # Create ServerManager WITH workspace_path for proper Lake project context
+    # Get shared ServerManager (persists across tool calls, project-keyed)
     # This ensures all declarations are visible (fixes 116 vs 123 declaration issue)
-    server_manager = LeanInteractServerManager(workspace_path=project_root)
+    from ..lean.server_manager import get_shared_server_manager
+    server_manager = get_shared_server_manager(project_root)
 
     # Create adapters (all use same ServerManager)
     querier = LeanInteractQuerier(server_manager)
-    validator = LeanInteractProofValidator(server_manager)
-    proof_state_inspector = LeanInteractProofStateInspector(server_manager)
 
     # Create harness constructor with caching
     type_extractor = LeanInteractTheoremTypeExtractor(querier)
     path_converter = StandardImportPathConverter()
     constructor = ImportBasedHarnessConstructor(type_extractor, path_converter)
+
+    validator = LeanInteractProofValidator(server_manager, harness_constructor=constructor)
+    proof_state_inspector = LeanInteractProofStateInspector(server_manager)
 
     # Wire all dependencies into handler
     return ValidateProofCommandHandler(

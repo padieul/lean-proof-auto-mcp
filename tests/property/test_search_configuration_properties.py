@@ -40,10 +40,10 @@ def test_property_4_depth_preset_parameters(depth):
 
     # Verify: Parameters should match expected presets
     expected_presets = {
-        "quick": (10.0, 20, 50, 5.0),
-        "normal": (30.0, 50, 100, 30.0),
-        "deep": (60.0, 100, 200, 60.0),
-        "exhaustive": (120.0, 200, 500, 120.0),
+        "quick": (300.0, 20, 10, 30.0),
+        "normal": (600.0, 50, 20, 30.0),
+        "deep": (1200.0, 100, 40, 60.0),
+        "exhaustive": (3600.0, 200, 100, 120.0),
     }
 
     expected_budget, expected_candidates, expected_steps, expected_min_budget = expected_presets[

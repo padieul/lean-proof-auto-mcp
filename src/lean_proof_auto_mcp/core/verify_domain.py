@@ -148,53 +148,9 @@ class Workspace:
 # ============================================================================
 
 
-class LeanServer(Protocol):
+class ProofValidator(Protocol):
     """
-    Abstract interface for a reusable Lean server instance.
-
-    This port represents a long-lived Lean server that can be reused
-    across multiple verification requests, avoiding repeated initialization overhead.
-
-    Requirements: Performance optimization for batch operations
-    """
-
-    def verify_file(
-        self,
-        file_path: str,
-        theorem_id: str | None,
-        budget_s: float,
-    ) -> LeanRunResult:
-        """
-        Run Lean verification using this server instance.
-
-        Args:
-            file_path: Path to Lean file (relative to workspace)
-            theorem_id: Optional theorem identifier for theorem-level verification
-            budget_s: Time budget in seconds
-
-        Returns:
-            LeanRunResult with status, diagnostics, logs, timing
-
-        Raises:
-            TimeoutError: If verification exceeds budget
-            ValueError: If theorem_id is invalid or not found
-            RuntimeError: If Lean process fails unexpectedly
-        """
-        ...
-
-    def close(self) -> None:
-        """
-        Close the server and cleanup resources.
-
-        This method should be called when the server is no longer needed.
-        It should not raise exceptions - cleanup errors should be logged.
-        """
-        ...
-
-
-class LeanRunner(Protocol):
-    """
-    Abstract interface for running Lean verification.
+    Abstract interface for validating proofs and verifying files.
 
     This port defines how the core domain interacts with Lean execution,
     without depending on specific implementation details (LeanInteract, etc.).
@@ -225,24 +181,6 @@ class LeanRunner(Protocol):
             TimeoutError: If verification exceeds budget
             ValueError: If theorem_id is invalid or not found
             RuntimeError: If Lean process fails unexpectedly
-        """
-        ...
-
-    def create_server(self, workspace_path: Path) -> LeanServer:
-        """
-        Create a reusable Lean server for the given workspace.
-
-        This method creates a long-lived server that can be reused across
-        multiple verification requests, avoiding repeated initialization overhead.
-
-        Args:
-            workspace_path: Path to isolated workspace
-
-        Returns:
-            LeanServer instance that can be reused
-
-        Raises:
-            RuntimeError: If server creation fails
         """
         ...
 
@@ -328,7 +266,7 @@ class VerifyCommandHandler:
     Orchestrates verification using injected ports.
 
     This handler implements the core verification workflow following hexagonal
-    architecture principles. It depends only on abstract ports (LeanRunner,
+    architecture principles. It depends only on abstract ports (ProofValidator,
     WorkspaceProvider, ArtifactStore) and contains no infrastructure logic.
 
     Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 4.1, 4.2, 6.3
@@ -336,7 +274,7 @@ class VerifyCommandHandler:
 
     def __init__(
         self,
-        lean_runner: LeanRunner,
+        validator: ProofValidator,
         workspace_provider: WorkspaceProvider,
         artifact_store: ArtifactStore,
         metadata_collector: "MetadataCollector | None" = None,
@@ -345,14 +283,14 @@ class VerifyCommandHandler:
         Initialize handler with dependency injection.
 
         Args:
-            lean_runner: Port for running Lean verification
+            validator: Port for validating proofs and verifying files
             workspace_provider: Port for workspace isolation
             artifact_store: Port for artifact storage
             metadata_collector: Optional port for collecting environment metadata
 
         Requirements: 1.1
         """
-        self.lean_runner = lean_runner
+        self.validator = validator
         self.workspace_provider = workspace_provider
         self.artifact_store = artifact_store
         self.metadata_collector = metadata_collector
@@ -389,7 +327,7 @@ class VerifyCommandHandler:
 
         try:
             # 3. Run Lean verification with timeout
-            lean_result = self.lean_runner.verify_file(
+            lean_result = self.validator.verify_file(
                 workspace_path=workspace.path,
                 file_path=cmd.file_path,
                 theorem_id=cmd.theorem_id,

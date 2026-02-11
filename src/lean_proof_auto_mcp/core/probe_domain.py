@@ -468,7 +468,7 @@ class ProbeCommandHandler:
 
     This handler implements the core probe workflow following hexagonal
 
-    architecture principles. It depends only on abstract ports (LeanRunner,
+    architecture principles. It depends only on abstract ports (ProofValidator,
 
     WorkspaceProvider, AutomationClassifier, HarnessConstructor) and contains
     no infrastructure logic.
@@ -521,7 +521,7 @@ class ProbeCommandHandler:
 
         Args:
 
-            validator: Port for validating proofs (renamed from lean_runner)
+            validator: Port for validating proofs
 
             querier: Port for querying Lean files (NEW: injected)
 
@@ -611,7 +611,7 @@ class ProbeCommandHandler:
             return self._handle_with_server(cmd, run_id, lean_server, start_time)
         else:
 
-            # Traditional mode: create workspace and use lean_runner
+            # Traditional mode: create workspace and use validator
 
             return self._handle_with_workspace(cmd, run_id, start_time)
 
@@ -1243,7 +1243,7 @@ class ProbeCommandHandler:
 
         Returns:
 
-            Relative path to harness file (for passing to lean_runner)
+            Relative path to harness file (for passing to validator)
 
 
         Raises:
@@ -1986,415 +1986,249 @@ class ProbeFileCommandHandler:
 
     def handle(self, cmd: ProbeFileCommand) -> ProbeFileResult:
         """
-
-        Execute batch probe workflow with server reuse for optimal performance.
-
+        Execute batch probe workflow with shared workspace and validator.
 
         This method orchestrates the entire batch probe process:
-
         1. Enumerate theorems (fail fast if scan_file fails)
-
-        2. Create workspace and Lean server ONCE
-
-        3. Probe each theorem (reuse server for all theorems)
-
+        2. Create workspace ONCE
+        3. For each theorem: construct harness, validate directly, classify
         4. Aggregate results into summary
-
         5. Determine overall status
+        6. Cleanup workspace
 
-        6. Cleanup server and workspace
-
-
-        Server reuse eliminates repeated LocalProject/LeanServer initialization,
-
-        providing significant performance improvement for large batches.
-
+        Key architectural property: harness construction and validation both
+        happen on the SAME shared workspace using the SAME validator instance.
+        No delegation to probe_handler.handle() (which would create a second
+        workspace). The injected harness_constructor caches declarations so
+        extract_declarations is called at most once per file.
 
         Args:
-
             cmd: ProbeFileCommand with all parameters
 
-
         Returns:
-
             ProbeFileResult with per-theorem and file-level statistics
-
 
         Requirements: 4.1-4.7, 5.2-5.6, 10.4, Performance optimization
         """
-
         start_time = time.time()
 
-
         # 1. Enumerate theorems (fail fast if scan_file fails)
-
         try:
-
             theorem_ids = self._enumerate_theorems(cmd)
-
         except Exception as e:
-
             logger.error(f"Theorem enumeration failed: {e}")
-
             return self._build_error_result(cmd, str(e), start_time)
-
 
         # Handle empty file case
         if not theorem_ids:
-
             logger.warning(f"No theorems found in {cmd.file_path}")
-
             return ProbeFileResult(
-
                 api_version="0.1.0",
-
                 status="success",
-
                 file=cmd.file_path,
-
                 summary={"total": 0, "closed": 0, "promising": 0, "failed": 0, "timed_out": 0},
-
                 results=[],
-
                 metadata={"elapsed_ms": round((time.time() - start_time) * 1000.0, 2)},
-
             )
 
-
-        # 2. Create workspace and Lean server ONCE for all theorems
-
+        # 2. Create workspace ONCE for all theorems
         workspace = None
-
         try:
-
-            # Create workspace
-
             workspace = self.probe_handler.workspace_provider.create_workspace(cmd.file_path)
-
             logger.info(f"Created workspace for batch probe: {workspace.workspace_id}")
-
-
-            # Note: ServerManager handles server lifecycle automatically
-
-            # No need to explicitly create server - it will be created on first use
-
-            logger.info(f"Workspace ready for {len(theorem_ids)} theorems")
-
-
         except Exception as e:
-
             logger.error(f"Workspace creation failed: {e}")
-
-            # Cleanup if partially created
-
             if workspace:
-
                 with contextlib.suppress(Exception):
-
                     self.probe_handler.workspace_provider.cleanup_workspace(workspace)
-
             return self._build_error_result(cmd, f"Failed to create workspace: {e}", start_time)
 
+        # Pre-compute file_path_for_harness once (not per theorem)
+        file_path_for_harness = self._resolve_harness_file_path(cmd.file_path)
 
         try:
-
-            # 3. Probe each theorem (reuse server for all theorems)
-
+            # 3. Probe each theorem using shared workspace + validator
             results = []
-
             errors = []
-
-            harness_files = []  # Track harness files for cleanup
+            harness_files: list[str] = []
 
             for theorem_id in theorem_ids:
-
-                try:
-
-                    # Create probe command for this theorem
-
-                    probe_cmd = ProbeCommand(
-
-                        file_path=cmd.file_path,
-
-                        theorem_id=theorem_id,
-
-                        mode=cmd.mode,
-
-                        budget_s=cmd.budget_s_per,
-
-                    )
-
-
-                    # Construct and write harness for this theorem
-
-                    try:
-
-                        # Import HarnessConfig for construction
-
-                        from .harness_construction import HarnessConfig, HarnessError
-
-
-                        # Determine additional imports based on mode
-
-                        additional_imports = []
-
-                        if cmd.mode in ("aesop", "aesop?"):
-
-                            additional_imports.append("import Aesop")
-
-
-                        # Convert absolute file_path to relative path from project root
-
-                        file_path_obj = Path(cmd.file_path)
-
-                        if file_path_obj.is_absolute():
-
-                            # Find the project root by looking for lakefile.toml or lakefile.lean
-
-                            project_root = self.probe_handler._find_project_root(file_path_obj)
-
-                            if project_root:
-
-                                try:
-
-                                    relative_path = file_path_obj.relative_to(project_root)
-
-                                    file_path_for_harness = str(relative_path)
-
-                                except ValueError:
-
-                                    # Fallback: use the original path
-
-                                    file_path_for_harness = cmd.file_path
-
-                            else:
-
-                                # No project root found, use original path
-
-                                file_path_for_harness = cmd.file_path
-
-                        else:
-
-                            file_path_for_harness = cmd.file_path
-
-
-                        # Build harness config
-
-                        config = HarnessConfig(
-
-                            theorem_id=theorem_id,
-
-                            file_path=file_path_for_harness,
-
-                            proof_attempt=cmd.mode,
-
-                            additional_imports=additional_imports,
-
-                        )
-
-
-                        # Use injected harness constructor
-
-                        result = self.probe_handler.harness_constructor.construct(config)
-
-
-                        # Check if construction was successful
-
-                        if isinstance(result, HarnessError):
-
-                            logger.warning(
-
-                                f"Failed to construct harness for theorem '{theorem_id}': {result.message}"
-
-                            )
-
-                            errors.append(
-
-                                {"theorem_id": theorem_id, "error": f"Harness construction failed: {result.message}"}
-
-                            )
-
-                            continue
-
-
-                        harness_content = result.code
-
-
-                        # Add trace configuration if requested
-
-                        if cmd.trace_config:
-
-                            # Insert trace options after imports
-
-                            lines = harness_content.split("\n")
-
-                            import_end = 0
-
-                            for i, line in enumerate(lines):
-
-                                if line.strip() and not line.strip().startswith("import"):
-
-                                    import_end = i
-
-                                    break
-
-
-                            trace_lines = []
-
-                            for key, value in cmd.trace_config.items():
-
-                                trace_lines.append(f"set_option {key} {str(value).lower()}")
-
-
-                            # Insert trace options after imports
-
-                            lines = lines[:import_end] + trace_lines + [""] + lines[import_end:]
-
-                            harness_content = "\n".join(lines)
-
-
-                        harness_file = self.probe_handler._write_harness(
-
-                            probe_cmd, workspace.path, harness_content
-
-                        )
-
-                        harness_files.append(harness_file)
-
-                        logger.debug(f"Wrote harness for theorem '{theorem_id}': {harness_file}")
-
-                    except Exception as e:
-
-                        logger.warning(
-
-                            f"Failed to construct harness for theorem '{theorem_id}': {e}"
-
-                        )
-
-                        errors.append(
-
-                            {"theorem_id": theorem_id, "error": f"Harness construction failed: {e}"}
-
-                        )
-                        continue
-
-
-                    # Execute probe (ServerManager handles server reuse automatically)
-
-                    probe_result = self.probe_handler.handle(probe_cmd)
-
-
-                    # Extract summary for this theorem
-
-                    theorem_summary = self._extract_summary(probe_result, theorem_id)
-
-                    results.append(theorem_summary)
-
-
-                except Exception as e:
-
-                    # Log error but continue processing
-
-                    logger.warning(f"Probe failed for theorem '{theorem_id}': {e}")
-
-                    errors.append({"theorem_id": theorem_id, "error": str(e)})
-
+                theorem_result = self._probe_single_theorem(
+                    cmd, theorem_id, file_path_for_harness, workspace,
+                )
+                # Extract and track internal keys before adding to results
+                harness_file = theorem_result.pop("_harness_file", None)
+                is_error = theorem_result.pop("_is_error", False)
+
+                if is_error:
+                    errors.append({
+                        "theorem_id": theorem_id,
+                        "error": theorem_result.get("error", "unknown"),
+                    })
+                else:
+                    results.append(theorem_result)
+
+                if harness_file:
+                    harness_files.append(harness_file)
 
             # 4. Aggregate results into summary
-
             summary = self._aggregate_results(results)
 
-
             # 5. Determine overall status
-
-            if len(results) == 0:
+            if len(results) == 0 and len(errors) > 0:
                 status = "error"
-
             elif len(errors) > 0:
                 status = "partial"
             else:
                 status = "success"
 
-
             # 6. Build final result
-
             elapsed_ms = round((time.time() - start_time) * 1000.0, 2)
 
-
             metadata: dict[str, Any] = {
-
                 "elapsed_ms": elapsed_ms,
-
                 "total_theorems": len(theorem_ids),
-
                 "successful_probes": len(results),
-
                 "failed_probes": len(errors),
-
-                "server_reused": True,  # Indicate that server reuse was used
-
+                "server_reused": True,
             }
-
             if errors:
-
                 metadata["errors"] = errors
 
-
             return ProbeFileResult(
-
                 api_version="0.1.0",
-
                 status=status,
-
                 file=cmd.file_path,
-
                 summary=summary,
-
                 results=results,
-
                 metadata=metadata,
-
             )
 
-
         finally:
-
-            # 7. Cleanup harness files, server, and workspace (always runs)
-
-            # Clean up harness files
+            # 7. Cleanup harness files and workspace
             for harness_file in harness_files:
-
                 try:
-
                     harness_path = workspace.path / harness_file
-
                     if harness_path.exists():
-
                         harness_path.unlink()
-
-                        logger.debug(f"Cleaned up harness file: {harness_file}")
-
                 except Exception as e:
-
                     logger.warning(f"Harness file cleanup failed for {harness_file}: {e}")
 
-
-            # Note: ServerManager handles server cleanup automatically
-
-            # No need to explicitly close server
-
-
             if workspace:
-
                 try:
-
                     self.probe_handler.workspace_provider.cleanup_workspace(workspace)
-
                     logger.info(f"Cleaned up workspace: {workspace.workspace_id}")
-
                 except Exception as e:
-
                     logger.warning(f"Workspace cleanup failed: {e}")
+
+    def _resolve_harness_file_path(self, file_path: str) -> str:
+        """Convert absolute file_path to relative path from project root.
+
+        This is computed once per batch, not per theorem.
+        """
+        file_path_obj = Path(file_path)
+        if file_path_obj.is_absolute():
+            project_root = self.probe_handler._find_project_root(file_path_obj)
+            if project_root:
+                try:
+                    return str(file_path_obj.relative_to(project_root))
+                except ValueError:
+                    pass
+        return file_path
+
+    def _probe_single_theorem(
+        self,
+        cmd: ProbeFileCommand,
+        theorem_id: str,
+        file_path_for_harness: str,
+        workspace: Any,
+    ) -> dict:
+        """Probe a single theorem using the shared workspace and validator.
+
+        Constructs harness, writes to shared workspace, validates directly
+        using the shared validator, classifies the result.
+
+        Returns a dict with theorem summary fields on success, or
+        {"_is_error": True, "error": "..."} on failure.
+        """
+        from .harness_construction import HarnessConfig, HarnessError
+
+        probe_start = time.time()
+
+        # 1. Construct harness using injected (cached) constructor
+        additional_imports = []
+        if cmd.mode in ("aesop", "aesop?"):
+            additional_imports.append("import Aesop")
+
+        config = HarnessConfig(
+            theorem_id=theorem_id,
+            file_path=file_path_for_harness,
+            proof_attempt=cmd.mode,
+            additional_imports=additional_imports,
+        )
+
+        try:
+            harness_result = self.probe_handler.harness_constructor.construct(config)
+        except Exception as e:
+            logger.warning(f"Harness construction failed for '{theorem_id}': {e}")
+            return {"_is_error": True, "error": f"Harness construction failed: {e}"}
+
+        if isinstance(harness_result, HarnessError):
+            logger.warning(f"Harness construction failed for '{theorem_id}': {harness_result.message}")
+            return {"_is_error": True, "error": f"Harness construction failed: {harness_result.message}"}
+
+        harness_content = harness_result.code
+
+        # 2. Write harness to shared workspace
+        probe_cmd = ProbeCommand(
+            file_path=cmd.file_path,
+            theorem_id=theorem_id,
+            mode=cmd.mode,
+            budget_s=cmd.budget_s_per,
+        )
+        try:
+            harness_file = self.probe_handler._write_harness(
+                probe_cmd, workspace.path, harness_content
+            )
+        except Exception as e:
+            logger.warning(f"Failed to write harness for '{theorem_id}': {e}")
+            return {"_is_error": True, "error": f"Failed to write harness: {e}"}
+
+        # 3. Validate harness directly using shared validator on shared workspace
+        try:
+            lean_result = self.probe_handler.validator.verify_file(
+                workspace_path=workspace.path,
+                file_path=harness_file,
+                theorem_id=None,
+                budget_s=cmd.budget_s_per,
+            )
+        except TimeoutError:
+            elapsed_ms = round((time.time() - probe_start) * 1000.0, 2)
+            return {
+                "theorem_id": theorem_id,
+                "outcome": "timeout",
+                "classification": "timed_out",
+                "elapsed_ms": elapsed_ms,
+                "_harness_file": harness_file,
+            }
+        except Exception as e:
+            logger.warning(f"Lean execution failed for '{theorem_id}': {e}")
+            return {
+                "_is_error": True,
+                "error": f"Lean execution failed: {e}",
+                "_harness_file": harness_file,
+            }
+
+        # 4. Classify the result
+        run_id = self.probe_handler._generate_run_id(probe_cmd)
+        probe_result = self.probe_handler._process_lean_result(
+            probe_cmd, run_id, lean_result, probe_start, workspace=None,
+        )
+
+        # 5. Extract summary
+        summary = self._extract_summary(probe_result, theorem_id)
+        summary["_harness_file"] = harness_file
+        return summary
 
 
     def _enumerate_theorems(self, cmd: ProbeFileCommand) -> list[str]:
@@ -2440,6 +2274,12 @@ class ProbeFileCommandHandler:
 
         theorems = scan_result.get("theorems", [])
 
+        # Filter to probeable declaration kinds only.
+        # instance/example declarations cannot have their proofs replaced
+        # with aesop/grind — only theorem and lemma are valid probe targets.
+        # Declarations without a 'kind' field are included for backward compatibility.
+        _NON_PROBEABLE_KINDS = {"instance", "example"}
+        theorems = [t for t in theorems if t.get("kind") not in _NON_PROBEABLE_KINDS]
 
         # Apply ordering
         if cmd.ordering == "file_order":
@@ -2656,7 +2496,9 @@ class ProbeFileCommandHandler:
 
 
 
-# Import LeanRunner, LeanServer, and WorkspaceProvider from verify_domain for type hints
+# Import LeanServer from lean.ports and WorkspaceProvider from verify_domain for type hints
 
-from .verify_domain import LeanRunner, LeanServer, WorkspaceProvider  # noqa: E402
+from .verify_domain import WorkspaceProvider  # noqa: E402
+
+from ..lean.ports import LeanServer  # noqa: E402
 

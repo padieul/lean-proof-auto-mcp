@@ -29,8 +29,8 @@ from lean_proof_auto_mcp.core.verify_domain import (
 # ============================================================================
 
 
-class MockLeanRunner:
-    """Mock LeanRunner that returns predefined results without spawning Lean."""
+class MockValidator:
+    """Mock ProofValidator that returns predefined results without spawning Lean."""
 
     def __init__(self, result: LeanRunResult | None = None):
         self.result = result or LeanRunResult(
@@ -151,10 +151,10 @@ class TestProperty1ResponseSchemaCompliance:
         # Feature: lean-verify-tool, Property 1: Response schema compliance
 
         # Arrange
-        lean_runner = MockLeanRunner()
+        validator = MockValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(
@@ -219,10 +219,10 @@ class TestProperty1ResponseSchemaCompliance:
         # Feature: lean-verify-tool, Property 1: Response schema compliance
 
         # Arrange
-        lean_runner = MockLeanRunner()
+        validator = MockValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -284,10 +284,10 @@ class TestProperty7DeterministicDiagnosticSorting:
             exit_code=0,
         )
 
-        lean_runner = MockLeanRunner(result=lean_result)
+        validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -370,16 +370,16 @@ class TestProperty8DeterministicOutput:
             return
 
         # Act - Run verification twice with same inputs
-        lean_runner1 = MockLeanRunner(result=lean_result)
+        validator1 = MockValidator(result=lean_result)
         workspace_provider1 = MockWorkspaceProvider()
         artifact_store1 = MockArtifactStore()
-        handler1 = VerifyCommandHandler(lean_runner1, workspace_provider1, artifact_store1)
+        handler1 = VerifyCommandHandler(validator=validator1, workspace_provider=workspace_provider1, artifact_store=artifact_store1)
         result1 = handler1.handle(cmd)
 
-        lean_runner2 = MockLeanRunner(result=lean_result)
+        validator2 = MockValidator(result=lean_result)
         workspace_provider2 = MockWorkspaceProvider()
         artifact_store2 = MockArtifactStore()
-        handler2 = VerifyCommandHandler(lean_runner2, workspace_provider2, artifact_store2)
+        handler2 = VerifyCommandHandler(validator=validator2, workspace_provider=workspace_provider2, artifact_store=artifact_store2)
         result2 = handler2.handle(cmd)
 
         # Assert - Compare results (excluding run_id which should be unique)
@@ -430,10 +430,10 @@ class TestProperty4TimeoutEnforcement:
             exit_code=-1,
         )
 
-        lean_runner = MockLeanRunner(result=lean_result)
+        validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(file_path=file_path, budget_s=budget_s)
@@ -471,10 +471,10 @@ class TestProperty4TimeoutEnforcement:
             exit_code=-1,
         )
 
-        lean_runner = MockLeanRunner(result=lean_result)
+        validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(file_path=file_path, budget_s=budget_s)
@@ -525,10 +525,10 @@ class TestProperty5ProcessAndWorkspaceCleanup:
             exit_code=0 if status in ("success", "fail") else -1,
         )
 
-        lean_runner = MockLeanRunner(result=lean_result)
+        validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -554,15 +554,15 @@ class TestProperty5ProcessAndWorkspaceCleanup:
         """Test that cleanup happens even when verification raises exception."""
         # Feature: lean-verify-tool, Property 5: Process and workspace cleanup
 
-        # Arrange - Create a lean runner that raises exception
-        class ExceptionLeanRunner:
+        # Arrange - Create a validator that raises exception
+        class ExceptionValidator:
             def verify_file(self, workspace_path, file_path, theorem_id, budget_s):
                 raise RuntimeError("Simulated error")
 
-        lean_runner = ExceptionLeanRunner()
+        validator = ExceptionValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -615,10 +615,10 @@ class TestProperty16TheoremScopeSupport:
             exit_code=0,
         )
 
-        lean_runner = MockLeanRunner(result=lean_result)
+        validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(file_path=file_path, theorem_id=theorem_id)
@@ -632,9 +632,9 @@ class TestProperty16TheoremScopeSupport:
         assert result.verification_scope_used == "theorem"
         assert result.theorem_id == theorem_id
 
-        # Verify that lean_runner was called with theorem_id
-        assert len(lean_runner.calls) == 1
-        assert lean_runner.calls[0]["theorem_id"] == theorem_id
+        # Verify that validator was called with theorem_id
+        assert len(validator.calls) == 1
+        assert validator.calls[0]["theorem_id"] == theorem_id
 
 
 class TestProperty12DiagnosticSummaryConsistency:
@@ -702,10 +702,10 @@ class TestProperty12DiagnosticSummaryConsistency:
             exit_code=0,
         )
 
-        lean_runner = MockLeanRunner(result=lean_result)
+        validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -752,10 +752,10 @@ class TestProperty15ConcurrentExecutionSafety:
         # Feature: lean-verify-tool, Property 15: Concurrent execution safety
 
         # Arrange - Create shared adapters (thread-safe)
-        lean_runner = MockLeanRunner()
+        validator = MockValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -815,10 +815,10 @@ class TestProperty15ConcurrentExecutionSafety:
         # Feature: lean-verify-tool, Property 15: Concurrent execution safety
 
         # Arrange - Create shared adapters (thread-safe)
-        lean_runner = MockLeanRunner()
+        validator = MockValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -871,8 +871,8 @@ class TestProperty15ConcurrentExecutionSafety:
         # Feature: lean-verify-tool, Property 15: Concurrent execution safety
 
         # Arrange - Create shared adapters with simulated delay
-        class SlowMockLeanRunner:
-            """Mock runner with artificial delay to increase chance of race conditions."""
+        class SlowMockValidator:
+            """Mock validator with artificial delay to increase chance of race conditions."""
 
             def __init__(self):
                 self.calls = []
@@ -901,10 +901,10 @@ class TestProperty15ConcurrentExecutionSafety:
                     exit_code=0,
                 )
 
-        lean_runner = SlowMockLeanRunner()
+        validator = SlowMockValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(lean_runner, workspace_provider, artifact_store)
+        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -932,7 +932,7 @@ class TestProperty15ConcurrentExecutionSafety:
         assert len(results) == num_concurrent
 
         # Assert - Lean runner was called exactly N times (no duplicate calls)
-        assert len(lean_runner.calls) == num_concurrent
+        assert len(validator.calls) == num_concurrent
 
         # Assert - All results have unique run_ids (no race in ID generation)
         run_ids = [r.run_id for r in results]

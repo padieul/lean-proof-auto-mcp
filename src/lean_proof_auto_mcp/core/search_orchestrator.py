@@ -17,6 +17,7 @@ from ..lean.ports import ProofStateInspector, ProofValidator
 from ..observability.ports import MetadataCollector
 from .candidate_generator import CandidateGenerator
 from .feedback_builder import FeedbackBuilder, SearchFeedback
+from .indexer import TheoremDecl
 from .search_automated_proof_domain import (
     Candidate,
     CandidateSource,
@@ -29,6 +30,41 @@ if TYPE_CHECKING:
     from .harness_construction import HarnessConstructor
 
 logger = logging.getLogger(__name__)
+
+
+def _find_theorem_in_index(
+    decls: list[TheoremDecl], theorem_id: str
+) -> TheoremDecl | None:
+    """Find a theorem declaration in the index using flexible matching.
+
+    Matching strategy (first match wins):
+    1. Exact match on theorem_id
+    2. Index entry has namespace prefix, input is the short name
+       (e.g., index="Nat.totient_one", input="totient_one")
+    3. Input has namespace prefix, index entry is the short name
+       (e.g., input="Group.mul_left_cancel", index="mul_left_cancel")
+
+    Args:
+        decls: List of indexed theorem declarations
+        theorem_id: Theorem identifier to look up
+
+    Returns:
+        Matching TheoremDecl or None
+    """
+    input_short = theorem_id.rsplit(".", 1)[-1] if "." in theorem_id else None
+
+    for decl in decls:
+        # 1. Exact match
+        if decl.theorem_id == theorem_id:
+            return decl
+        # 2. Index has dots, input is the short name
+        if "." in decl.theorem_id and decl.theorem_id.rsplit(".", 1)[-1] == theorem_id:
+            return decl
+        # 3. Input has dots, index entry matches the short name
+        if input_short and decl.theorem_id == input_short:
+            return decl
+
+    return None
 
 
 @dataclass(frozen=True)
@@ -75,10 +111,14 @@ class SearchConfig:
         Requirements: 4.2, 4.3, 4.4, 4.5, 4.6, 4.7
         """
         presets = {
-            "quick": (10.0, 20, 50, 5.0),
-            "normal": (30.0, 50, 100, 30.0),
-            "deep": (60.0, 100, 200, 60.0),
-            "exhaustive": (120.0, 200, 500, 120.0),
+            # (budget_s, max_candidates, max_steps, minimize_budget_s)
+            # Budget must accommodate Mathlib REPL load (10-20s) plus
+            # actual verification time per step. With a 30s per-step
+            # floor, total budget = max_steps * 30s minimum.
+            "quick": (300.0, 20, 10, 30.0),
+            "normal": (600.0, 50, 20, 30.0),
+            "deep": (1200.0, 100, 40, 60.0),
+            "exhaustive": (3600.0, 200, 100, 120.0),
         }
 
         if depth not in presets:
@@ -209,17 +249,13 @@ class SearchOrchestrator:
             # Get theorem declaration from index
             from .search_automated_proof_domain import CandidateConfig
 
-            # Find theorem in index
-            # Try exact match first, then try with namespace prefix
-            theorem_decl = None
-            for decl in self.candidate_gen.index.decls:
-                if decl.theorem_id == theorem_id:
-                    theorem_decl = decl
-                    break
-                # Also try matching the short name (without namespace)
-                if "." in decl.theorem_id and decl.theorem_id.split(".")[-1] == theorem_id:
-                    theorem_decl = decl
-                    break
+            # Find theorem in index using flexible matching:
+            # 1. Exact match
+            # 2. Index has namespace, input is short name
+            # 3. Input has namespace, index is short name (reverse)
+            theorem_decl = _find_theorem_in_index(
+                self.candidate_gen.index.decls, theorem_id
+            )
 
             if theorem_decl is None:
                 raise ValueError(f"Theorem not found in index: {theorem_id}")
@@ -284,7 +320,7 @@ class SearchOrchestrator:
         Execute the configured search strategy.
 
         This method implements the core search logic, testing hint combinations
-        using the harness constructor and lean runner.
+        using the harness constructor and ProofValidator.
 
         Args:
             file_path: Path to Lean file
@@ -508,13 +544,22 @@ class SearchOrchestrator:
                 return False
 
             # Validate proof using ProofValidator port
-            # Calculate timeout per attempt
-            timeout_per_attempt = config.search_budget_s / config.max_search_steps
+            # Per-step budget: divide total budget across steps, but enforce
+            # a floor of 30s. Mathlib REPL environment loads in 10-20s on
+            # first use; anything below ~30s causes every attempt to timeout
+            # before Lean finishes checking the harness.
+            _MIN_PER_STEP_BUDGET_S = 30.0
+            per_step_budget = max(
+                config.search_budget_s / max(config.max_search_steps, 1),
+                _MIN_PER_STEP_BUDGET_S,
+            )
 
             validation_result = self.validator.validate_proof(
-                theorem_statement=harness_result.code,
-                proof_attempt=proof_attempt,
-                timeout_s=timeout_per_attempt,
+                theorem_statement=harness_result.theorem_statement,
+                proof_attempt=harness_result.code,
+                timeout_s=per_step_budget,
+                file_path=file_path,
+                theorem_id=theorem_id,
             )
 
             # Map result status: success → True, others → False

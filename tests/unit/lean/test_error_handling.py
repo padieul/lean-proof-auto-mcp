@@ -8,6 +8,7 @@ Requirements: 11.1, 11.2, 11.3
 """
 
 from unittest.mock import Mock, patch
+from pathlib import Path
 
 import pytest
 
@@ -536,13 +537,14 @@ class TestServerManagerErrorHandling:
             patch("lean_proof_auto_mcp.lean.server_manager.LeanServer") as mock_lean_server,
             patch("lean_proof_auto_mcp.lean.server_manager.LeanREPLConfig"),
         ):
-            # Arrange
-            manager = LeanInteractServerManager()
+            # Arrange — use workspace_path so cache key is predictable
+            manager = LeanInteractServerManager(workspace_path=Path("/path/to"))
 
-            # Create a mock dead server
+            # Create a mock dead server keyed by project root
+            cache_key = str(Path("/path/to"))
             mock_dead_server = Mock()
             mock_dead_server.run = None  # Missing method indicates dead server
-            manager._servers["/path/to/file.lean"] = mock_dead_server
+            manager._servers[cache_key] = mock_dead_server
 
             # Setup new server creation
             mock_new_server = Mock()
@@ -552,7 +554,7 @@ class TestServerManagerErrorHandling:
             manager.restart_server("/path/to/file.lean")
 
             # Assert
-            assert manager._servers["/path/to/file.lean"] == mock_new_server
+            assert manager._servers[cache_key] == mock_new_server
             mock_dead_server.kill.assert_called_once()
 
     def test_restart_server_with_kill_failure(self):
@@ -566,13 +568,14 @@ class TestServerManagerErrorHandling:
             patch("lean_proof_auto_mcp.lean.server_manager.LeanServer") as mock_lean_server,
             patch("lean_proof_auto_mcp.lean.server_manager.LeanREPLConfig"),
         ):
-            # Arrange
-            manager = LeanInteractServerManager()
+            # Arrange — use workspace_path so cache key is predictable
+            manager = LeanInteractServerManager(workspace_path=Path("/path/to"))
 
-            # Create a mock server that fails to kill
+            # Create a mock server that fails to kill, keyed by project root
+            cache_key = str(Path("/path/to"))
             mock_old_server = Mock()
             mock_old_server.kill.side_effect = RuntimeError("Failed to kill")
-            manager._servers["/path/to/file.lean"] = mock_old_server
+            manager._servers[cache_key] = mock_old_server
 
             # Setup new server creation
             mock_new_server = Mock()
@@ -582,7 +585,7 @@ class TestServerManagerErrorHandling:
             manager.restart_server("/path/to/file.lean")
 
             # Assert - new server created despite kill failure
-            assert manager._servers["/path/to/file.lean"] == mock_new_server
+            assert manager._servers[cache_key] == mock_new_server
 
     def test_get_server_reuses_alive_server(self):
         """
@@ -595,14 +598,15 @@ class TestServerManagerErrorHandling:
             patch("lean_proof_auto_mcp.lean.server_manager.LeanServer"),
             patch("lean_proof_auto_mcp.lean.server_manager.LeanREPLConfig"),
         ):
-            # Arrange
-            manager = LeanInteractServerManager()
+            # Arrange — use workspace_path so cache key is predictable
+            manager = LeanInteractServerManager(workspace_path=Path("/path/to"))
 
-            # Create a mock alive server
+            # Create a mock alive server keyed by project root
+            cache_key = str(Path("/path/to"))
             mock_server = Mock()
             mock_server.run = Mock()  # Has run method
             mock_server.kill = Mock()  # Has kill method
-            manager._servers["/path/to/file.lean"] = mock_server
+            manager._servers[cache_key] = mock_server
 
             # Act
             result = manager.get_server("/path/to/file.lean")
@@ -616,12 +620,13 @@ class TestServerManagerErrorHandling:
 
         Requirements: 11.1
         """
-        # Arrange
-        manager = LeanInteractServerManager()
+        # Arrange — use workspace_path so cache key is predictable
+        manager = LeanInteractServerManager(workspace_path=Path("/path/to"))
 
-        # Create a mock dead server (missing run method)
+        # Create a mock dead server (missing run method) keyed by project root
+        cache_key = str(Path("/path/to"))
         mock_dead_server = Mock(spec=[])  # Empty spec means no methods
-        manager._servers["/path/to/file.lean"] = mock_dead_server
+        manager._servers[cache_key] = mock_dead_server
 
         # Patch LeanServer and LeanREPLConfig to create new server
         with (
@@ -638,7 +643,7 @@ class TestServerManagerErrorHandling:
 
         # Assert
         assert result == mock_new_server
-        assert manager._servers["/path/to/file.lean"] == mock_new_server
+        assert manager._servers[cache_key] == mock_new_server
 
     def test_shutdown_all_with_kill_failures(self):
         """
@@ -702,34 +707,57 @@ class TestServerManagerErrorHandling:
             # Assert - should create standalone server
             assert result == mock_server
 
-    def test_is_server_alive_with_missing_methods(self):
+    def test_is_server_alive_with_is_alive_method(self):
         """
-        Test _is_server_alive correctly identifies dead servers.
+        Test _is_server_alive delegates to server.is_alive() when available.
+
+        LeanInteract's LeanServer exposes is_alive() which checks the
+        underlying subprocess (_proc.poll()). After a timeout kills the
+        REPL, is_alive() returns False, triggering server recreation.
 
         Requirements: 11.1
         """
-        # Patch to avoid real server creation
         with (
             patch("lean_proof_auto_mcp.lean.server_manager.LeanServer"),
             patch("lean_proof_auto_mcp.lean.server_manager.LeanREPLConfig"),
         ):
-            # Arrange
             manager = LeanInteractServerManager()
 
-            # Test with server missing run method
-            mock_server1 = Mock()
-            del mock_server1.run
+            # Server with is_alive() returning True (process running)
+            alive_server = Mock()
+            alive_server.is_alive.return_value = True
+            assert manager._is_server_alive(alive_server) is True
+
+            # Server with is_alive() returning False (process dead after timeout)
+            dead_server = Mock()
+            dead_server.is_alive.return_value = False
+            assert manager._is_server_alive(dead_server) is False
+
+    def test_is_server_alive_fallback_without_is_alive(self):
+        """
+        Test _is_server_alive falls back to structural checks for non-LeanInteract servers.
+
+        Test doubles or alternative implementations that lack is_alive()
+        are checked via hasattr(server, "run") and hasattr(server, "kill").
+
+        Requirements: 11.1
+        """
+        with (
+            patch("lean_proof_auto_mcp.lean.server_manager.LeanServer"),
+            patch("lean_proof_auto_mcp.lean.server_manager.LeanREPLConfig"),
+        ):
+            manager = LeanInteractServerManager()
+
+            # Server missing is_alive and run → dead
+            mock_server1 = Mock(spec=["kill"])
             assert manager._is_server_alive(mock_server1) is False
 
-            # Test with server missing kill method
-            mock_server2 = Mock()
-            del mock_server2.kill
+            # Server missing is_alive and kill → dead
+            mock_server2 = Mock(spec=["run"])
             assert manager._is_server_alive(mock_server2) is False
 
-            # Test with server having both methods
-            mock_server3 = Mock()
-            mock_server3.run = Mock()
-            mock_server3.kill = Mock()
+            # Server missing is_alive but has run + kill → alive (fallback)
+            mock_server3 = Mock(spec=["run", "kill"])
             assert manager._is_server_alive(mock_server3) is True
 
     def test_is_server_alive_with_exception(self):
@@ -738,21 +766,17 @@ class TestServerManagerErrorHandling:
 
         Requirements: 11.1
         """
-        # Patch to avoid real server creation
         with (
             patch("lean_proof_auto_mcp.lean.server_manager.LeanServer"),
             patch("lean_proof_auto_mcp.lean.server_manager.LeanREPLConfig"),
         ):
-            # Arrange
             manager = LeanInteractServerManager()
 
-            # Create server that raises exception when checking attributes
-            mock_server = Mock()
-            # Make hasattr fail by raising exception
-            mock_server.__class__.__getattribute__ = Mock(side_effect=RuntimeError("Attribute error"))
+            # Server whose is_alive() raises → treated as dead
+            broken_server = Mock()
+            broken_server.is_alive.side_effect = RuntimeError("process check failed")
+            assert manager._is_server_alive(broken_server) is False
 
-            # Act & Assert - should return False, not raise
-            # Note: We can't easily test this with Mock, so we test the logic path
-            # by testing with a server that has no methods
+            # Server with no methods at all → dead
             mock_server_no_methods = Mock(spec=[])
             assert manager._is_server_alive(mock_server_no_methods) is False

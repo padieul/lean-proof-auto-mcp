@@ -417,6 +417,14 @@ class Querier(Protocol):
         """
         ...
 
+    def clear_cache(self) -> None:
+        """
+        Clear any cached declarations.
+
+        Call when file contents may have changed to force fresh extraction.
+        """
+        ...
+
 
 
 class ProofStateInspector(Protocol):
@@ -509,6 +517,10 @@ class ProofValidator(Protocol):
 
         timeout_s: float = 10.0,
 
+        file_path: str | None = None,
+
+        theorem_id: str | None = None,
+
     ) -> ValidationResult:
         """
 
@@ -522,6 +534,10 @@ class ProofValidator(Protocol):
             proof_attempt: Proof to validate
 
             timeout_s: Timeout in seconds
+
+            file_path: Optional path to original file (for context preservation)
+
+            theorem_id: Optional theorem identifier (for context preservation)
 
 
         Returns:

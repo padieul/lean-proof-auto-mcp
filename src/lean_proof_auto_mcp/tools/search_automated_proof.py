@@ -286,6 +286,8 @@ def search_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
         result = orchestrator.search(file_path, theorem_id, config)
 
 
+        # Clear harness constructor cache after search completes
+        orchestrator.constructor.clear_cache()
 
         # Convert result to dict
 
@@ -890,9 +892,9 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
 
 
 
-    # Create ServerManager with workspace context (composition root)
-    from ..lean.server_manager import LeanInteractServerManager
-    server_manager = LeanInteractServerManager(workspace_path=project_root)
+    # Get shared ServerManager (persists across tool calls, project-keyed)
+    from ..lean.server_manager import get_shared_server_manager
+    server_manager = get_shared_server_manager(project_root)
 
     # Create Querier with ServerManager
     querier = LeanInteractQuerier(server_manager)
@@ -900,8 +902,41 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
     # Create ProofStateInspector with ServerManager
     proof_state_inspector = LeanInteractProofStateInspector(server_manager)
 
-    # Create ProofValidator with ServerManager
-    validator = LeanInteractProofValidator(server_manager)
+    # Create HarnessConstructor for building test harnesses
+
+
+    from ..core.harness_construction import (
+
+
+        ImportBasedHarnessConstructor,
+
+
+        LeanInteractTheoremTypeExtractor,
+
+
+        StandardImportPathConverter,
+
+
+    )
+
+
+
+    type_extractor = LeanInteractTheoremTypeExtractor(querier)
+
+
+    path_converter = StandardImportPathConverter()
+
+
+    harness_constructor = ImportBasedHarnessConstructor(
+
+
+        type_extractor=type_extractor, path_converter=path_converter
+
+
+    )
+
+    # Create ProofValidator with ServerManager and HarnessConstructor
+    validator = LeanInteractProofValidator(server_manager, harness_constructor=harness_constructor)
 
 
 
@@ -946,49 +981,6 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
     metadata_collector = SubprocessMetadataCollector()
 
 
-
-    # Create HarnessConstructor for building test harnesses
-
-
-    from ..core.harness_construction import (
-
-
-        ImportBasedHarnessConstructor,
-
-
-        LeanInteractTheoremTypeExtractor,
-
-
-        StandardImportPathConverter,
-
-
-    )
-
-
-
-    type_extractor = LeanInteractTheoremTypeExtractor(querier)
-
-
-    path_converter = StandardImportPathConverter()
-
-
-    harness_constructor = ImportBasedHarnessConstructor(
-
-
-        type_extractor=type_extractor, path_converter=path_converter
-
-
-    )
-
-
-
-    # Create LeanInteractProofValidator for executing harnesses
-
-
-
-
-
-
     # Wire into SearchOrchestrator
 
 
@@ -999,23 +991,10 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
 
 
         feedback_builder=feedback_builder,
-
-
         validator=validator,
-
-
         constructor=harness_constructor,
-
-
-
-
-
         proof_state_inspector=proof_state_inspector,
-
-
         metadata_collector=metadata_collector,
-
-
     )
 
 

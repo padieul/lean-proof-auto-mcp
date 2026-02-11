@@ -86,7 +86,7 @@ Domain handlers receive the metadata collector via dependency injection:
 class ProbeCommandHandler:
     def __init__(
         self,
-        lean_runner: LeanRunner,
+        validator: ProofValidator,
         workspace_provider: WorkspaceProvider,
         classifier: AutomationClassifier,
         artifact_store: ArtifactStore | None = None,

@@ -71,22 +71,17 @@ class LeanInteractQuerier:
 
 
     def __init__(self, server_manager: ServerManager):
-
         """
-
         Initialize querier with ServerManager.
 
-
         Args:
-
             server_manager: ServerManager protocol instance for server lifecycle management
 
-
         Requirements: 1.1, 10.6, 28.4
-
         """
-
         self.server_manager = server_manager
+        self._declarations_cache: dict[str, list[Declaration]] = {}
+
 
 
     def extract_declarations(self, file_path: str) -> list[Declaration]:
@@ -140,6 +135,10 @@ class LeanInteractQuerier:
 
             )
 
+        # Return cached declarations if available
+        if file_path in self._declarations_cache:
+            logger.info(f"Cache hit for declarations from {file_path}")
+            return self._declarations_cache[file_path]
 
         try:
 
@@ -149,10 +148,13 @@ class LeanInteractQuerier:
 
 
             # Use FileCommand with declarations=True
+            # Timeout must be generous for large Mathlib files (e.g. Totient.lean).
+            # This is a one-time file-level parse; results are cached upstream by
+            # LeanInteractTheoremTypeExtractor so the cost is amortised.
 
             command = FileCommand(path=file_path, declarations=True)
 
-            response = server.run(command, timeout=30.0)  # type: ignore[attr-defined]
+            response = server.run(command, timeout=120.0)  # type: ignore[attr-defined]
 
 
             # Log request for debugging
@@ -283,6 +285,7 @@ class LeanInteractQuerier:
 
 
             logger.info(f"Extracted {len(declarations)} declarations from {file_path}")
+            self._declarations_cache[file_path] = declarations
             return declarations
 
 
@@ -580,4 +583,14 @@ class LeanInteractQuerier:
             # Default range if not available
 
             return Range(start_line=0, start_col=0, end_line=0, end_col=0)
+
+    def clear_cache(self) -> None:
+        """
+        Clear the declarations cache.
+
+        Call this when file contents may have changed (e.g. after edits)
+        to force a fresh FileCommand on the next extract_declarations call.
+        """
+        self._declarations_cache.clear()
+        logger.info("Declarations cache cleared")
 

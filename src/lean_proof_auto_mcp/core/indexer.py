@@ -910,8 +910,10 @@ def _update_namespace_context(
     Returns:
         Tuple of (updated namespace stack, new last_scanned_line)
     """
-    namespace_pattern = r"^\s*namespace\s+([a-zA-Z_\u0391-\u03C9][a-zA-Z0-9_\u0391-\u03C9]*(?:\.[a-zA-Z_\u0391-\u03C9][a-zA-Z0-9_\u0391-\u03C9]*)*)"
-    end_pattern = r"^\s*end(?:\s+([a-zA-Z_\u0391-\u03C9][a-zA-Z0-9_\u0391-\u03C9]*(?:\.[a-zA-Z_\u0391-\u03C9][a-zA-Z0-9_\u0391-\u03C9]*)*))?\s*$"
+    ident = r"[a-zA-Z_\u0391-\u03C9][a-zA-Z0-9_\u0391-\u03C9]*"
+    dotted_ident = rf"{ident}(?:\.{ident})*"
+    namespace_pattern = rf"^\s*namespace\s+({dotted_ident})"
+    end_pattern = rf"^\s*end(?:\s+({dotted_ident}))?\s*$"
 
     namespace_stack = current_stack.copy()
 

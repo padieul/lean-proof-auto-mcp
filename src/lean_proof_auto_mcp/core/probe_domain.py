@@ -23,8 +23,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    from ..lean.ports import ProofValidator, Querier
     from ..observability.ports import MetadataCollector
     from .harness_construction import HarnessConstructor
+    from .verify_domain import WorkspaceProvider
 
 
 logger = logging.getLogger(__name__)
@@ -489,7 +491,7 @@ class ProbeCommandHandler:
         self.artifact_store = artifact_store
         self.metadata_collector = metadata_collector
 
-    def handle(self, cmd: ProbeCommand, lean_server: "LeanServer | None" = None) -> ProbeResult:
+    def handle(self, cmd: ProbeCommand, lean_server: "ProofValidator | None" = None) -> ProbeResult:
         """
 
         Execute probe workflow with comprehensive error handling.
@@ -655,23 +657,27 @@ class ProbeCommandHandler:
 
                 # Use injected harness constructor
 
-                result = self.harness_constructor.construct(config)
+                harness_result = self.harness_constructor.construct(config)
 
                 # Check if construction was successful
 
-                if isinstance(result, HarnessError):
-                    if result.error_type == "theorem_not_found":
+                if isinstance(harness_result, HarnessError):
+                    if harness_result.error_type == "theorem_not_found":
                         return self._build_fail_result(
-                            cmd, run_id, result.error_type, result.message, start_time
+                            cmd,
+                            run_id,
+                            harness_result.error_type,
+                            harness_result.message,
+                            start_time,
                         )
 
-                    logger.error(f"Harness construction failed: {result.message}")
+                    logger.error(f"Harness construction failed: {harness_result.message}")
 
                     return self._build_error_result(
-                        cmd, run_id, result.error_type, result.message, start_time
+                        cmd, run_id, harness_result.error_type, harness_result.message, start_time
                     )
 
-                harness_content = result.code
+                harness_content = harness_result.code
 
                 # Add trace configuration if requested
 
@@ -810,7 +816,7 @@ class ProbeCommandHandler:
         self,
         cmd: ProbeCommand,
         run_id: str,
-        lean_server: "LeanServer",
+        lean_server: "ProofValidator",
         start_time: float,
     ) -> ProbeResult:
         """
@@ -858,7 +864,8 @@ class ProbeCommandHandler:
             # Run verification using the reusable server on the harness file
 
             lean_result = lean_server.verify_file(
-                file_path=harness_filename,
+                workspace_path=Path("."),
+                file_path=str(harness_filename),
                 theorem_id=None,  # Harness has only one theorem
                 budget_s=cmd.budget_s,
             )
@@ -1529,68 +1536,6 @@ class ProbeCommandHandler:
             metadata=metadata,
         )
 
-    def _build_fail_result(
-        self,
-        cmd: ProbeCommand,
-        run_id: str,
-        fail_type: str,
-        fail_message: str,
-        start_time: float,
-    ) -> ProbeResult:
-        """
-        Build fail result for expected non-success outcomes.
-
-        Unlike _build_error_result (infrastructure failures), this method
-        produces status="fail" for cases where the tool worked correctly
-        but the operation could not succeed (e.g., theorem not found).
-
-        Args:
-            cmd: Original probe command
-            run_id: Unique run identifier
-            fail_type: Type of failure (theorem_not_found, etc.)
-            fail_message: Failure message
-            start_time: Start time for timing calculation
-
-        Returns:
-            ProbeResult with fail status
-        """
-        elapsed_s = time.time() - start_time
-        elapsed_ms = elapsed_s * 1000.0
-
-        probe_outcome = ProbeOutcome(
-            mode=cmd.mode,
-            outcome="not_closed",
-            classification="failed",
-            suggested_script=None,
-        )
-
-        diagnostics = [
-            {
-                "severity": "error",
-                "message": f"{fail_type}: {fail_message}",
-                "location": None,
-            }
-        ]
-
-        timing = {
-            "elapsed_ms": round(elapsed_ms, 2),
-            "budget_s": cmd.budget_s,
-        }
-
-        metadata = {
-            "fail_type": fail_type,
-        }
-
-        return ProbeResult(
-            api_version="0.1.0",
-            status="fail",
-            run_id=run_id,
-            probe_result=probe_outcome,
-            diagnostics=diagnostics,
-            timing=timing,
-            metadata=metadata,
-        )
-
     def _build_timeout_result(
         self,
         cmd: ProbeCommand,
@@ -2243,9 +2188,3 @@ class ProbeFileCommandHandler:
                 "error": error_message,
             },
         )
-
-
-# Import LeanServer from lean.ports and WorkspaceProvider from verify_domain for type hints
-
-from ..lean.ports import LeanServer  # noqa: E402
-from .verify_domain import WorkspaceProvider  # noqa: E402

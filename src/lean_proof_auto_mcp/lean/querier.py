@@ -136,7 +136,7 @@ class LeanInteractQuerier:
 
             command = FileCommand(path=file_path, declarations=True)
 
-            response = server.run(command, timeout=120.0)  # type: ignore[attr-defined]
+            response = server.run(command, timeout=120.0)
 
             # Log request for debugging
 

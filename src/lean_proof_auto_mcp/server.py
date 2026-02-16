@@ -151,7 +151,8 @@ def create_app(cfg: Config) -> FastMCP:
         Args:
             file: Path to Lean file
             mode: Automation mode - "aesop", "aesop?", or "grind"
-            budget_s_per: Time budget per theorem in seconds (default: 30.0, minimum recommended: 30.0 for Mathlib)
+            budget_s_per: Time budget per theorem in seconds
+                (default: 30.0, minimum recommended: 30.0 for Mathlib)
             limit: Maximum number of theorems to probe (default: 50)
             ordering: Ordering mode - "file_order" or "rank_targets" (default: "file_order")
 

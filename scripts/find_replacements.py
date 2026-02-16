@@ -19,7 +19,8 @@ broken = [
 
 for rel in broken:
     fp = os.path.join(base, rel)
-    text = open(fp, encoding="utf-8").read()
+    with open(fp, encoding="utf-8") as f:
+        text = f.read()
     idx = build_index(SourceText(path=fp, text=text))
     # Show first 15 theorem-kind decls (skip instances/examples)
     theorems = [d for d in idx.decls if d.kind in ("theorem", "lemma")]

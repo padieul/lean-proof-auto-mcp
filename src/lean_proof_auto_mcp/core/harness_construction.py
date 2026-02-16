@@ -612,7 +612,8 @@ def build_splice_plan(
     )
     if target_shape.kind in ("unsafe_command", "empty"):
         raise UnsafeTargetRangeError(
-            f"Target theorem '{target_theorem_id}' has unsafe value range shape: {target_shape.kind}"
+            "Target theorem "
+            f"'{target_theorem_id}' has unsafe value range shape: {target_shape.kind}"
         )
 
     mode_hint = _target_mode_hint(target_shape.kind)
@@ -655,7 +656,8 @@ def build_splice_plan(
         if range_shape in ("unsafe_command", "empty"):
             if is_target:
                 raise UnsafeTargetRangeError(
-                    f"Target theorem '{target_theorem_id}' has unsafe value range shape: {range_shape}"
+                    "Target theorem "
+                    f"'{target_theorem_id}' has unsafe value range shape: {range_shape}"
                 )
             # Skip non-target declarations that are unsafe to splice.
             continue

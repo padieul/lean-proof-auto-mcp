@@ -82,7 +82,7 @@ class LeanInteractProofStateInspector:
 
             # Use Command to check the harness (note: parameter is 'cmd' not 'code')
             command = Command(cmd=harness)
-            response = server.run(command, timeout=10.0)  # type: ignore[attr-defined]
+            response = server.run(command, timeout=10.0)
 
             # Check for errors
             if isinstance(response, LeanError):
@@ -129,7 +129,7 @@ class LeanInteractProofStateInspector:
         try:
             # Use ProofStep to apply tactic
             proof_step = ProofStep(tactic=tactic, proof_state=proof_state_id)
-            response = server.run(proof_step, timeout=10.0)  # type: ignore[attr-defined]
+            response = server.run(proof_step, timeout=10.0)
 
             # Check for errors
             if isinstance(response, LeanError):

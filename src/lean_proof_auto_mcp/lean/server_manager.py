@@ -18,11 +18,9 @@ import logging
 import os
 from collections import OrderedDict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 
-if TYPE_CHECKING:
-    from .ports import LeanServer as LeanServerProtocol
-
+from .ports import LeanServer as LeanServerProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +119,7 @@ class LeanInteractServerManager:
         self.workspace_path = workspace_path
         # Keyed by resolved project root (or workspace_path itself for the
         # common single-project case). Most sessions will have exactly 1 entry.
-        self._servers: OrderedDict[str, Any] = OrderedDict()
+        self._servers: OrderedDict[str, LeanServerProtocol] = OrderedDict()
         self._request_log: list[tuple[str, str, object]] = []
 
     def get_server(self, file_path: str) -> "LeanServerProtocol":
@@ -253,12 +251,14 @@ class LeanInteractServerManager:
         Requirements: 28.3, 28.4
         """
         try:
+            assert LeanServer is not None
+            assert LeanREPLConfig is not None
             workspace = self.workspace_path or Path(file_path).parent
 
             lakefile_path = workspace / "lakefile.toml"
             lakefile_lean_path = workspace / "lakefile.lean"
 
-            if lakefile_path.exists() or lakefile_lean_path.exists():
+            if (lakefile_path.exists() or lakefile_lean_path.exists()) and LocalProject is not None:
                 try:
                     project = LocalProject(directory=str(workspace), auto_build=False)
                     config = LeanREPLConfig(project=project)
@@ -309,7 +309,7 @@ class LeanInteractServerManager:
             # This correctly returns False for both killed (_proc=None) and
             # crashed (_proc.poll() != None) servers.
             if hasattr(server, "is_alive"):
-                return server.is_alive()
+                return bool(cast(Any, server).is_alive())
             # Fallback for non-LeanInteract implementations (e.g. test doubles)
             return hasattr(server, "run") and hasattr(server, "kill")
         except Exception:

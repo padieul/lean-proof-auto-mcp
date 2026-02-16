@@ -29,7 +29,8 @@ for rel, expected in files:
     if not os.path.exists(fp):
         print(f"MISSING: {rel}")
         continue
-    text = open(fp, encoding="utf-8").read()
+    with open(fp, encoding="utf-8") as f:
+        text = f.read()
     idx = build_index(SourceText(path=fp, text=text))
     short = expected.split(".")[-1]
     matches = [d.theorem_id for d in idx.decls if short in d.theorem_id]

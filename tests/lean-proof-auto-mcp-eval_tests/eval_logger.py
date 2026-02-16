@@ -37,9 +37,8 @@ class FileLogWriter:
     def write_line(self, line: str) -> None:
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         formatted = f"[{ts}] {line}"
-        with self._lock:
-            with open(self._path, "a", encoding="utf-8") as f:
-                f.write(formatted + "\n")
+        with self._lock, open(self._path, "a", encoding="utf-8") as f:
+            f.write(formatted + "\n")
 
 
 class EvalLogger:

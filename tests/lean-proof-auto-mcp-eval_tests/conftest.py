@@ -14,6 +14,7 @@ Markers:
           eval_linear_algebra, eval_ring_theory, eval_topology
 """
 
+import importlib.util
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -25,6 +26,16 @@ import pytest
 _this_dir = Path(__file__).parent
 if str(_this_dir) not in sys.path:
     sys.path.insert(0, str(_this_dir))
+
+# Force `fixtures` to resolve to this directory's `fixtures.py` to avoid
+# collisions with `tests/fixtures` package during collection.
+_fixtures_path = _this_dir / "fixtures.py"
+_fixtures_spec = importlib.util.spec_from_file_location("fixtures", _fixtures_path)
+if _fixtures_spec is None or _fixtures_spec.loader is None:
+    raise RuntimeError(f"Failed to load eval fixtures module from {_fixtures_path}")
+_fixtures_module = importlib.util.module_from_spec(_fixtures_spec)
+sys.modules["fixtures"] = _fixtures_module
+_fixtures_spec.loader.exec_module(_fixtures_module)
 
 from eval_logger import EvalLogger
 from mcp_client import MCPClient

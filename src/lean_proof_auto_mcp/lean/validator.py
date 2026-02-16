@@ -17,6 +17,7 @@ from .ports import ProofState, ServerManager, ValidationResult
 
 if TYPE_CHECKING:
     from ..core.harness_construction import HarnessConstructor
+    from ..core.verify_domain import LeanRunResult
     from .ports import Querier
 
 
@@ -171,7 +172,7 @@ class LeanInteractProofValidator:
             from lean_interact.interface import FileCommand
 
             command = FileCommand(path=file_path)
-            response = server.run(command, timeout=budget_s)  # type: ignore[attr-defined]
+            response = server.run(command, timeout=budget_s)
 
             # Parse response into LeanRunResult
             diagnostics = self._parse_diagnostics_for_verify(response)
@@ -194,7 +195,7 @@ class LeanInteractProofValidator:
 
         except TimeoutError as e:
             raise TimeoutError(f"Verification timed out after {budget_s}s") from e
-        except ChildProcessError:
+        except ChildProcessError as err:
             # LeanInteract raises ChildProcessError when _proc is None
             # (killed by previous timeout). Restart and retry once.
             if retries_left > 0:
@@ -210,7 +211,9 @@ class LeanInteractProofValidator:
                     retries_left=retries_left - 1,
                 )
             logger.error(f"Server dead for {file_path}, no retries left")
-            raise RuntimeError("Lean verification failed: server not running after restart")
+            raise RuntimeError(
+                "Lean verification failed: server not running after restart"
+            ) from err
         except Exception as e:
             logger.error(f"Verification failed: {e}")
             # Check if the error message indicates a dead server
@@ -331,7 +334,7 @@ class LeanInteractProofValidator:
 
             command = Command(cmd=code)
 
-            response = server.run(command, timeout=timeout_s)  # type: ignore[attr-defined]
+            response = server.run(command, timeout=timeout_s)
 
             elapsed = time.time() - start_time
 
@@ -498,7 +501,7 @@ class LeanInteractProofValidator:
         start_time = time.time()
         try:
             command = Command(cmd=harness_code)
-            response = server.run(command, timeout=timeout_s)  # type: ignore[attr-defined]
+            response = server.run(command, timeout=timeout_s)
             elapsed = time.time() - start_time
 
             if isinstance(response, LeanError):

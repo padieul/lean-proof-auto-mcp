@@ -15,11 +15,10 @@ Requirements: 9.1, 9.2, 9.3, 9.5
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from ..core.verify_domain import LeanRunResult
-    from .server_manager import LeanInteractServerManager as _ServerManager
 
 
 @dataclass(frozen=True)
@@ -280,7 +279,7 @@ class Querier(Protocol):
     """
 
     @property
-    def server_manager(self) -> "_ServerManager":
+    def server_manager(self) -> "ServerManager":
         """Get the server manager instance."""
         ...
 
@@ -575,6 +574,8 @@ class ServerManager(Protocol):
     Requirements: 10.6, 28.3, 28.4, 28.5, 28.6
     """
 
+    workspace_path: Path | None
+
     def get_server(self, file_path: str) -> "LeanServer":
         """
 
@@ -623,6 +624,10 @@ class ServerManager(Protocol):
         """
         ...
 
+    def log_request(self, file_path: str, request: str, response: object) -> None:
+        """Log a request/response pair for diagnostics."""
+        ...
+
 
 class LeanServer(Protocol):
     """
@@ -633,7 +638,7 @@ class LeanServer(Protocol):
     This is a minimal protocol for server operations needed by the Core Domain.
     """
 
-    def run(self, command: object, timeout: float) -> object:
+    def run(self, command: Any, *, timeout: float | None = None) -> Any:
         """Run a command with timeout."""
         ...
 

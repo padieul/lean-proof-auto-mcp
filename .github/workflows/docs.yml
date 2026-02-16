@@ -32,7 +32,7 @@ jobs:
         uses: astral-sh/setup-uv@v3
 
       - name: Install docs dependencies
-        run: uv pip install -r docs/requirements.txt
+        run: uv pip install --system -r docs/requirements.txt
 
       - name: Build docs
-        run: uv run -- python -m mkdocs build -f docs/mkdocs.yml --strict
+        run: python -m mkdocs build -f docs/mkdocs.yml --strict

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unit tests for range-based harness construction components.
 
 Tests cover:
@@ -11,19 +11,17 @@ Tests cover:
 All tests are pure â€” zero mocks, zero I/O. Just data in, data out.
 """
 
-import pytest
-
 from lean_proof_auto_mcp.core.harness_construction import (
     HarnessConfig,
     HarnessError,
     HarnessSuccess,
     RangeBasedHarnessConstructor,
     Splice,
+    _extract_source_at_range,
+    _prepend_imports,
     apply_splices,
     build_splice_plan,
     classify_proof_attempt,
-    _extract_source_at_range,
-    _prepend_imports,
 )
 from lean_proof_auto_mcp.lean.ports import Declaration, DeclValue, Range
 
@@ -134,8 +132,12 @@ class TestBuildSplicePlan:
     def test_name_matching_short_name(self):
         """Match by short name."""
         decls = [
-            _make_decl("mem_prod", full_name="Subgroup.mem_prod", kind="theorem",
-                       value_range=Range(2, 0, 3, 5)),
+            _make_decl(
+                "mem_prod",
+                full_name="Subgroup.mem_prod",
+                kind="theorem",
+                value_range=Range(2, 0, 3, 5),
+            ),
         ]
         splices = build_splice_plan(decls, "mem_prod", "aesop")
         assert len(splices) == 1
@@ -144,8 +146,12 @@ class TestBuildSplicePlan:
     def test_name_matching_full_name(self):
         """Match by full name."""
         decls = [
-            _make_decl("mem_prod", full_name="Subgroup.mem_prod", kind="theorem",
-                       value_range=Range(2, 0, 3, 5)),
+            _make_decl(
+                "mem_prod",
+                full_name="Subgroup.mem_prod",
+                kind="theorem",
+                value_range=Range(2, 0, 3, 5),
+            ),
         ]
         splices = build_splice_plan(decls, "Subgroup.mem_prod", "aesop")
         assert len(splices) == 1
@@ -154,8 +160,12 @@ class TestBuildSplicePlan:
     def test_name_matching_local_name_from_qualified(self):
         """Match by local name extracted from qualified target_theorem_id."""
         decls = [
-            _make_decl("mem_prod", full_name="Subgroup.mem_prod", kind="theorem",
-                       value_range=Range(2, 0, 3, 5)),
+            _make_decl(
+                "mem_prod",
+                full_name="Subgroup.mem_prod",
+                kind="theorem",
+                value_range=Range(2, 0, 3, 5),
+            ),
         ]
         # Target is "Subgroup.mem_prod" â†’ local_name = "mem_prod"
         splices = build_splice_plan(decls, "Subgroup.mem_prod", "aesop")
@@ -197,10 +207,7 @@ class TestBuildSplicePlan:
         """Non-target theorems with ':=' in range get ':= by sorry'."""
         # 'theorem a : True := by trivial'
         # ':' at col 17, '=' at col 18, 'b' at col 20
-        file_content = (
-            "theorem a : True := by trivial\n"
-            "theorem b : True := by trivial\n"
-        )
+        file_content = "theorem a : True := by trivial\ntheorem b : True := by trivial\n"
         decls = [
             _make_decl("a", kind="theorem", value_range=Range(1, 17, 1, 30)),
             _make_decl("b", kind="theorem", value_range=Range(2, 17, 2, 30)),
@@ -231,7 +238,9 @@ class TestApplySplices:
     def test_single_line_splice(self):
         """Replace a single-line range."""
         content = "line1\ntheorem foo := old_proof\nline3"
-        splices = [Splice(start_line=2, start_col=17, end_line=2, end_col=26, replacement="by sorry")]
+        splices = [
+            Splice(start_line=2, start_col=17, end_line=2, end_col=26, replacement="by sorry")
+        ]
         result = apply_splices(content, splices)
         assert "by sorry" in result
         assert "old_proof" not in result
@@ -239,7 +248,9 @@ class TestApplySplices:
     def test_multi_line_splice(self):
         """Replace a multi-line range."""
         content = "line1\ntheorem foo := by\n  old_tactic\n  done\nline5"
-        splices = [Splice(start_line=2, start_col=15, end_line=4, end_col=6, replacement="by sorry")]
+        splices = [
+            Splice(start_line=2, start_col=15, end_line=4, end_col=6, replacement="by sorry")
+        ]
         result = apply_splices(content, splices)
         assert "by sorry" in result
         assert "old_tactic" not in result
@@ -267,7 +278,9 @@ class TestApplySplices:
     def test_unicode_characters(self):
         """Unicode characters in source are preserved."""
         content = "import X\ntheorem foo : âˆ€ x : â„•, x â‰¤ x := by\n  omega"
-        splices = [Splice(start_line=2, start_col=37, end_line=3, end_col=7, replacement="by\n  aesop")]
+        splices = [
+            Splice(start_line=2, start_col=37, end_line=3, end_col=7, replacement="by\n  aesop")
+        ]
         result = apply_splices(content, splices)
         assert "âˆ€ x : â„•, x â‰¤ x" in result
         assert "aesop" in result
@@ -459,10 +472,7 @@ class TestRangeBasedHarnessConstructor:
     def test_ambiguous_local_name_returns_error(self):
         """Ambiguous local-name fallback should fail explicitly."""
         file_content = (
-            "theorem Ns1.dup : True := by\n"
-            "  trivial\n"
-            "theorem Ns2.dup : True := by\n"
-            "  trivial\n"
+            "theorem Ns1.dup : True := by\n  trivial\ntheorem Ns2.dup : True := by\n  trivial\n"
         )
         decls = [
             _make_decl("dup", full_name="Ns1.dup", kind="theorem", value_range=Range(1, 22, 2, 9)),
@@ -709,7 +719,9 @@ class TestClassifyProofAttempt:
         assert cleaned == "intro h\nexact h"
 
     def test_ambiguous_bare_proof_uses_term_hint(self):
-        mode, cleaned = classify_proof_attempt("(IsLeftCancelMul.mul_left_cancel a ·)", mode_hint="term")
+        mode, cleaned = classify_proof_attempt(
+            "(IsLeftCancelMul.mul_left_cancel a ·)", mode_hint="term"
+        )
         assert mode == "term"
         assert cleaned == "(IsLeftCancelMul.mul_left_cancel a ·)"
 
@@ -759,9 +771,7 @@ class TestBuildSplicePlanTermMode:
         decls = [
             _make_decl("foo", kind="theorem", value_range=Range(1, 17, 1, 29)),
         ]
-        splices = build_splice_plan(
-            decls, "foo", "Nat.succ Nat.zero", file_content=file_content
-        )
+        splices = build_splice_plan(decls, "foo", "Nat.succ Nat.zero", file_content=file_content)
         assert len(splices) == 1
         assert splices[0].replacement == ":= Nat.succ Nat.zero"
 
@@ -798,10 +808,7 @@ class TestBuildSplicePlanTermMode:
 
     def test_non_target_always_sorry(self):
         """Non-target theorems always get 'by sorry' regardless of proof_attempt mode."""
-        file_content = (
-            "theorem a : True := rfl\n"
-            "theorem b : True := rfl\n"
-        )
+        file_content = "theorem a : True := rfl\ntheorem b : True := rfl\n"
         decls = [
             _make_decl("a", kind="theorem", value_range=Range(1, 17, 1, 23)),
             _make_decl("b", kind="theorem", value_range=Range(2, 17, 2, 23)),
@@ -878,10 +885,7 @@ class TestBuildSplicePlanEdgeCases:
 
     def test_protected_def_theorem_skipped(self):
         """Ranges starting with protected-def syntax are skipped when non-target."""
-        file_content = (
-            "theorem target : True := by trivial\n"
-            "protected def foo : Nat := 42\n"
-        )
+        file_content = "theorem target : True := by trivial\nprotected def foo : Nat := 42\n"
         decls = [
             _make_decl("target", kind="theorem", value_range=Range(1, 23, 1, 35)),
             _make_decl("foo_def", kind="theorem", value_range=Range(2, 0, 2, 29)),
@@ -924,11 +928,7 @@ class TestBuildSplicePlanEdgeCases:
 
     def test_target_equation_clauses_term_rewrite_to_assign(self):
         """Target equation-clause ranges are rewritten as ':= <term>'."""
-        file_content = (
-            "theorem target : Nat → Nat\n"
-            "  | 0 => 0\n"
-            "  | n + 1 => n\n"
-        )
+        file_content = "theorem target : Nat → Nat\n  | 0 => 0\n  | n + 1 => n\n"
         decls = [
             _make_decl("target", kind="theorem", value_range=Range(2, 2, 3, 13)),
         ]
@@ -938,11 +938,7 @@ class TestBuildSplicePlanEdgeCases:
 
     def test_target_equation_clauses_tactic_rewrite_to_assign_by(self):
         """Tactic target proofs on equation-clause ranges become ':= by ...'."""
-        file_content = (
-            "theorem target : Nat → Nat\n"
-            "  | 0 => 0\n"
-            "  | n + 1 => n\n"
-        )
+        file_content = "theorem target : Nat → Nat\n  | 0 => 0\n  | n + 1 => n\n"
         decls = [
             _make_decl("target", kind="theorem", value_range=Range(2, 2, 3, 13)),
         ]
@@ -1019,8 +1015,7 @@ class TestBuildSplicePlanEdgeCases:
     def test_doc_comment_before_def_skipped(self):
         """Single-line doc comments before def keyword are stripped."""
         file_content = (
-            "theorem target : True := by trivial\n"
-            "/-- A helper function -/ def helper : Nat := 42\n"
+            "theorem target : True := by trivial\n/-- A helper function -/ def helper : Nat := 42\n"
         )
         decls = [
             _make_decl("target", kind="theorem", value_range=Range(1, 23, 1, 35)),
@@ -1032,9 +1027,7 @@ class TestBuildSplicePlanEdgeCases:
     def test_doc_comment_before_real_proof_not_skipped(self):
         """Real proof ranges are still spliced when they do not start with declaration syntax."""
         file_content = (
-            "theorem target : True := by trivial\n"
-            "theorem other : True := by\n"
-            "  trivial\n"
+            "theorem target : True := by trivial\ntheorem other : True := by\n  trivial\n"
         )
         decls = [
             _make_decl("target", kind="theorem", value_range=Range(1, 23, 1, 35)),

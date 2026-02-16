@@ -98,12 +98,18 @@ class TestRangeBasedHarnessConstructorStatelessness:
         ]
 
         config1 = HarnessConfig(
-            theorem_id="test", file_path="test.lean", proof_attempt="aesop",
-            file_content=file_content, declarations=declarations,
+            theorem_id="test",
+            file_path="test.lean",
+            proof_attempt="aesop",
+            file_content=file_content,
+            declarations=declarations,
         )
         config2 = HarnessConfig(
-            theorem_id="test", file_path="test.lean", proof_attempt="grind",
-            file_content=file_content, declarations=declarations,
+            theorem_id="test",
+            file_path="test.lean",
+            proof_attempt="grind",
+            file_content=file_content,
+            declarations=declarations,
         )
 
         result1 = constructor.construct(config1)
@@ -134,8 +140,11 @@ class TestRangeBasedHarnessConstructorStatelessness:
         ]
 
         config = HarnessConfig(
-            theorem_id="foo", file_path="nonexistent/path.lean", proof_attempt="omega",
-            file_content=file_content, declarations=declarations,
+            theorem_id="foo",
+            file_path="nonexistent/path.lean",
+            proof_attempt="omega",
+            file_content=file_content,
+            declarations=declarations,
         )
 
         result = constructor.construct(config)
@@ -177,12 +186,18 @@ class TestCallerCachingPattern:
         ]
 
         config1 = HarnessConfig(
-            theorem_id="t1", file_path="test.lean", proof_attempt="aesop",
-            file_content=file_content, declarations=declarations,
+            theorem_id="t1",
+            file_path="test.lean",
+            proof_attempt="aesop",
+            file_content=file_content,
+            declarations=declarations,
         )
         config2 = HarnessConfig(
-            theorem_id="t2", file_path="test.lean", proof_attempt="aesop",
-            file_content=file_content, declarations=declarations,
+            theorem_id="t2",
+            file_path="test.lean",
+            proof_attempt="aesop",
+            file_content=file_content,
+            declarations=declarations,
         )
 
         result1 = constructor.construct(config1)
@@ -223,12 +238,18 @@ class TestCallerCachingPattern:
         ]
 
         config1 = HarnessConfig(
-            theorem_id="t", file_path="file1.lean", proof_attempt="aesop",
-            file_content=file1, declarations=decls1,
+            theorem_id="t",
+            file_path="file1.lean",
+            proof_attempt="aesop",
+            file_content=file1,
+            declarations=decls1,
         )
         config2 = HarnessConfig(
-            theorem_id="t", file_path="file2.lean", proof_attempt="aesop",
-            file_content=file2, declarations=decls2,
+            theorem_id="t",
+            file_path="file2.lean",
+            proof_attempt="aesop",
+            file_content=file2,
+            declarations=decls2,
         )
 
         result1 = constructor.construct(config1)

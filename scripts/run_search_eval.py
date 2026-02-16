@@ -1,12 +1,16 @@
 """Helper script to run search_automated_proof eval test and capture output."""
+
 import subprocess
 import sys
 
 result = subprocess.run(
     [
-        sys.executable, "-m", "pytest",
+        sys.executable,
+        "-m",
+        "pytest",
         "tests/lean-proof-auto-mcp-eval_tests/test_search_automated_proof_eval.py",
-        "-v", "--tb=short",
+        "-v",
+        "--tb=short",
     ],
     capture_output=True,
     text=True,

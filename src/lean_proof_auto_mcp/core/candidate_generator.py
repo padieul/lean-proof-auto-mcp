@@ -16,7 +16,7 @@ import logging
 import re
 from pathlib import Path
 
-from ..lean.ports import Declaration, Querier, ProofStateInspector
+from ..lean.ports import Declaration, ProofStateInspector, Querier
 from .indexer import FileIndex, TheoremDecl
 from .search_automated_proof_domain import (
     Candidate,

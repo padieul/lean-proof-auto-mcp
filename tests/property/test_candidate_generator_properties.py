@@ -18,7 +18,7 @@ from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     CandidateSource,
 )
 from lean_proof_auto_mcp.core.source import SourceText, Span
-from lean_proof_auto_mcp.lean.ports import Declaration, Range
+from lean_proof_auto_mcp.lean.ports import Declaration
 
 
 class _NullQuerier:
@@ -29,6 +29,7 @@ class _NullQuerier:
 
     def get_proof_references(self, file_path: str, theorem_id: str) -> list[str]:
         return []
+
 
 # ============================================================================
 # Hypothesis Strategies

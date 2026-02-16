@@ -1,10 +1,11 @@
 """Diagnostic: check what theorem_ids the indexer produces for each eval fixture."""
+
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from lean_proof_auto_mcp.core.indexer import build_index, SourceText
+from lean_proof_auto_mcp.core.indexer import SourceText, build_index
 
 files = [
     ("Algebra/Group/Defs.lean", "Group.mul_left_cancel"),

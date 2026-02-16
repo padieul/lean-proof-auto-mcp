@@ -88,20 +88,20 @@ This makes dependencies explicit, enables testing with mock ServerManager, and p
 ```python
 class Querier(Protocol):
     """Port for extracting declarations and references from Lean files."""
-    
+
     @property
     def server_manager(self) -> "ServerManager":
         """Get the server manager instance."""
         ...
-    
+
     def extract_declarations(self, file_path: str) -> list[Declaration]:
         """Extract all declarations from a file."""
         ...
-    
+
     def get_proof_references(self, file_path: str, theorem_id: str) -> list[str]:
         """Extract lemma references from a proof."""
         ...
-    
+
     def get_theorem_context(self, file_path: str, theorem_id: str) -> TheoremContext:
         """Get full context for a theorem."""
         ...
@@ -114,7 +114,7 @@ class Querier(Protocol):
 ```python
 class ProofValidator(Protocol):
     """Port for validating proof attempts and verifying files."""
-    
+
     def validate_proof(
         self,
         theorem_statement: str,
@@ -125,7 +125,7 @@ class ProofValidator(Protocol):
     ) -> ValidationResult:
         """Validate a proof attempt using Command."""
         ...
-    
+
     def verify_file(
         self,
         workspace_path: Path,
@@ -137,7 +137,7 @@ class ProofValidator(Protocol):
         ...
 ```
 
-**Changes**: 
+**Changes**:
 - Renamed from `ProofValidator` (no change needed)
 - Added `verify_file()` method signature (absorbed from LeanInteractRunner)
 
@@ -146,11 +146,11 @@ class ProofValidator(Protocol):
 ```python
 class ProofStateInspector(Protocol):
     """Port for inspecting proof states and applying tactics."""
-    
+
     def get_initial_proof_state(self, theorem: Declaration) -> ProofState:
         """Get initial proof state using Command with sorry."""
         ...
-    
+
     def apply_tactic(self, proof_state_id: int, tactic: str) -> TacticResult:
         """Apply a tactic using ProofStep."""
         ...
@@ -163,15 +163,15 @@ class ProofStateInspector(Protocol):
 ```python
 class ServerManager(Protocol):
     """Port for managing LeanInteract server lifecycle."""
-    
+
     def get_server(self, file_path: str) -> "LeanServer":
         """Get or create server instance for file."""
         ...
-    
+
     def restart_server(self, file_path: str) -> None:
         """Restart crashed server."""
         ...
-    
+
     def shutdown_all(self) -> None:
         """Shutdown all server instances."""
         ...
@@ -186,25 +186,25 @@ class ServerManager(Protocol):
 ```python
 class LeanInteractQuerier:
     """Concrete implementation of Querier using LeanInteract library."""
-    
+
     def __init__(self, server_manager: ServerManager):
         """Initialize with ServerManager via dependency injection."""
         self._server_manager = server_manager
-    
+
     @property
     def server_manager(self) -> ServerManager:
         """Get the server manager instance."""
         return self._server_manager
-    
+
     def extract_declarations(self, file_path: str) -> list[Declaration]:
         """Extract declarations using FileCommand(declarations=True)."""
         server = self._server_manager.get_server(file_path)
         # ... implementation ...
-    
+
     def get_proof_references(self, file_path: str, theorem_id: str) -> list[str]:
         """Extract references using value.constants."""
         # ... implementation ...
-    
+
     def get_theorem_context(self, file_path: str, theorem_id: str) -> TheoremContext:
         """Get theorem context including scope and hypotheses."""
         # ... implementation ...
@@ -220,11 +220,11 @@ class LeanInteractQuerier:
 ```python
 class LeanInteractProofValidator:
     """Concrete implementation of ProofValidator using LeanInteract library."""
-    
+
     def __init__(self, server_manager: ServerManager):
         """Initialize with ServerManager via dependency injection."""
         self._server_manager = server_manager
-    
+
     def validate_proof(
         self,
         theorem_statement: str,
@@ -236,7 +236,7 @@ class LeanInteractProofValidator:
         """Validate proof using Command."""
         server = self._server_manager.get_server(file_path or "default")
         # ... implementation ...
-    
+
     def verify_file(
         self,
         workspace_path: Path,
@@ -246,21 +246,21 @@ class LeanInteractProofValidator:
     ) -> LeanRunResult:
         """
         Run Lean verification on file or theorem.
-        
+
         This method absorbs functionality from LeanInteractRunner.verify_file().
         """
         server = self._server_manager.get_server(file_path)
-        
+
         try:
             from lean_interact.interface import FileCommand
-            
+
             command = FileCommand(path=file_path)
             response = server.run(command, timeout=budget_s)
-            
+
             # Parse response into LeanRunResult
             diagnostics = self._parse_diagnostics(response)
             status = self._determine_status(diagnostics)
-            
+
             return LeanRunResult(
                 status=status,
                 diagnostics=diagnostics,
@@ -273,11 +273,11 @@ class LeanInteractProofValidator:
             raise TimeoutError(f"Verification timed out after {budget_s}s") from e
         except Exception as e:
             raise RuntimeError(f"Lean verification failed: {e}") from e
-    
+
     def _parse_diagnostics(self, response: object) -> list[dict]:
         """Parse diagnostics from LeanInteract response."""
         # ... implementation from LeanInteractRunner ...
-    
+
     def _determine_status(self, diagnostics: list[dict]) -> str:
         """Determine verification status from diagnostics."""
         # ... implementation from LeanInteractRunner ...
@@ -294,17 +294,17 @@ class LeanInteractProofValidator:
 ```python
 class LeanInteractProofStateInspector:
     """Concrete implementation of ProofStateInspector using LeanInteract library."""
-    
+
     def __init__(self, server_manager: ServerManager):
         """Initialize with ServerManager via dependency injection."""
         self._server_manager = server_manager
-    
+
     def get_initial_proof_state(self, theorem: Declaration) -> ProofState:
         """Get initial proof state using Command with sorry."""
         # Use default server or theorem-specific server
         server = self._server_manager.get_server("default")
         # ... implementation ...
-    
+
     def apply_tactic(self, proof_state_id: int, tactic: str) -> TacticResult:
         """Apply tactic using ProofStep."""
         server = self._server_manager.get_server("default")
@@ -329,21 +329,21 @@ MAX_SERVERS = int(os.environ.get("LEAN_MAX_SERVERS", "3"))
 class LeanInteractServerManager:
     """
     Concrete implementation of ServerManager with LRU eviction.
-    
+
     Maintains up to MAX_SERVERS server instances using LRU eviction policy.
     When cache is full, evicts least recently used server before adding new one.
     """
-    
+
     def __init__(self, workspace_path: Path | None = None):
         """Initialize ServerManager with optional workspace path."""
         self.workspace_path = workspace_path
         self._servers: OrderedDict[str, Any] = OrderedDict()
         self._request_log: list[tuple[str, str, object]] = []
-    
+
     def get_server(self, file_path: str) -> Any:
         """
         Get or create server instance for file with LRU tracking.
-        
+
         If server exists and is alive, moves it to end (most recently used).
         If cache is at MAX_SERVERS capacity, evicts oldest server before adding new one.
         """
@@ -358,50 +358,50 @@ class LeanInteractServerManager:
                 # Server is dead, remove it
                 self._shutdown_server(server)
                 del self._servers[file_path]
-        
+
         # Check if we need to evict (LRU)
         if len(self._servers) >= MAX_SERVERS:
             # Evict least recently used (first item)
             oldest_file, oldest_server = self._servers.popitem(last=False)
             self._shutdown_server(oldest_server)
             logger.info(f"Evicted LRU server for {oldest_file}")
-        
+
         # Create new server
         server = self._create_server(file_path)
         self._servers[file_path] = server
         return server
-    
+
     def restart_server(self, file_path: str) -> None:
         """Restart crashed server."""
         if file_path in self._servers:
             server = self._servers[file_path]
             self._shutdown_server(server)
             del self._servers[file_path]
-        
+
         server = self._create_server(file_path)
         self._servers[file_path] = server
-    
+
     def shutdown_all(self) -> None:
         """Shutdown all server instances."""
         for _file_path, server in list(self._servers.items()):
             self._shutdown_server(server)
         self._servers.clear()
-    
+
     def _is_server_alive(self, server: Any) -> bool:
         """
         Check if a server is alive.
-        
+
         Returns True if server has required methods and is responsive.
         """
         try:
             return hasattr(server, "run") and hasattr(server, "kill")
         except Exception:
             return False
-    
+
     def _shutdown_server(self, server: Any) -> None:
         """
         Gracefully shutdown a server.
-        
+
         Calls server.kill() if available, logs errors without raising.
         """
         try:
@@ -409,33 +409,33 @@ class LeanInteractServerManager:
                 server.kill()
         except Exception as e:
             logger.warning(f"Failed to kill server: {e}")
-    
+
     def _create_server(self, file_path: str) -> Any:
         """
         Create a new LeanServer for the given file.
-        
+
         Uses workspace_path if provided, passes it explicitly to LocalProject
         via path parameter (no os.chdir()).
         """
         try:
             workspace = self.workspace_path or Path(file_path).parent
-            
+
             # Check for lakefile
             lakefile_path = workspace / "lakefile.toml"
             lakefile_lean_path = workspace / "lakefile.lean"
-            
+
             if lakefile_path.exists() or lakefile_lean_path.exists():
                 # Use LocalProject with explicit path (no os.chdir)
                 project = LocalProject(path=str(workspace), auto_build=False)
                 config = LeanREPLConfig(project=project)
                 server = LeanServer(config)
                 return server
-            
+
             # Standalone mode
             config = LeanREPLConfig()
             server = LeanServer(config)
             return server
-            
+
         except Exception as e:
             raise RuntimeError(f"Failed to create server for {file_path}: {e}") from e
 ```

@@ -14,7 +14,6 @@ Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4, 10.6, 12.1, 12.2
 
 import logging
 
-
 from .ports import Declaration, DeclValue, Range, ServerManager, TheoremContext
 
 logger = logging.getLogger(__name__)
@@ -22,20 +21,14 @@ logger = logging.getLogger(__name__)
 # Try to import LeanInteract, but allow module to load even if not installed
 
 try:
-
     from lean_interact import LeanServer
-
     from lean_interact.config import LeanREPLConfig
-
     from lean_interact.interface import FileCommand, LeanError
-
     from lean_interact.project import LocalProject
-
 
     LEAN_INTERACT_AVAILABLE = True
 
 except ImportError:
-
     LeanServer = None  # type: ignore[assignment, misc]
 
     LeanREPLConfig = None  # type: ignore[assignment, misc]
@@ -49,9 +42,7 @@ except ImportError:
     LEAN_INTERACT_AVAILABLE = False
 
 
-
 class LeanInteractQuerier:
-
     """
 
     Concrete implementation of Querier protocol using LeanInteract library.
@@ -69,7 +60,6 @@ class LeanInteractQuerier:
 
     """
 
-
     def __init__(self, server_manager: ServerManager):
         """
         Initialize querier with ServerManager.
@@ -82,10 +72,7 @@ class LeanInteractQuerier:
         self.server_manager = server_manager
         self._declarations_cache: dict[str, list[Declaration]] = {}
 
-
-
     def extract_declarations(self, file_path: str) -> list[Declaration]:
-
         """
 
         Extract all declarations from a file using FileCommand(declarations=True).
@@ -128,11 +115,8 @@ class LeanInteractQuerier:
         """
 
         if not LEAN_INTERACT_AVAILABLE or LeanServer is None:
-
             raise RuntimeError(
-
                 "LeanInteract library not installed. Install with: pip install lean-interact"
-
             )
 
         # Return cached declarations if available
@@ -141,11 +125,9 @@ class LeanInteractQuerier:
             return self._declarations_cache[file_path]
 
         try:
-
             # Get server via ServerManager
 
             server = self.server_manager.get_server(file_path)
-
 
             # Use FileCommand with declarations=True
             # Timeout must be generous for large Mathlib files (e.g. Totient.lean).
@@ -156,31 +138,23 @@ class LeanInteractQuerier:
 
             response = server.run(command, timeout=120.0)  # type: ignore[attr-defined]
 
-
             # Log request for debugging
 
             self.server_manager.log_request(
-
                 file_path, f"FileCommand({file_path}, declarations=True)", response
-
             )
-
 
             # Check for errors
 
             if isinstance(response, LeanError):
-
                 raise RuntimeError(f"LeanInteract error: {response}")
-
 
             # Extract declarations from response
 
             declarations = []
 
             if hasattr(response, "declarations") and response.declarations:
-
                 for decl in response.declarations:
-
                     # Extract declaration information
 
                     name = getattr(decl, "name", "")
@@ -189,119 +163,87 @@ class LeanInteractQuerier:
 
                     kind = getattr(decl, "kind", "")
 
-
                     # Extract type - handle both string and DeclType object
 
                     type_obj = getattr(decl, "type", "")
 
                     if hasattr(type_obj, "pp"):
-
                         # DeclType object with pp attribute
 
                         type_sig = str(type_obj.pp)
 
                     elif hasattr(type_obj, "__str__"):
-
                         # Object with string representation
 
                         type_sig = str(type_obj)
 
                     else:
-
                         # Already a string
 
                         type_sig = type_obj if isinstance(type_obj, str) else ""
-
 
                     # Extract value (proof/definition body)
 
                     value = None
 
                     if hasattr(decl, "value") and decl.value is not None:
-
                         value_obj = decl.value
 
                         pp_text = getattr(value_obj, "pp", "")
 
                         constants = getattr(value_obj, "constants", [])
 
-
                         # Extract value range
 
                         value_range = self._extract_range(value_obj)
 
-
                         value = DeclValue(
-
                             pp=pp_text,
-
                             constants=constants if constants else [],
-
                             range=value_range,
-
                         )
-
 
                     # Extract attributes
 
                     attributes = []
 
                     if hasattr(decl, "attributes") and decl.attributes:
-
                         attributes = list(decl.attributes)
-
 
                     # Extract range
 
                     decl_range = self._extract_range(decl)
-
 
                     # Extract namespace
 
                     namespace = ""
 
                     if hasattr(decl, "scope") and decl.scope:
-
                         namespace = getattr(decl.scope, "curr_namespace", "")
 
-
                     declaration = Declaration(
-
                         name=name,
-
                         full_name=full_name,
-
                         kind=kind,
-
                         type=type_sig,
-
                         value=value,
-
                         attributes=attributes,
-
                         range=decl_range,
-
                         namespace=namespace,
-
                     )
 
                     declarations.append(declaration)
-
 
             logger.info(f"Extracted {len(declarations)} declarations from {file_path}")
             self._declarations_cache[file_path] = declarations
             return declarations
 
-
         except Exception as e:
-
             logger.error(f"Failed to extract declarations from {file_path}: {e}")
 
             raise RuntimeError(f"Failed to extract declarations: {e}") from e
 
-
     def get_proof_references(self, file_path: str, theorem_id: str) -> list[str]:
-
         """
 
         Extract lemma references from a proof using value.constants + text parsing.
@@ -339,38 +281,29 @@ class LeanInteractQuerier:
 
         declarations = self.extract_declarations(file_path)
 
-
         # Find the theorem
 
         theorem = None
 
         for decl in declarations:
-
             if decl.full_name == theorem_id or decl.name == theorem_id:
-
                 theorem = decl
 
                 break
 
-
         if theorem is None:
-
             raise ValueError(f"Theorem not found: {theorem_id}")
-
 
         # Extract references from proof value
 
         if theorem.value is None:
-
             logger.warning(f"Theorem {theorem_id} has no proof value")
 
             return []
 
-
         # Primary: Use constants list
 
         references = set(theorem.value.constants)
-
 
         # Fallback: Parse pp text for additional references
 
@@ -380,7 +313,6 @@ class LeanInteractQuerier:
 
         # TODO: Implement pp text parsing if needed
 
-
         # Validate references against declarations
 
         valid_refs = []
@@ -388,27 +320,21 @@ class LeanInteractQuerier:
         decl_names = {d.full_name for d in declarations}
 
         for ref in references:
-
             if ref in decl_names:
-
                 valid_refs.append(ref)
 
             else:
-
                 # Reference might be from imported module
 
                 # Include it anyway - validation happens elsewhere
 
                 valid_refs.append(ref)
 
-
         logger.info(f"Extracted {len(valid_refs)} references from {theorem_id}")
 
         return valid_refs
 
-
     def get_theorem_context(self, file_path: str, theorem_id: str) -> TheoremContext:
-
         """
 
         Get full context for a theorem including scope and hypotheses.
@@ -454,38 +380,29 @@ class LeanInteractQuerier:
 
         declarations = self.extract_declarations(file_path)
 
-
         # Find the theorem
 
         theorem = None
 
         for decl in declarations:
-
             if decl.full_name == theorem_id or decl.name == theorem_id:
-
                 theorem = decl
 
                 break
 
-
         if theorem is None:
-
             raise ValueError(f"Theorem not found: {theorem_id}")
-
 
         # Extract theorem statement
 
         theorem_statement = theorem.type
-
 
         # Extract original proof
 
         original_proof = ""
 
         if theorem.value:
-
             original_proof = theorem.value.pp
-
 
         # Extract hypotheses from initial proof state
 
@@ -495,7 +412,6 @@ class LeanInteractQuerier:
 
         hypotheses: list[str] = []
 
-
         # Extract in-scope declarations
 
         # All declarations in the same namespace or parent namespaces
@@ -503,46 +419,31 @@ class LeanInteractQuerier:
         in_scope = []
 
         for decl in declarations:
-
             # Include if in same namespace or parent namespace
 
             if decl.namespace == theorem.namespace or theorem.namespace.startswith(
-
                 decl.namespace + "."
-
             ):
-
                 in_scope.append(decl.full_name)
-
 
         # Extract namespace
 
         namespace = theorem.namespace
 
-
         context = TheoremContext(
-
             theorem_statement=theorem_statement,
-
             original_proof=original_proof,
-
             hypotheses=hypotheses,
-
             in_scope=in_scope,
-
             namespace=namespace,
             value_range=theorem.value.range if theorem.value else None,
-
         )
-
 
         logger.info(f"Extracted context for {theorem_id}")
 
         return context
 
-
     def _extract_range(self, obj: object) -> Range:
-
         """
 
         Extract position range from LeanInteract object.
@@ -582,23 +483,15 @@ class LeanInteractQuerier:
 
         end_pos = getattr(obj, "end_pos", None)
 
-
         if start_pos and end_pos:
-
             return Range(
-
                 start_line=getattr(start_pos, "line", 0),
-
                 start_col=getattr(start_pos, "column", 0),
-
                 end_line=getattr(end_pos, "line", 0),
-
                 end_col=getattr(end_pos, "column", 0),
-
             )
 
         else:
-
             # Default range if not available
 
             return Range(start_line=0, start_col=0, end_line=0, end_col=0)
@@ -655,4 +548,3 @@ class LeanInteractQuerier:
             raise FileNotFoundError(f"Source file not found: {file_path} (tried {full_path})")
 
         return full_path.read_text(encoding="utf-8")
-

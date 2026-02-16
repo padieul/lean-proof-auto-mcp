@@ -11,21 +11,14 @@ Each test runs a minimum of 100 iterations with randomized inputs.
 Requirements: 10.6, 28.4, 28.5, 28.6
 """
 
-
 from pathlib import Path
-
 from unittest.mock import Mock, patch
 
-
 import hypothesis.strategies as st
-
 import pytest
-
 from hypothesis import given, settings
 
-
 from lean_proof_auto_mcp.lean.server_manager import LeanInteractServerManager
-
 
 # ============================================================================
 
@@ -34,11 +27,8 @@ from lean_proof_auto_mcp.lean.server_manager import LeanInteractServerManager
 # ============================================================================
 
 
-
 @st.composite
-
 def file_paths(draw):
-
     """Generate valid file paths."""
 
     # Generate realistic Lean file paths
@@ -46,17 +36,11 @@ def file_paths(draw):
     directory = draw(st.sampled_from(["src", "test", "lib", "examples", "."]))
 
     filename = draw(
-
         st.text(
-
             min_size=1,
-
             max_size=50,
-
             alphabet=st.characters(
-
                 whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="_-"
-
             ),
         )
     )
@@ -64,21 +48,16 @@ def file_paths(draw):
     return f"{directory}/{filename}.lean"
 
 
-
 @st.composite
-
 def workspace_paths(draw):
-
     """Generate valid workspace paths."""
 
     has_workspace = draw(st.booleans())
 
     if has_workspace:
-
         return Path(draw(st.text(min_size=1, max_size=100)))
 
     return None
-
 
 
 # ============================================================================
@@ -88,16 +67,11 @@ def workspace_paths(draw):
 # ============================================================================
 
 
-
 @given(
-
     file_path=file_paths(),
-
     num_calls=st.integers(min_value=1, max_value=10),
 )
-
 @settings(max_examples=100, deadline=None)
-
 def test_property_19_server_instance_reuse(file_path, num_calls):
     """
 
@@ -119,7 +93,6 @@ def test_property_19_server_instance_reuse(file_path, num_calls):
     manager = LeanInteractServerManager(workspace_path=project_root)
     cache_key = str(project_root)
 
-
     # Mock LeanServer creation
 
     mock_server = Mock()
@@ -128,32 +101,23 @@ def test_property_19_server_instance_reuse(file_path, num_calls):
 
     mock_server.kill = Mock()
 
-
     with (
-
         patch.object(manager, "_create_server", return_value=mock_server),
-
         patch.object(manager, "_is_server_alive", return_value=True),
-
     ):
-
         # Execute: Get server multiple times for same file
 
         servers = []
 
         for _ in range(num_calls):
-
             server = manager.get_server(file_path)
 
             servers.append(server)
 
-
         # Verify: All calls returned the same server instance
 
         for server in servers:
-
             assert server is mock_server
-
 
         # Verify: Only one server instance in cache (keyed by project root)
 
@@ -161,20 +125,15 @@ def test_property_19_server_instance_reuse(file_path, num_calls):
 
         assert cache_key in manager._servers
 
-
         # Verify: _create_server was called only once
 
         manager._create_server.assert_called_once()
 
 
-
 @given(
-
     file_paths_list=st.lists(file_paths(), min_size=1, max_size=5, unique=True),
 )
-
 @settings(max_examples=100, deadline=None)
-
 def test_property_19_multiple_files_separate_servers(file_paths_list):
     """
 
@@ -195,29 +154,21 @@ def test_property_19_multiple_files_separate_servers(file_paths_list):
     manager = LeanInteractServerManager(workspace_path=project_root)
     cache_key = str(project_root)
 
-
     # Mock LeanServer creation — only one server should be created
 
     mock_server = Mock()
     mock_server.run = Mock(return_value=Mock())
     mock_server.kill = Mock()
 
-
     with (
-
         patch.object(manager, "_create_server", return_value=mock_server),
-
         patch.object(manager, "_is_server_alive", return_value=True),
-
     ):
-
         # Execute: Get server for each file
 
         for file_path in file_paths_list:
-
             server = manager.get_server(file_path)
             assert server is mock_server
-
 
         # Verify: Only ONE server in cache (project-keyed, not file-keyed)
         assert len(manager._servers) == 1
@@ -227,14 +178,10 @@ def test_property_19_multiple_files_separate_servers(file_paths_list):
         manager._create_server.assert_called_once()
 
 
-
 @given(
-
     file_path=file_paths(),
 )
-
 @settings(max_examples=100, deadline=None)
-
 def test_property_19_dead_server_recreation(file_path):
     """
 
@@ -256,7 +203,6 @@ def test_property_19_dead_server_recreation(file_path):
     manager = LeanInteractServerManager(workspace_path=project_root)
     cache_key = str(project_root)
 
-
     # Mock LeanServer creation
 
     mock_server_1 = Mock()
@@ -265,65 +211,50 @@ def test_property_19_dead_server_recreation(file_path):
 
     mock_server_1.kill = Mock()
 
-
     mock_server_2 = Mock()
 
     mock_server_2.run = Mock(return_value=Mock())
 
     mock_server_2.kill = Mock()
 
-
     servers_created = [mock_server_1, mock_server_2]
 
     create_call_count = [0]
 
-
     def create_mock_server(fp):
-
         server = servers_created[create_call_count[0]]
 
         create_call_count[0] += 1
         return server
 
-
     with patch.object(manager, "_create_server", side_effect=create_mock_server):
-
         # Execute: First call creates server
 
         with patch.object(manager, "_is_server_alive", return_value=True):
-
             server_1 = manager.get_server(file_path)
 
             assert server_1 is mock_server_1
 
-
         # Execute: Second call detects dead server and recreates
 
         with patch.object(manager, "_is_server_alive", return_value=False):
-
             server_2 = manager.get_server(file_path)
 
             assert server_2 is mock_server_2
 
-
             # Verify: Old server was cleaned up
 
             mock_server_1.kill.assert_called_once()
-
 
             # Verify: New server is in cache (keyed by project root)
 
             assert manager._servers[cache_key] is mock_server_2
 
 
-
 @given(
-
     file_path=file_paths(),
 )
-
 @settings(max_examples=100, deadline=None)
-
 def test_property_19_restart_server(file_path):
     """
 
@@ -345,52 +276,40 @@ def test_property_19_restart_server(file_path):
     manager = LeanInteractServerManager(workspace_path=project_root)
     cache_key = str(project_root)
 
-
     mock_server_1 = Mock()
 
     mock_server_1.kill = Mock()
-
 
     mock_server_2 = Mock()
 
     mock_server_2.kill = Mock()
 
-
     # Add existing server to cache (keyed by project root)
 
     manager._servers[cache_key] = mock_server_1
 
-
     with patch.object(manager, "_create_server", return_value=mock_server_2):
-
         # Execute: Restart server
 
         manager.restart_server(file_path)
-
 
         # Verify: Old server was killed
 
         mock_server_1.kill.assert_called_once()
 
-
         # Verify: New server is in cache (keyed by project root)
 
         assert manager._servers[cache_key] is mock_server_2
-
 
         # Verify: New server was created
 
         manager._create_server.assert_called_once_with(file_path)
 
 
-
 @given(
-
     file_paths_list=st.lists(file_paths(), min_size=1, max_size=5, unique=True),
 )
-
 @settings(max_examples=100, deadline=None)
-
 def test_property_19_shutdown_all(file_paths_list):
     """
 
@@ -410,11 +329,9 @@ def test_property_19_shutdown_all(file_paths_list):
     # Setup: Create manager with multiple servers (using arbitrary keys)
     manager = LeanInteractServerManager()
 
-
     mock_servers = []
 
     for i, file_path in enumerate(file_paths_list):
-
         mock_server = Mock()
 
         mock_server.kill = Mock()
@@ -424,34 +341,25 @@ def test_property_19_shutdown_all(file_paths_list):
 
         mock_servers.append(mock_server)
 
-
     # Execute: Shutdown all servers
 
     manager.shutdown_all()
 
-
     # Verify: All servers were killed
 
     for mock_server in mock_servers:
-
         mock_server.kill.assert_called_once()
-
 
     # Verify: Cache was cleared
 
     assert len(manager._servers) == 0
 
 
-
 @given(
-
     file_path=file_paths(),
-
     request_desc=st.text(min_size=1, max_size=100),
 )
-
 @settings(max_examples=100, deadline=None)
-
 def test_property_19_request_logging(file_path, request_desc):
     """
 
@@ -469,16 +377,13 @@ def test_property_19_request_logging(file_path, request_desc):
     # Setup: Create manager
     manager = LeanInteractServerManager()
 
-
     # Mock response
 
     mock_response = Mock()
 
-
     # Execute: Log request
 
     manager.log_request(file_path, request_desc, mock_response)
-
 
     # Verify: Request was logged
 
@@ -489,16 +394,11 @@ def test_property_19_request_logging(file_path, request_desc):
     assert log[0] == (file_path, request_desc, mock_response)
 
 
-
 @given(
-
     file_path=file_paths(),
-
     num_requests=st.integers(min_value=1, max_value=10),
 )
-
 @settings(max_examples=100, deadline=None)
-
 def test_property_19_request_log_accumulation(file_path, num_requests):
     """
 
@@ -516,13 +416,10 @@ def test_property_19_request_log_accumulation(file_path, num_requests):
     # Setup: Create manager
     manager = LeanInteractServerManager()
 
-
     # Execute: Log multiple requests
 
     for i in range(num_requests):
-
         manager.log_request(file_path, f"request_{i}", f"response_{i}")
-
 
     # Verify: All requests were logged in order
 
@@ -530,11 +427,8 @@ def test_property_19_request_log_accumulation(file_path, num_requests):
 
     assert len(log) == num_requests
 
-
     for i in range(num_requests):
-
         assert log[i] == (file_path, f"request_{i}", f"response_{i}")
-
 
 
 # ============================================================================
@@ -542,7 +436,6 @@ def test_property_19_request_log_accumulation(file_path, num_requests):
 # Error Handling Tests
 
 # ============================================================================
-
 
 
 def test_property_19_lean_interact_not_available():
@@ -568,27 +461,21 @@ def test_property_19_lean_interact_not_available():
 
     import lean_proof_auto_mcp.lean.server_manager as manager_module
 
-
     original_available = manager_module.LEAN_INTERACT_AVAILABLE
 
     original_server = manager_module.LeanServer
 
-
     try:
-
         manager_module.LEAN_INTERACT_AVAILABLE = False
 
         manager_module.LeanServer = None
 
-
         # Execute & Verify
 
         with pytest.raises(RuntimeError, match="LeanInteract library not installed"):
-
             manager.get_server("test.lean")
 
     finally:
-
         # Restore
 
         manager_module.LEAN_INTERACT_AVAILABLE = original_available
@@ -596,14 +483,10 @@ def test_property_19_lean_interact_not_available():
         manager_module.LeanServer = original_server
 
 
-
 @given(
-
     file_path=file_paths(),
 )
-
 @settings(max_examples=100, deadline=None)
-
 def test_property_19_server_creation_failure(file_path):
     """
 
@@ -623,36 +506,23 @@ def test_property_19_server_creation_failure(file_path):
     # Setup: Create manager
     manager = LeanInteractServerManager()
 
-
     # Mock _create_server to raise exception
 
     with (
-
         patch.object(
-
             manager,
-
             "_create_server",
-
             side_effect=RuntimeError("Failed to create server for test.lean: Creation failed"),
-
         ),
-
         pytest.raises(RuntimeError, match="Failed to create server"),
-
     ):
-
         manager.get_server(file_path)
 
 
-
 @given(
-
     file_path=file_paths(),
 )
-
 @settings(max_examples=50, deadline=None)
-
 def test_property_19_cleanup_failure_graceful(file_path):
     """
 
@@ -674,18 +544,15 @@ def test_property_19_cleanup_failure_graceful(file_path):
     manager = LeanInteractServerManager(workspace_path=project_root)
     cache_key = str(project_root)
 
-
     mock_server = Mock()
 
     mock_server.kill = Mock(side_effect=Exception("Kill failed"))
 
     manager._servers[cache_key] = mock_server
 
-
     # Execute: Shutdown should not raise exception
 
     try:
-
         manager.shutdown_all()
 
         # Verify: Cache was still cleared despite kill failure
@@ -693,9 +560,7 @@ def test_property_19_cleanup_failure_graceful(file_path):
         assert len(manager._servers) == 0
 
     except Exception as e:
-
         pytest.fail(f"shutdown_all raised exception: {e}")
-
 
 
 # ============================================================================
@@ -705,16 +570,11 @@ def test_property_19_cleanup_failure_graceful(file_path):
 # ============================================================================
 
 
-
 @given(
-
     workspace_path=workspace_paths(),
-
     file_path=file_paths(),
 )
-
 @settings(max_examples=50, deadline=None)
-
 def test_property_19_workspace_context(workspace_path, file_path):
     """
 
@@ -734,11 +594,9 @@ def test_property_19_workspace_context(workspace_path, file_path):
     # Setup: Create manager with workspace path
     manager = LeanInteractServerManager(workspace_path=workspace_path)
 
-
     # Verify: Workspace path is stored
 
     assert manager.workspace_path == workspace_path
-
 
     # Mock server creation
 
@@ -748,24 +606,17 @@ def test_property_19_workspace_context(workspace_path, file_path):
 
     mock_server.kill = Mock()
 
-
     with (
-
         patch.object(manager, "_create_server", return_value=mock_server),
-
         patch.object(manager, "_is_server_alive", return_value=True),
-
     ):
-
         # Execute: Get server
 
         server = manager.get_server(file_path)
 
-
         # Verify: Server was created
 
         assert server is mock_server
-
 
 
 # ============================================================================
@@ -775,14 +626,10 @@ def test_property_19_workspace_context(workspace_path, file_path):
 # ============================================================================
 
 
-
 @given(
-
     file_path=file_paths(),
 )
-
 @settings(max_examples=50, deadline=None)
-
 def test_property_19_get_request_log_returns_copy(file_path):
     """
 
@@ -804,16 +651,13 @@ def test_property_19_get_request_log_returns_copy(file_path):
 
     manager.log_request(file_path, "request_1", "response_1")
 
-
     # Execute: Get log
 
     log_1 = manager.get_request_log()
 
-
     # Modify the returned log
 
     log_1.append((file_path, "request_2", "response_2"))
-
 
     # Verify: Internal log was not modified
 
@@ -822,4 +666,3 @@ def test_property_19_get_request_log_returns_copy(file_path):
     assert len(log_2) == 1
 
     assert log_2[0] == (file_path, "request_1", "response_1")
-

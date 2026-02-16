@@ -7,8 +7,8 @@ timeout handling, and invalid input handling across the adapter layer.
 Requirements: 11.1, 11.2, 11.3
 """
 
-from unittest.mock import Mock, patch
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -518,7 +518,7 @@ class TestServerManagerErrorHandling:
             patch("lean_proof_auto_mcp.lean.server_manager.LeanREPLConfig"),
         ):
             mock_lean_server.side_effect = RuntimeError("Failed to start server")
-            
+
             # Arrange
             manager = LeanInteractServerManager()
 
@@ -698,7 +698,7 @@ class TestServerManagerErrorHandling:
         ):
             mock_server = Mock()
             mock_lean_server.return_value = mock_server
-            
+
             manager = LeanInteractServerManager(workspace_path=Path("/nonexistent/path"))
 
             # Act

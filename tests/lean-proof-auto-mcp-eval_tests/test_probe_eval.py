@@ -19,15 +19,15 @@ Theorem Discovery:
 - Falls back gracefully if scan_file returns no theorems
 """
 
-import pytest
 import time
 from typing import Any
 
-from fixtures import FixtureFile, ALL_FIXTURE_FILES, SMOKE_FIXTURES, QUICK_FIXTURES
+import pytest
+from eval_logger import EvalLogger
 from mcp_client import MCPClient
 from result_collector import ResultCollector
-from eval_logger import EvalLogger
 
+from fixtures import ALL_FIXTURE_FILES, QUICK_FIXTURES, SMOKE_FIXTURES, FixtureFile
 
 pytestmark = [pytest.mark.eval_normal]
 
@@ -92,7 +92,6 @@ def _discover_theorems(
         return []
 
 
-
 def _check_probe_response_structure(response: dict[str, Any]) -> tuple[bool, list[str]]:
     """Check probe response structure without raising.
 
@@ -136,14 +135,10 @@ def _assert_probe_response_structure(response: dict[str, Any]) -> None:
     """
     passed, failures = _check_probe_response_structure(response)
     if not passed:
-        raise AssertionError(
-            f"probe response structure invalid: {'; '.join(failures)}"
-        )
+        raise AssertionError(f"probe response structure invalid: {'; '.join(failures)}")
 
 
-_NOISE_PATTERNS = (
-    "declaration uses 'sorry'",
-)
+_NOISE_PATTERNS = ("declaration uses 'sorry'",)
 
 
 def _is_noise_diagnostic(message: str) -> bool:
@@ -193,7 +188,9 @@ def _log_probe_details(logger: EvalLogger, response: dict[str, Any]) -> None:
 
     timing = response.get("timing", {})
     if isinstance(timing, dict):
-        logger.log_info(f"timing: elapsed_ms={timing.get('elapsed_ms', '?')}, budget_s={timing.get('budget_s', '?')}")
+        logger.log_info(
+            f"timing: elapsed_ms={timing.get('elapsed_ms', '?')}, budget_s={timing.get('budget_s', '?')}"
+        )
 
     error = response.get("error")
     if error:
@@ -293,7 +290,6 @@ def _run_probe_and_record(
         _log_probe_details(logger, response)
 
     return response
-
 
 
 class TestProbeSmoke:

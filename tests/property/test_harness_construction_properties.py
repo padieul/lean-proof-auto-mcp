@@ -64,11 +64,7 @@ def _make_file_and_config(
 ) -> HarnessConfig:
     """Build a synthetic file + config for a single-theorem file."""
     local_name = theorem_id.split(".")[-1] if "." in theorem_id else theorem_id
-    file_content = (
-        f"import Mathlib\n\n"
-        f"theorem {local_name} : True := by\n"
-        f"  trivial\n"
-    )
+    file_content = f"import Mathlib\n\ntheorem {local_name} : True := by\n  trivial\n"
     theorem_line = f"theorem {local_name} : True := by"
     by_col = theorem_line.index("by")
     declarations = [
@@ -401,9 +397,14 @@ def test_property_unicode_preservation(proof_attempt):
     # "theorem mem_prod : ∀ x : ℕ, x ≤ x := " is 41 chars, so proof starts at col 41
     declarations = [
         Declaration(
-            name="mem_prod", full_name="mem_prod", type="∀ x : ℕ, x ≤ x",
+            name="mem_prod",
+            full_name="mem_prod",
+            type="∀ x : ℕ, x ≤ x",
             value=DeclValue(pp="by trivial", constants=[], range=Range(5, 41, 6, 8)),
-            attributes=[], range=Range(5, 0, 6, 8), namespace="", kind="theorem",
+            attributes=[],
+            range=Range(5, 0, 6, 8),
+            namespace="",
+            kind="theorem",
         ),
     ]
 

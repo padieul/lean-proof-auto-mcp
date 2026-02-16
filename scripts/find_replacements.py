@@ -1,7 +1,10 @@
 """Find replacement theorem_ids for broken eval fixtures."""
-import os, sys
+
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from lean_proof_auto_mcp.core.indexer import build_index, SourceText
+from lean_proof_auto_mcp.core.indexer import SourceText, build_index
 
 base = "C:/Dev/lean-proof-auto-mcp-eval/fixtures/mathlib/Fixtures"
 

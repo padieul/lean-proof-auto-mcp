@@ -7,8 +7,8 @@ Requirements: 7.3, 7.4, 7.5, 7.6, 4.3
 import pytest
 
 from lean_proof_auto_mcp.tools.try_automated_proof import (
-    _build_error_response,
     _build_command,
+    _build_error_response,
 )
 
 

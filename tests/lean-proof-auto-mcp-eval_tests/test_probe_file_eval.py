@@ -14,15 +14,15 @@ Tier Selection (domain-based, not index-based):
 - Normal: All 23 files in all three modes (~30 min)
 """
 
-import pytest
 import time
 from typing import Any
 
-from fixtures import FixtureFile, ALL_FIXTURE_FILES, SMOKE_FIXTURES, QUICK_FIXTURES
+import pytest
+from eval_logger import EvalLogger
 from mcp_client import MCPClient
 from result_collector import ResultCollector
-from eval_logger import EvalLogger
 
+from fixtures import ALL_FIXTURE_FILES, QUICK_FIXTURES, SMOKE_FIXTURES, FixtureFile
 
 pytestmark = [pytest.mark.eval_normal]
 
@@ -96,10 +96,7 @@ def _assert_probe_file_response_structure(response: dict[str, Any]) -> None:
     """
     passed, failures = _check_probe_file_response_structure(response)
     if not passed:
-        raise AssertionError(
-            f"probe_file response structure invalid: {'; '.join(failures)}"
-        )
-
+        raise AssertionError(f"probe_file response structure invalid: {'; '.join(failures)}")
 
 
 def _log_probe_file_details(logger: EvalLogger, response: dict[str, Any]) -> None:
@@ -219,9 +216,7 @@ def _run_probe_file_and_record(
         tool_status = response.get("status", "")
         if tool_status in ("success", "partial"):
             status = tool_status
-        elif tool_status == "error":
-            status = "error"
-        elif "error" in response:
+        elif tool_status == "error" or "error" in response:
             status = "error"
         else:
             status = "failure"
@@ -263,9 +258,7 @@ class TestProbeFileSmoke:
     """Smoke tier: 2 files in one mode. Should complete in < 2 minutes."""
 
     @pytest.mark.eval_smoke
-    @pytest.mark.parametrize(
-        "fixture_file", _SMOKE_SLICE, ids=lambda f: f.relative_path
-    )
+    @pytest.mark.parametrize("fixture_file", _SMOKE_SLICE, ids=lambda f: f.relative_path)
     def test_probe_file_smoke(
         self,
         mcp_client: MCPClient,
@@ -298,9 +291,7 @@ class TestProbeFileQuick:
 
     @pytest.mark.eval_quick
     @pytest.mark.parametrize("mode", PROBE_MODES)
-    @pytest.mark.parametrize(
-        "fixture_file", _QUICK_SLICE, ids=lambda f: f.relative_path
-    )
+    @pytest.mark.parametrize("fixture_file", _QUICK_SLICE, ids=lambda f: f.relative_path)
     def test_probe_file_quick(
         self,
         mcp_client: MCPClient,
@@ -335,9 +326,7 @@ class TestProbeFileNormal:
 
     @pytest.mark.eval_normal
     @pytest.mark.parametrize("mode", PROBE_MODES)
-    @pytest.mark.parametrize(
-        "fixture_file", ALL_FIXTURE_FILES, ids=lambda f: f.relative_path
-    )
+    @pytest.mark.parametrize("fixture_file", ALL_FIXTURE_FILES, ids=lambda f: f.relative_path)
     def test_probe_file_normal(
         self,
         mcp_client: MCPClient,

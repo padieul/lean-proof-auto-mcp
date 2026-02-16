@@ -11,7 +11,7 @@ Requirements: 8.2, 8.3, 8.4, 8.5, 8.6
 import logging
 from dataclasses import dataclass
 
-from ..lean.ports import Declaration, Querier, ProofStateInspector, TheoremContext, Range
+from ..lean.ports import Declaration, ProofStateInspector, Querier, Range, TheoremContext
 
 logger = logging.getLogger(__name__)
 
@@ -314,6 +314,6 @@ class ContextExtractor:
         Also cascades to the querier's declarations cache.
         """
         self._context_cache.clear()
-        if hasattr(self.querier, 'clear_cache'):
+        if hasattr(self.querier, "clear_cache"):
             self.querier.clear_cache()
         logger.debug("Cleared context cache")

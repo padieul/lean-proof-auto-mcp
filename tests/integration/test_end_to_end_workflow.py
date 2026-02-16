@@ -295,9 +295,7 @@ class TestCompleteWorkflow:
 
     @patch("lean_proof_auto_mcp.tools.search_automated_proof._create_orchestrator")
     @patch("lean_proof_auto_mcp.tools.try_automated_proof._create_handler")
-    def test_validation_failure_feedback_loop(
-        self, mock_create_handler, mock_create_orchestrator
-    ):
+    def test_validation_failure_feedback_loop(self, mock_create_handler, mock_create_orchestrator):
         """Test feedback loop when validation fails.
 
         Requirements: 27.3
@@ -538,9 +536,7 @@ class TestToolInteraction:
 
     @patch("lean_proof_auto_mcp.tools.search_automated_proof._create_orchestrator")
     @patch("lean_proof_auto_mcp.tools.try_automated_proof._create_handler")
-    def test_search_feedback_guides_validation(
-        self, mock_create_handler, mock_create_orchestrator
-    ):
+    def test_search_feedback_guides_validation(self, mock_create_handler, mock_create_orchestrator):
         """Test that search feedback guides validation attempts.
 
         Requirements: 27.3

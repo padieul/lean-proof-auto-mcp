@@ -150,11 +150,7 @@ class ValidateProofCommandHandler:
             )
 
         # Step 4: Optional proof-state enrichment
-        if (
-            result.status == "incomplete"
-            and cmd.return_proof_state
-            and self.proof_state_inspector
-        ):
+        if result.status == "incomplete" and cmd.return_proof_state and self.proof_state_inspector:
             try:
                 proof_state = self.proof_state_inspector.get_initial_proof_state(theorem)
                 from ..lean.ports import ValidationResult
@@ -182,17 +178,14 @@ class ValidateProofCommandHandler:
         2. exact name
         3. local-name fallback (only if unique)
         """
-        theorem_decls = [
-            d for d in declarations if getattr(d, "kind", "") in ("theorem", "lemma")
-        ]
+        theorem_decls = [d for d in declarations if getattr(d, "kind", "") in ("theorem", "lemma")]
 
         def _select_unique(matches: list, label: str):
             if len(matches) == 1:
                 return matches[0]
             if len(matches) > 1:
                 names = ", ".join(
-                    getattr(d, "full_name", getattr(d, "name", "<unknown>"))
-                    for d in matches[:5]
+                    getattr(d, "full_name", getattr(d, "name", "<unknown>")) for d in matches[:5]
                 )
                 raise ValueError(f"Ambiguous theorem_id '{theorem_id}' ({label}): {names}")
             return None

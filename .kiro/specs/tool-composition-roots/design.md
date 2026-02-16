@@ -134,12 +134,12 @@ class ImportBasedHarnessConstructor:
     ) -> None:
         self.type_extractor = type_extractor
         self.path_converter = path_converter
-        
+
         # NEW: Caching infrastructure
         self._file_cache: dict[str, str] = {}
         self._decl_cache: dict[str, list[Declaration]] = {}
         self._theorem_verified: dict[str, bool] = {}
-    
+
     def construct(self, config: HarnessConfig) -> HarnessResult:
         # Check caches before reading/parsing
         if config.file_path in self._file_cache:
@@ -147,15 +147,15 @@ class ImportBasedHarnessConstructor:
         else:
             file_content = self._read_file(config.file_path)
             self._file_cache[config.file_path] = file_content
-        
+
         if config.file_path in self._decl_cache:
             declarations = self._decl_cache[config.file_path]
         else:
             declarations = self._extract_declarations(config.file_path)
             self._decl_cache[config.file_path] = declarations
-        
+
         # ... rest of construction logic
-    
+
     def clear_cache(self) -> None:
         """Clear all caches after batch operation."""
         self._file_cache.clear()
@@ -186,7 +186,7 @@ class ValidateProofCommand:
 
 class ValidateProofCommandHandler:
     """Handler for proof validation operations."""
-    
+
     def __init__(
         self,
         querier: Querier,
@@ -200,12 +200,12 @@ class ValidateProofCommandHandler:
         self.constructor = constructor
         self.proof_state_inspector = proof_state_inspector
         self.metadata_collector = metadata_collector
-    
+
     def handle(self, cmd: ValidateProofCommand) -> ValidationResult:
         # 1. Extract theorem using querier
         declarations = self.querier.extract_declarations(cmd.file_path)
         theorem = self._find_theorem(declarations, cmd.theorem_id)
-        
+
         # 2. Construct harness with proof attempt
         harness_config = HarnessConfig(
             theorem_id=cmd.theorem_id,
@@ -213,7 +213,7 @@ class ValidateProofCommandHandler:
             proof_attempt=cmd.proof_attempt,
         )
         harness_result = self.constructor.construct(harness_config)
-        
+
         # 3. Validate via ProofValidator port
         result = self.validator.validate_proof(
             theorem_statement=theorem.type,
@@ -222,13 +222,13 @@ class ValidateProofCommandHandler:
             file_path=cmd.file_path,
             theorem_id=cmd.theorem_id,
         )
-        
+
         # 4. Enrich with proof state if incomplete
         if result.status == "incomplete" and cmd.return_proof_state:
             if self.proof_state_inspector:
                 proof_state = self.proof_state_inspector.get_initial_proof_state(theorem)
                 result = self._enrich_with_proof_state(result, proof_state)
-        
+
         return result
 ```
 
@@ -257,7 +257,7 @@ class SearchOrchestrator:
         self.constructor = constructor
         self.proof_state_inspector = proof_state_inspector
         self.metadata_collector = metadata_collector
-    
+
     def _test_hint_combination(
         self,
         file_path: str,
@@ -267,7 +267,7 @@ class SearchOrchestrator:
     ) -> bool:
         # Build proof attempt with hints
         proof_attempt = self._build_proof_with_hints(hints, config)
-        
+
         # Construct harness (uses cache)
         harness_config = HarnessConfig(
             theorem_id=theorem_id,
@@ -275,10 +275,10 @@ class SearchOrchestrator:
             proof_attempt=proof_attempt,
         )
         harness_result = self.constructor.construct(harness_config)
-        
+
         if isinstance(harness_result, HarnessError):
             return False
-        
+
         # Validate proof using ProofValidator port
         result = self.validator.validate_proof(
             theorem_statement=harness_result.theorem_statement,
@@ -287,7 +287,7 @@ class SearchOrchestrator:
             file_path=file_path,
             theorem_id=theorem_id,
         )
-        
+
         return result.status == "success"
 ```
 
@@ -299,25 +299,25 @@ class SearchOrchestrator:
 def _create_handler(file_path: str) -> ProbeCommandHandler:
     # 1. Detect project root
     project_root = _find_lean_project_root(Path(file_path))
-    
+
     # 2. Create ServerManager (ONE instance)
     server_manager = LeanInteractServerManager(workspace_path=project_root)
-    
+
     # 3. Create adapters (all use same ServerManager)
     querier = LeanInteractQuerier(server_manager)
     validator = LeanInteractProofValidator(server_manager)
-    
+
     # 4. Create harness constructor (with caching)
     type_extractor = LeanInteractTheoremTypeExtractor(querier)
     path_converter = StandardImportPathConverter()
     constructor = ImportBasedHarnessConstructor(type_extractor, path_converter)
-    
+
     # 5. Create other dependencies
     workspace_provider = create_workspace_provider(...)
     classifier = HeuristicClassifier()
     artifact_store = FilesystemArtifactStore(ARTIFACTS_DIR)
     metadata_collector = SubprocessMetadataCollector()
-    
+
     # 6. Wire into handler
     return ProbeCommandHandler(
         validator=validator,
@@ -337,22 +337,22 @@ def _create_handler(file_path: str) -> ProbeFileCommandHandler:
     # 1. Create shared infrastructure (ONE instance for ALL theorems)
     project_root = _find_lean_project_root(Path(file_path))
     server_manager = LeanInteractServerManager(workspace_path=project_root)
-    
+
     # 2. Create shared adapters
     querier = LeanInteractQuerier(server_manager)
     validator = LeanInteractProofValidator(server_manager)
-    
+
     # 3. Create harness constructor WITH CACHING
     type_extractor = LeanInteractTheoremTypeExtractor(querier)
     path_converter = StandardImportPathConverter()
     constructor = ImportBasedHarnessConstructor(type_extractor, path_converter)
-    
+
     # 4. Create other dependencies
     workspace_provider = create_workspace_provider(...)
     classifier = HeuristicClassifier()
     artifact_store = FilesystemArtifactStore(ARTIFACTS_DIR)
     metadata_collector = SubprocessMetadataCollector()
-    
+
     # 5. Create ProbeCommandHandler
     probe_handler = ProbeCommandHandler(
         validator=validator,
@@ -363,7 +363,7 @@ def _create_handler(file_path: str) -> ProbeFileCommandHandler:
         artifact_store=artifact_store,
         metadata_collector=metadata_collector,
     )
-    
+
     # 6. Wire into ProbeFileCommandHandler
     return ProbeFileCommandHandler(
         probe_handler=probe_handler,
@@ -384,14 +384,14 @@ def try_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
         command = _build_command(args)
     except ValueError as e:
         return _build_error_response(...)
-    
+
     # 2. Create handler at composition root
     try:
         handler = _create_handler(command.file_path)
-        
+
         # 3. Execute command
         result = handler.handle(command)
-        
+
         # 4. Format response
         return _format_response(result)
     except Exception as e:
@@ -414,13 +414,13 @@ def _create_handler(file_path: str) -> ValidateProofCommandHandler:
     querier = LeanInteractQuerier(server_manager)
     validator = LeanInteractProofValidator(server_manager)
     proof_state_inspector = LeanInteractProofStateInspector(server_manager)
-    
+
     type_extractor = LeanInteractTheoremTypeExtractor(querier)
     path_converter = StandardImportPathConverter()
     constructor = ImportBasedHarnessConstructor(type_extractor, path_converter)
-    
+
     metadata_collector = SubprocessMetadataCollector()
-    
+
     # Wire into handler
     return ValidateProofCommandHandler(
         querier=querier,
@@ -440,7 +440,7 @@ def _create_handler(file_path: str) -> ValidateProofCommandHandler:
 class ValidateProofCommand:
     """
     Immutable command for proof validation.
-    
+
     Attributes:
         file_path: Path to Lean file containing theorem
         theorem_id: Identifier of theorem to validate
@@ -453,7 +453,7 @@ class ValidateProofCommand:
     proof_attempt: str
     timeout_s: float = 10.0
     return_proof_state: bool = True
-    
+
     def __post_init__(self) -> None:
         if not self.file_path:
             raise ValueError("file_path must be non-empty")
@@ -615,7 +615,7 @@ def tool_function(args: dict[str, Any]) -> dict[str, Any]:
             error_message=str(e),
             error_code="validation_error",
         )
-    
+
     # 2. Create handler and execute
     try:
         handler = _create_handler(command.file_path)

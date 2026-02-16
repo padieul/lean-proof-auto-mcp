@@ -15,17 +15,15 @@ from pathlib import Path
 from typing import Any
 
 from ..core.validate_proof_domain import ValidateProofCommand, ValidateProofCommandHandler
+from ..lean.proof_state import LeanInteractProofStateInspector
+from ..lean.querier import LeanInteractQuerier
 from ..lean.server_manager import get_shared_server_manager
 from ..lean.validator import LeanInteractProofValidator
-from ..lean.querier import LeanInteractQuerier
-from ..lean.proof_state import LeanInteractProofStateInspector
 from ..observability import SubprocessMetadataCollector
 
 logger = logging.getLogger(__name__)
 
 API_VERSION = "0.2.0"
-
-
 
 
 def try_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
@@ -81,21 +79,21 @@ def try_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
     try:
         handler = _create_handler(command.file_path)
         metadata_collector = SubprocessMetadataCollector()
-        
+
         # Step 3: Execute command
         result = handler.handle(command)
-        
+
         # Collect metadata
         metadata = metadata_collector.collect_version_info()
-        
+
         # Step 4: Format response
         return _format_response(
-            result, 
-            command.file_path, 
-            command.theorem_id, 
-            run_id, 
-            command.return_proof_state, 
-            metadata
+            result,
+            command.file_path,
+            command.theorem_id,
+            run_id,
+            command.return_proof_state,
+            metadata,
         )
     except Exception as e:
         # Catch all exceptions and return error response
@@ -106,8 +104,6 @@ def try_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
             error_message=f"Validation error: {str(e)}",
             error_code="internal_error",
         )
-
-
 
 
 def _build_command(args: dict[str, Any]) -> tuple[ValidateProofCommand, str]:
@@ -175,8 +171,6 @@ def _build_command(args: dict[str, Any]) -> tuple[ValidateProofCommand, str]:
     return command, run_id
 
 
-
-
 def _create_handler(file_path: str) -> ValidateProofCommandHandler:
     """
     Create ValidateProofCommandHandler with all dependencies (composition root).
@@ -215,7 +209,7 @@ def _create_handler(file_path: str) -> ValidateProofCommandHandler:
 
     # Get shared ServerManager (persists across tool calls, project-keyed)
     # This ensures all declarations are visible (fixes 116 vs 123 declaration issue)
-    from ..lean.server_manager import get_shared_server_manager
+
     server_manager = get_shared_server_manager(project_root)
 
     # Create adapters (all use same ServerManager)
@@ -226,7 +220,9 @@ def _create_handler(file_path: str) -> ValidateProofCommandHandler:
 
     constructor = RangeBasedHarnessConstructor()
 
-    validator = LeanInteractProofValidator(server_manager, harness_constructor=constructor, querier=querier)
+    validator = LeanInteractProofValidator(
+        server_manager, harness_constructor=constructor, querier=querier
+    )
     proof_state_inspector = LeanInteractProofStateInspector(server_manager)
 
     # Wire all dependencies into handler
@@ -237,9 +233,6 @@ def _create_handler(file_path: str) -> ValidateProofCommandHandler:
         proof_state_inspector=proof_state_inspector,
         metadata_collector=None,  # Metadata collection handled at tool level
     )
-
-
-
 
 
 def _find_lean_project_root(file_path: Path) -> Path | None:
@@ -263,55 +256,31 @@ def _find_lean_project_root(file_path: Path) -> Path | None:
         Path to project root, or None if not found
     """
 
-
     current = file_path if file_path.is_dir() else file_path.parent
-
-
 
     # Search up to 10 levels
 
-
     for _ in range(10):
-
-
         if (current / "lakefile.toml").exists() or (current / "lakefile.lean").exists():
             return current
 
-
-
         parent = current.parent
 
-
         if parent == current:  # Reached filesystem root
-
-
             break
 
-
         current = parent
-
-
 
     return None
 
 
-
-
 def _format_response(
-
-
     result: Any,  # ValidationResult
     file_path: str,
     theorem_id: str,
     run_id: str,
-
-
     return_proof_state: bool,
-
-
     metadata: dict[str, str],
-
-
 ) -> dict[str, Any]:
     """
 
@@ -352,9 +321,7 @@ def _format_response(
     Requirements: 7.3, 7.4, 7.5, 7.6, 7.7, 29.6
     """
 
-
     # Determine overall status
-
 
     status_map = {
         "success": "success",
@@ -362,104 +329,53 @@ def _format_response(
         "error": "error",
         "incomplete": "incomplete",
         "timeout": "timeout",
-
-
     }
-
 
     status = status_map.get(result.status, "error")
 
-
-
     # Format error location
-
 
     error_location = None
 
-
     if result.error_location:
-
-
         error_location = list(result.error_location)
-
-
 
     # Format proof state
 
-
     proof_state_dict = None
 
-
     if return_proof_state and result.proof_state:
-
-
         proof_state_dict = {
-
-
             "goal": result.proof_state.goal,
-
-
             "hypotheses": result.proof_state.hypotheses,
-
-
             "type_context": result.proof_state.type_context,
-
-
             "goals_remaining": result.proof_state.goals_remaining,
-
-
         }
 
-
-
     return {
-
-
         "api_version": API_VERSION,
         "status": status,
         "run_id": run_id,
         "file": file_path,
         "theorem_id": theorem_id,
-
-
         "validation_status": result.status,
-
-
         "error_message": result.error_message,
         "error_location": error_location,
         "proof_state": proof_state_dict,
-
-
         "suggestions": result.suggestions,
         "metadata": metadata,
-
-
         "timing": {
-
-
             "validation_s": result.time_s,
-
-
             "total_s": result.time_s,
-
-
         },
-
-
     }
-
-
 
 
 def _build_error_response(
     file: str,
     theorem_id: str,
-
-
     error_message: str,
     error_code: str,
-
-
 ) -> dict[str, Any]:
     """
 
@@ -494,76 +410,39 @@ def _build_error_response(
     Requirements: 7.8
     """
 
-
     # Generate run_id for error response
-
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
-
     file_str = str(file) if file is not None else "<invalid>"
 
-
     if not file_str or not file_str.strip():
-
-
         file_str = "<invalid>"
-
 
     file_hash = hashlib.md5(file_str.encode()).hexdigest()[:8]
 
-
     random_suffix = uuid.uuid4().hex[:6]
-
 
     run_id = f"try-proof-{timestamp}-{file_hash}-{random_suffix}"
 
-
-
     # Ensure theorem_id is non-empty string
-
 
     theorem_id_str = str(theorem_id) if theorem_id is not None else "<invalid>"
 
-
     if not theorem_id_str or not theorem_id_str.strip():
-
-
         theorem_id_str = "<invalid>"
 
-
-
     return {
-
-
         "api_version": API_VERSION,
         "status": "error",
         "run_id": run_id,
         "file": file_str,
         "theorem_id": theorem_id_str,
-
-
         "validation_status": "error",
-
-
         "error_message": error_message,
-
-
         "error_location": None,
-
-
         "proof_state": None,
-
-
         "suggestions": ["Fix input validation errors"],
-
-
         "metadata": {"error_code": error_code, "error_message": error_message},
-
-
         "timing": {"validation_s": 0.0, "total_s": 0.0},
-
-
     }
-
-

@@ -94,7 +94,6 @@ class HeuristicClassifier:
         else:
             return "failed"
 
-
     def _has_partial_progress(self, diagnostics: list[dict]) -> bool:
         """
         Check for partial progress indicators in diagnostics.

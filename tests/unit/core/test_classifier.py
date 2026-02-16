@@ -322,7 +322,9 @@ class TestHeuristicClassifier:
         outcome = "not_closed"
         sorry_diags = [{"message": "declaration uses 'sorry'"} for _ in range(34)]
         signal_diags = [
-            {"message": "unsolved goals\na_ne_zero : ¬a = 0\n⊢ #({x ∈ Ico k (k + n) | a.Coprime x}) ≤ φ a * (n / a + 1)"},
+            {
+                "message": "unsolved goals\na_ne_zero : ¬a = 0\n⊢ #({x ∈ Ico k (k + n) | a.Coprime x}) ≤ φ a * (n / a + 1)"
+            },
             {"message": "aesop: failed to prove the goal after exhaustive search."},
         ]
         diagnostics = sorry_diags + signal_diags

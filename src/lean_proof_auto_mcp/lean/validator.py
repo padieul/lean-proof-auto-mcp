@@ -13,7 +13,6 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-
 from .ports import ProofState, ServerManager, ValidationResult
 
 if TYPE_CHECKING:
@@ -27,18 +26,13 @@ logger = logging.getLogger(__name__)
 # Try to import LeanInteract, but allow module to load even if not installed
 
 try:
-
     from lean_interact import LeanServer
-
     from lean_interact.config import LeanREPLConfig
-
     from lean_interact.interface import Command, LeanError
-
 
     LEAN_INTERACT_AVAILABLE = True
 
 except ImportError:
-
     LeanServer = None  # type: ignore[assignment, misc]
 
     LeanREPLConfig = None  # type: ignore[assignment, misc]
@@ -78,8 +72,12 @@ class LeanInteractProofValidator:
     Requirements: 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8
     """
 
-
-    def __init__(self, server_manager: "ServerManager", harness_constructor: "HarnessConstructor | None" = None, querier: "Querier | None" = None):
+    def __init__(
+        self,
+        server_manager: "ServerManager",
+        harness_constructor: "HarnessConstructor | None" = None,
+        querier: "Querier | None" = None,
+    ):
         """
         Initialize ProofValidator with ServerManager via dependency injection.
 
@@ -212,9 +210,7 @@ class LeanInteractProofValidator:
                     retries_left=retries_left - 1,
                 )
             logger.error(f"Server dead for {file_path}, no retries left")
-            raise RuntimeError(
-                "Lean verification failed: server not running after restart"
-            )
+            raise RuntimeError("Lean verification failed: server not running after restart")
         except Exception as e:
             logger.error(f"Verification failed: {e}")
             # Check if the error message indicates a dead server
@@ -235,17 +231,11 @@ class LeanInteractProofValidator:
 
     def validate_proof(
         self,
-
         theorem_statement: str,
-
         proof_attempt: str,
-
         timeout_s: float = 10.0,
-
         file_path: str | None = None,
-
         theorem_id: str | None = None,
-
     ) -> ValidationResult:
         """
 
@@ -288,55 +278,34 @@ class LeanInteractProofValidator:
         """
 
         if not LEAN_INTERACT_AVAILABLE or Command is None:
-
             return ValidationResult(
-
                 status="error",
-
                 error_message="LeanInteract library not installed",
-
                 error_location=None,
-
                 proof_state=None,
-
                 suggestions=["Install LeanInteract: pip install lean-interact"],
-
                 time_s=0.0,
-
             )
-
 
         # Get server instance from ServerManager
         server = self._server_manager.get_server(file_path or "default")
 
         if server is None:
-
             return ValidationResult(
-
                 status="error",
-
                 error_message="No server instance available",
-
                 error_location=None,
-
                 proof_state=None,
-
                 suggestions=["Create a server instance before validating"],
-
                 time_s=0.0,
-
             )
-
 
         start_time = time.time()
 
-
         try:
-
             # Construct validation code
 
             if file_path and theorem_id:
-
                 # Import-based approach: preserves all context
                 # When using the harness constructor, non-target theorems
                 # are intentionally sorry'd. We must not treat those
@@ -344,26 +313,19 @@ class LeanInteractProofValidator:
                 uses_harness_constructor = self._harness_constructor is not None
 
                 code = self._construct_validation_with_import(
-
                     file_path, theorem_id, theorem_statement, proof_attempt
-
                 )
 
             else:
-
                 # Fallback: standalone validation (may fail due to missing context)
                 uses_harness_constructor = False
 
                 logger.warning(
-
                     "Validating proof without file context - may fail due to missing "
-
                     "type class instances, variables, or namespace context"
-
                 )
 
                 code = f"theorem validation_theorem : {theorem_statement} := by\n{proof_attempt}\n"
-
 
             # Use Command to validate (note: parameter is 'cmd' not 'code')
 
@@ -371,66 +333,44 @@ class LeanInteractProofValidator:
 
             response = server.run(command, timeout=timeout_s)  # type: ignore[attr-defined]
 
-
             elapsed = time.time() - start_time
-
 
             # Check for timeout
 
             if isinstance(response, LeanError):
-
                 error_msg = str(response)
 
                 if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-
                     return ValidationResult(
-
                         status="timeout",
-
                         error_message="Validation timed out",
-
                         error_location=None,
-
                         proof_state=None,
-
                         suggestions=["Try simplifying the proof", "Increase timeout"],
-
                         time_s=elapsed,
-
                     )
 
                 else:
-
                     # Other error
 
                     return ValidationResult(
-
                         status="error",
-
                         error_message=error_msg,
-
                         error_location=None,
-
                         proof_state=None,
-
                         suggestions=self._generate_error_suggestions(error_msg),
-
                         time_s=elapsed,
-
                     )
-
 
             # Parse diagnostics from response
 
             diagnostics = self._parse_diagnostics(response)
-
 
             # Check for errors
 
             errors = [d for d in diagnostics if d["severity"] == "error"]
 
             if errors:
-
                 # Lean processed the proof but rejected it (type mismatch,
                 # tactic failure, etc.) — this is NOT a tool error.
 
@@ -438,119 +378,73 @@ class LeanInteractProofValidator:
 
                 error_location = self._extract_location(first_error)
 
-
                 return ValidationResult(
-
                     status="rejected",
-
                     error_message=first_error["message"],
-
                     error_location=error_location,
-
                     proof_state=None,
-
                     suggestions=self._generate_error_suggestions(first_error["message"]),
-
                     time_s=elapsed,
-
                 )
-
 
             # Check for incomplete proof (sorries)
             # When using the harness constructor, non-target theorems are
             # intentionally replaced with sorry. Only flag "incomplete" if
             # we're NOT using the harness path (standalone validation).
             if not uses_harness_constructor and hasattr(response, "sorries") and response.sorries:
-
                 # Proof is incomplete
 
                 proof_state = self._extract_proof_state(response)
 
-
                 return ValidationResult(
-
                     status="incomplete",
-
                     error_message="Proof is incomplete (contains sorry)",
-
                     error_location=None,
-
                     proof_state=proof_state,
-
                     suggestions=["Complete the proof", "Remove sorry placeholders"],
-
                     time_s=elapsed,
-
                 )
-
 
             # Check for remaining goals
 
             if hasattr(response, "goals") and response.goals:
-
                 # Proof is incomplete (goals remaining)
 
                 proof_state = self._extract_proof_state(response)
 
-
                 return ValidationResult(
-
                     status="incomplete",
-
                     error_message="Proof is incomplete (goals remaining)",
-
                     error_location=None,
-
                     proof_state=proof_state,
-
                     suggestions=["Complete all goals", "Add more tactics"],
-
                     time_s=elapsed,
-
                 )
-
 
             # Validation succeeded
 
             return ValidationResult(
-
                 status="success",
-
                 error_message=None,
-
                 error_location=None,
-
                 proof_state=None,
-
                 suggestions=["Proof verified successfully"],
-
                 time_s=elapsed,
-
             )
 
-
         except TimeoutError:
-
             elapsed = time.time() - start_time
 
             return ValidationResult(
-
                 status="timeout",
-
                 error_message="Validation timed out",
-
                 error_location=None,
-
                 proof_state=None,
-
                 suggestions=["Try simplifying the proof", "Increase timeout"],
-
                 time_s=elapsed,
-
             )
 
         except Exception as e:
-
             elapsed = time.time() - start_time
 
             # If the server died, restart it so the next call gets a fresh one.
@@ -564,19 +458,12 @@ class LeanInteractProofValidator:
             logger.error(f"Failed to validate proof: {e}")
 
             return ValidationResult(
-
                 status="error",
-
                 error_message=str(e),
-
                 error_location=None,
-
                 proof_state=None,
-
                 suggestions=["Check proof syntax", "Verify theorem statement"],
-
                 time_s=elapsed,
-
             )
 
     def validate_harness_code(
@@ -718,30 +605,21 @@ class LeanInteractProofValidator:
 
         diagnostics = []
 
-
         # Parse messages array for errors/warnings
 
         if hasattr(response, "messages"):
-
             for msg in response.messages:
-
                 severity = self._normalize_severity(msg.severity)
 
-
                 diagnostic = {
-
                     "severity": severity,
-
                     "message": msg.data,
-
                     "location": self._extract_location_from_message(msg),
-
                 }
 
                 diagnostics.append(diagnostic)
 
         return diagnostics
-
 
     def _normalize_severity(self, severity: str) -> str:
         """
@@ -765,12 +643,10 @@ class LeanInteractProofValidator:
             return "error"
 
         elif "warn" in severity_lower:
-
             return "warning"
 
         else:
             return "info"
-
 
     def _extract_location(self, diagnostic: dict) -> tuple[int, int] | None:
         """
@@ -794,7 +670,6 @@ class LeanInteractProofValidator:
         location = diagnostic.get("location")
 
         if location:
-
             line = location.get("line", 0)
 
             col = location.get("col", 0)
@@ -802,7 +677,6 @@ class LeanInteractProofValidator:
             return (line, col)
 
         return None
-
 
     def _extract_location_from_message(self, msg: object) -> dict | None:
         """
@@ -823,17 +697,12 @@ class LeanInteractProofValidator:
         start_pos = getattr(msg, "start_pos", None)
 
         if start_pos:
-
             return {
-
                 "line": getattr(start_pos, "line", 0),
-
                 "col": getattr(start_pos, "column", 0),
-
             }
 
         return None
-
 
     def _extract_proof_state(self, response: object) -> ProofState | None:
         """
@@ -859,60 +728,42 @@ class LeanInteractProofValidator:
         goal = ""
 
         if hasattr(response, "goals") and response.goals:
-
             first_goal = response.goals[0]
 
             if hasattr(first_goal, "goal"):
-
                 goal = first_goal.goal
 
             elif hasattr(first_goal, "conclusion"):
-
                 goal = first_goal.conclusion
-
 
         # Extract hypotheses
 
         hypotheses = []
 
         if hasattr(response, "goals") and response.goals:
-
             first_goal = response.goals[0]
 
             if hasattr(first_goal, "hypotheses"):
-
                 for hyp in first_goal.hypotheses:
-
                     if hasattr(hyp, "name") and hasattr(hyp, "type"):
-
                         hypotheses.append(f"{hyp.name} : {hyp.type}")
-
 
         # Extract number of goals remaining
 
         goals_remaining = 0
 
         if hasattr(response, "goals"):
-
             goals_remaining = len(response.goals)
 
-
         if goal or hypotheses or goals_remaining > 0:
-
             return ProofState(
-
                 goal=goal,
-
                 hypotheses=hypotheses,
-
                 type_context="",
-
                 goals_remaining=goals_remaining,
-
             )
 
         return None
-
 
     def _generate_error_suggestions(self, error_message: str) -> list[str]:
         """
@@ -935,68 +786,51 @@ class LeanInteractProofValidator:
 
         suggestions = []
 
-
         error_lower = error_message.lower()
-
 
         # Type mismatch
 
         if "type mismatch" in error_lower or "expected" in error_lower:
-
             suggestions.append("Check types match expected values")
 
             suggestions.append("Try using type annotations")
 
-
         # Unknown identifier
 
         if "unknown identifier" in error_lower or "not found" in error_lower:
-
             suggestions.append("Check spelling of identifiers")
 
             suggestions.append("Ensure all imports are included")
 
-
         # Tactic failed
 
         if "tactic" in error_lower and "failed" in error_lower:
-
             suggestions.append("Try a different tactic")
 
             suggestions.append("Break down the proof into smaller steps")
 
-
         # Unsolved goals
 
         if "unsolved goals" in error_lower or "goals remaining" in error_lower:
-
             suggestions.append("Complete all proof goals")
 
             suggestions.append("Use 'sorry' to see remaining goals")
 
-
         # Default suggestions
 
         if not suggestions:
-
             suggestions.append("Review proof syntax")
 
             suggestions.append("Check theorem statement")
 
         return suggestions
 
-
     def _construct_validation_with_import(
         self,
-
         file_path: str,
-
         theorem_id: str,
-
         theorem_statement: str,
-
         proof_attempt: str,
-
     ) -> str:
         """
 
@@ -1029,13 +863,9 @@ class LeanInteractProofValidator:
         """
 
         if self._harness_constructor is not None:
-
             from ..core.harness_construction import (
-
                 HarnessConfig,
-
                 HarnessError,
-
             )
 
             # Populate file_content and declarations if querier is available
@@ -1048,66 +878,44 @@ class LeanInteractProofValidator:
             # Build harness config
 
             config = HarnessConfig(
-
                 theorem_id=theorem_id,
-
                 file_path=file_path,
-
                 proof_attempt=proof_attempt,
-
                 file_content=file_content,
-
                 declarations=declarations,
-
                 additional_imports=[],
-
             )
-
 
             # Construct harness using injected constructor
 
             result = self._harness_constructor.construct(config)
 
-
             if isinstance(result, HarnessError):
-
                 # Fall back to simple approach if construction fails
 
                 logger.warning(f"Harness construction failed: {result.message}, using fallback")
 
                 return self._construct_validation_with_import_fallback(
-
                     file_path, theorem_id, theorem_statement, proof_attempt
-
                 )
-
 
             return result.code
 
         else:
-
             # No harness constructor injected — use simple fallback
 
             logger.warning("No HarnessConstructor injected, using simple import fallback")
 
             return self._construct_validation_with_import_fallback(
-
                 file_path, theorem_id, theorem_statement, proof_attempt
-
             )
-
 
     def _construct_validation_with_import_fallback(
         self,
-
         file_path: str,
-
         theorem_id: str,
-
         theorem_statement: str,
-
         proof_attempt: str,
-
     ) -> str:
         """
 
@@ -1177,9 +985,7 @@ class LeanInteractProofValidator:
                         "col": getattr(start_pos, "column", 0),
                     }
 
-                diagnostics.append(
-                    {"severity": severity, "message": message, "location": location}
-                )
+                diagnostics.append({"severity": severity, "message": message, "location": location})
         return diagnostics
 
     def _determine_status(self, diagnostics: list[dict]) -> str:
@@ -1201,4 +1007,3 @@ class LeanInteractProofValidator:
             return "fail"
         else:
             return "success"
-

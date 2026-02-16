@@ -11,7 +11,7 @@ Requirements: 5.1-5.6, 10.4-10.5
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..adapters.artifact_store import FilesystemArtifactStore
 from ..adapters.workspace_provider import create_workspace_provider
@@ -195,10 +195,12 @@ def _create_handler(file_path: str) -> tuple[ProbeFileCommandHandler, "HarnessCo
 
     # 1. Get shared ServerManager (persists across tool calls, project-keyed)
     from ..lean.server_manager import get_shared_server_manager
+
     server_manager = get_shared_server_manager(project_root)
 
     # 2. Create LeanInteractQuerier with ServerManager
     from ..lean.querier import LeanInteractQuerier
+
     querier = LeanInteractQuerier(server_manager=server_manager)
 
     # 3. Create RangeBasedHarnessConstructor (zero dependencies — pure core)
@@ -208,7 +210,10 @@ def _create_handler(file_path: str) -> tuple[ProbeFileCommandHandler, "HarnessCo
 
     # 4. Create LeanInteractProofValidator with ServerManager, HarnessConstructor, and Querier
     from ..lean.validator import LeanInteractProofValidator
-    validator = LeanInteractProofValidator(server_manager=server_manager, harness_constructor=constructor, querier=querier)
+
+    validator = LeanInteractProofValidator(
+        server_manager=server_manager, harness_constructor=constructor, querier=querier
+    )
 
     # 5. Create workspace provider (auto-detect mode)
     workspace_provider = create_workspace_provider(
@@ -225,6 +230,7 @@ def _create_handler(file_path: str) -> tuple[ProbeFileCommandHandler, "HarnessCo
 
     # 8. Create metadata collector
     from ..observability import SubprocessMetadataCollector
+
     metadata_collector = SubprocessMetadataCollector()
 
     # 9. Create ProbeCommandHandler with all dependencies

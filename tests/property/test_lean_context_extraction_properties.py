@@ -95,9 +95,7 @@ def test_property_3_complete_context_extraction(
     # Add in-scope declarations (same namespace)
     for i in range(num_in_scope):
         fn = f"{namespace}.decl_{i}" if namespace else f"decl_{i}"
-        declarations.append(
-            _decl(name=f"decl_{i}", full_name=fn, namespace=namespace)
-        )
+        declarations.append(_decl(name=f"decl_{i}", full_name=fn, namespace=namespace))
 
     querier = _make_querier_with_declarations("test.lean", declarations)
     context = querier.get_theorem_context("test.lean", theorem_name)

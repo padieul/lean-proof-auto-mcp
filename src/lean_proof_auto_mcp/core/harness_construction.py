@@ -19,114 +19,127 @@ if TYPE_CHECKING:
 # Declaration kinds that can be targeted for probing / proof validation.
 # Includes "instance" because Lean instances can carry proof obligations
 # (e.g. `Monoid.toNatPow`, `AddMonoid.toNatSMul`).
-_PROVABLE_DECL_KINDS: frozenset[str] = frozenset({
-    "theorem", "lemma", "instance",
-})
+_PROVABLE_DECL_KINDS: frozenset[str] = frozenset(
+    {
+        "theorem",
+        "lemma",
+        "instance",
+    }
+)
 
 # Declaration kinds whose non-target bodies are safe to replace with sorry.
 # Excludes "instance" because sorry-ing instance bodies destroys definitional
 # equality: `sorry` is an axiom that doesn't reduce, so proofs relying on
 # definitional unfolding of instance fields (e.g. `rfl`) will break.
-_SORRY_SAFE_DECL_KINDS: frozenset[str] = frozenset({
-    "theorem", "lemma",
-})
+_SORRY_SAFE_DECL_KINDS: frozenset[str] = frozenset(
+    {
+        "theorem",
+        "lemma",
+    }
+)
 
 # Lean declaration keywords. If a DeclValue.range starts with one of these,
 # the range likely covers declaration syntax rather than just a proof value.
-_DECLARATION_KEYWORDS: frozenset[str] = frozenset({
-    "private",
-    "protected",
-    "noncomputable",
-    "irreducible_def",
-    "def",
-    "instance",
-    "class",
-    "structure",
-    "inductive",
-    "abbrev",
-    "opaque",
-    "unsafe",
-})
+_DECLARATION_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "private",
+        "protected",
+        "noncomputable",
+        "irreducible_def",
+        "def",
+        "instance",
+        "class",
+        "structure",
+        "inductive",
+        "abbrev",
+        "opaque",
+        "unsafe",
+    }
+)
 
 # Command-level keywords. If a value range starts with one of these, splicing
 # it is unsafe because it likely destroys command syntax.
-_COMMAND_KEYWORDS: frozenset[str] = frozenset({
-    "import",
-    "open",
-    "namespace",
-    "section",
-    "end",
-    "set_option",
-    "attribute",
-    "macro",
-    "syntax",
-    "elab",
-    "notation",
-    "infix",
-    "infixl",
-    "infixr",
-    "prefix",
-    "postfix",
-    "scoped",
-    "universe",
-    "variable",
-    "axiom",
-    "constant",
-    "example",
-    "mutual",
-    "theorem",
-    "lemma",
-})
+_COMMAND_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "import",
+        "open",
+        "namespace",
+        "section",
+        "end",
+        "set_option",
+        "attribute",
+        "macro",
+        "syntax",
+        "elab",
+        "notation",
+        "infix",
+        "infixl",
+        "infixr",
+        "prefix",
+        "postfix",
+        "scoped",
+        "universe",
+        "variable",
+        "axiom",
+        "constant",
+        "example",
+        "mutual",
+        "theorem",
+        "lemma",
+    }
+)
 
-_TACTIC_KEYWORDS: frozenset[str] = frozenset({
-    "simp",
-    "simpa",
-    "simp_all",
-    "rw",
-    "rewrite",
-    "ring",
-    "linarith",
-    "omega",
-    "norm_num",
-    "exact",
-    "apply",
-    "intro",
-    "intros",
-    "constructor",
-    "cases",
-    "induction",
-    "have",
-    "let",
-    "obtain",
-    "rcases",
-    "ext",
-    "funext",
-    "congr",
-    "trivial",
-    "tauto",
-    "decide",
-    "norm_cast",
-    "push_cast",
-    "field_simp",
-    "aesop",
-    "grind",
-    "sorry",
-    "assumption",
-    "contradiction",
-    "exfalso",
-    "refine",
-    "calc",
-    "show",
-    "suffices",
-    "specialize",
-    "clear",
-    "rename_i",
-    "subst",
-    "injection",
-    "absurd",
-    "left",
-    "right",
-})
+_TACTIC_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "simp",
+        "simpa",
+        "simp_all",
+        "rw",
+        "rewrite",
+        "ring",
+        "linarith",
+        "omega",
+        "norm_num",
+        "exact",
+        "apply",
+        "intro",
+        "intros",
+        "constructor",
+        "cases",
+        "induction",
+        "have",
+        "let",
+        "obtain",
+        "rcases",
+        "ext",
+        "funext",
+        "congr",
+        "trivial",
+        "tauto",
+        "decide",
+        "norm_cast",
+        "push_cast",
+        "field_simp",
+        "aesop",
+        "grind",
+        "sorry",
+        "assumption",
+        "contradiction",
+        "exfalso",
+        "refine",
+        "calc",
+        "show",
+        "suffices",
+        "specialize",
+        "clear",
+        "rename_i",
+        "subst",
+        "injection",
+        "absurd",
+        "left",
+        "right",
+    }
+)
 
 
 # ============================================================================
@@ -428,9 +441,7 @@ def _format_exact_tactic(term_expr: str) -> str:
 def _resolve_target_index(declarations: list["Declaration"], theorem_id: str) -> int:
     """Resolve theorem match deterministically with explicit ambiguity errors."""
     theorem_entries = [
-        (idx, decl)
-        for idx, decl in enumerate(declarations)
-        if decl.kind in _PROVABLE_DECL_KINDS
+        (idx, decl) for idx, decl in enumerate(declarations) if decl.kind in _PROVABLE_DECL_KINDS
     ]
 
     def _select_unique(matches: list[tuple[int, "Declaration"]], label: str) -> int | None:
@@ -587,14 +598,10 @@ def build_splice_plan(
     target_decl = declarations[target_index]
 
     if target_decl.value is None:
-        raise UnsafeTargetRangeError(
-            f"Target theorem '{target_theorem_id}' has no value range"
-        )
+        raise UnsafeTargetRangeError(f"Target theorem '{target_theorem_id}' has no value range")
     target_range = target_decl.value.range
     if target_range.start_line == 0 and target_range.end_line == 0:
-        raise UnsafeTargetRangeError(
-            f"Target theorem '{target_theorem_id}' has empty value range"
-        )
+        raise UnsafeTargetRangeError(f"Target theorem '{target_theorem_id}' has empty value range")
 
     target_shape = _classify_range_shape(
         file_content,

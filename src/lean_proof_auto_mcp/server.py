@@ -345,10 +345,16 @@ def main() -> None:
     import sys
 
     if cfg.working_directory != os.getcwd():
-        print(f"{cfg.server_name}: changing working directory to {cfg.working_directory}", file=sys.stderr)
+        print(
+            f"{cfg.server_name}: changing working directory to {cfg.working_directory}",
+            file=sys.stderr,
+        )
         os.chdir(cfg.working_directory)
 
-    print(f"{cfg.server_name}: server started (api_version={cfg.api_version}, cwd={os.getcwd()})", file=sys.stderr)
+    print(
+        f"{cfg.server_name}: server started (api_version={cfg.api_version}, cwd={os.getcwd()})",
+        file=sys.stderr,
+    )
     create_app(cfg).run()  # stdio transport by default
 
 

@@ -17,15 +17,15 @@ Theorem Selection Strategy:
 - Focus on theorems with moderate complexity (not trivial, not too complex)
 """
 
-import pytest
 import time
 from typing import Any
 
-from fixtures import FixtureFile, ALL_FIXTURE_FILES
+import pytest
+from eval_logger import EvalLogger
 from mcp_client import MCPClient
 from result_collector import ResultCollector
-from eval_logger import EvalLogger
 
+from fixtures import ALL_FIXTURE_FILES, FixtureFile
 
 pytestmark = [pytest.mark.eval_normal]
 
@@ -43,23 +43,18 @@ AUTOMATED_PROOF_THEOREMS: list[tuple[str, str]] = [
     (r"Algebra\Group\Defs.lean", "mul_left_cancel"),
     (r"Algebra\Module\Defs.lean", "add_smul"),
     (r"Algebra\Polynomial\Basic.lean", "Polynomial.coeff_zero"),
-
     # Analysis domain (2 files)
     (r"Analysis\Calculus\Deriv\Basic.lean", "deriv_const"),
     (r"Analysis\Calculus\Deriv\MeanValue.lean", "exists_hasDerivAt_eq_slope"),
-
     # Data domain (2 files)
     (r"Data\Int\GCD.lean", "Nat.gcd_eq_gcd_ab"),
     (r"Data\Nat\Totient.lean", "Nat.totient_one"),
-
     # GroupTheory domain (4 files)
     (r"GroupTheory\GroupAction\Basic.lean", "MulAction.orbit_eq_univ"),
     (r"GroupTheory\QuotientGroup\Defs.lean", "QuotientGroup.mk_one"),
-
     # LinearAlgebra domain (4 files)
     (r"LinearAlgebra\Basis\Defs.lean", "Basis.repr_self"),
     (r"LinearAlgebra\Matrix\Defs.lean", "Matrix.zero_apply"),
-
     # RingTheory domain (3 files)
     (r"RingTheory\Ideal\Defs.lean", "Ideal.zero_mem"),
     (r"RingTheory\Ideal\Quotient\Operations.lean", "Ideal.map_quotient_self"),
@@ -73,7 +68,7 @@ def _skip_if_no_theorems() -> None:
 
 
 def _check_search_automated_proof_response_structure(
-    response: dict[str, Any]
+    response: dict[str, Any],
 ) -> tuple[bool, list[str]]:
     """Check search_automated_proof response structure without raising.
 
@@ -100,8 +95,16 @@ def _check_search_automated_proof_response_structure(
             failures.append(f"Missing '{key}'")
 
     # Validate flat result fields (no search_result wrapper)
-    for key in ("outcome", "best_hint_set", "attempts", "explored_sets",
-                "feedback", "metadata", "search_trace", "timing"):
+    for key in (
+        "outcome",
+        "best_hint_set",
+        "attempts",
+        "explored_sets",
+        "feedback",
+        "metadata",
+        "search_trace",
+        "timing",
+    ):
         if key not in response:
             failures.append(f"Missing '{key}'")
 
@@ -284,10 +287,7 @@ class TestSearchAutomatedProofNormal:
         # Build test cases from selected theorems
         test_cases = []
         for relative_path, theorem_id in AUTOMATED_PROOF_THEOREMS:
-            fixture = next(
-                (f for f in ALL_FIXTURE_FILES if f.relative_path == relative_path),
-                None
-            )
+            fixture = next((f for f in ALL_FIXTURE_FILES if f.relative_path == relative_path), None)
             if fixture:
                 test_cases.append((fixture, theorem_id))
 

@@ -17,11 +17,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
-
 if TYPE_CHECKING:
+    from ..core.verify_domain import LeanRunResult
     from .server_manager import LeanInteractServerManager as _ServerManager
-    from ..core.verify_domain import LeanRunResult
-    from ..core.verify_domain import LeanRunResult
 
 
 @dataclass(frozen=True)

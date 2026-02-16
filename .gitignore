@@ -55,4 +55,3 @@ tests/lean-proof-auto-mcp-eval_tests/reports/*
 # Eval test logs (append-only run logs, not committed)
 tests/lean-proof-auto-mcp-eval_tests/logs/*
 !tests/lean-proof-auto-mcp-eval_tests/logs/.gitkeep
-

@@ -32,9 +32,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _find_theorem_in_index(
-    decls: list[TheoremDecl], theorem_id: str
-) -> TheoremDecl | None:
+def _find_theorem_in_index(decls: list[TheoremDecl], theorem_id: str) -> TheoremDecl | None:
     """Find a theorem declaration in the index using flexible matching.
 
     Matching strategy (first match wins):
@@ -256,9 +254,7 @@ class SearchOrchestrator:
             # 1. Exact match
             # 2. Index has namespace, input is short name
             # 3. Input has namespace, index is short name (reverse)
-            theorem_decl = _find_theorem_in_index(
-                self.candidate_gen.index.decls, theorem_id
-            )
+            theorem_decl = _find_theorem_in_index(self.candidate_gen.index.decls, theorem_id)
 
             if theorem_decl is None:
                 raise ValueError(f"Theorem not found in index: {theorem_id}")

@@ -11,28 +11,19 @@ for automation probing following hexagonal architecture principles.
 Requirements: 1.1, 1.8, 2.1-2.6, 3.1-3.8, 4.1-4.7, 5.1-5.6
 """
 
-
 import contextlib
-
 import hashlib
 import logging
 import time
 import uuid
-
 from collections.abc import Callable
 from dataclasses import dataclass
-
 from datetime import datetime, timezone
-
 from pathlib import Path
-
 from typing import TYPE_CHECKING, Any, Protocol
 
-
 if TYPE_CHECKING:
-
     from ..observability.ports import MetadataCollector
-
     from .harness_construction import HarnessConstructor
 
 
@@ -48,9 +39,7 @@ HARNESS_CACHE_DIR = "_harness_cache"
 # ============================================================================
 
 
-
 @dataclass(frozen=True)
-
 class ProbeCommand:
     """
 
@@ -86,7 +75,6 @@ class ProbeCommand:
 
     trace_config: dict[str, bool] | None = None
 
-
     def __post_init__(self) -> None:
         """
 
@@ -101,24 +89,18 @@ class ProbeCommand:
         Requirements: 1.8, 3.1, 10.3, 10.5
         """
         if not self.file_path:
-
             raise ValueError("file_path must be non-empty")
         if not self.theorem_id:
-
             raise ValueError("theorem_id must be non-empty")
 
         if self.mode not in ("aesop", "aesop?", "grind"):
-
             raise ValueError("mode must be 'aesop', 'aesop?', or 'grind'")
 
         if self.budget_s <= 0:
-
             raise ValueError("budget_s must be positive")
 
 
-
 @dataclass(frozen=True)
-
 class ProbeOutcome:
     """
 
@@ -155,9 +137,7 @@ class ProbeOutcome:
     suggested_script: str | None = None
 
 
-
 @dataclass(frozen=True)
-
 class ProbeResult:
     """
 
@@ -191,7 +171,6 @@ class ProbeResult:
         metadata: Metadata about execution environment
     """
 
-
     api_version: str
     status: str
     run_id: str
@@ -205,9 +184,7 @@ class ProbeResult:
     metadata: dict[str, Any]
 
 
-
 @dataclass(frozen=True)
-
 class ProbeFileCommand:
     """
 
@@ -243,7 +220,6 @@ class ProbeFileCommand:
     limit: int = 50
     ordering: str = "file_order"
 
-
     def __post_init__(self) -> None:
         """
 
@@ -258,29 +234,22 @@ class ProbeFileCommand:
         Requirements: 5.1, 5.5, 5.6, 10.3, 10.5
         """
         if not self.file_path:
-
             raise ValueError("file_path must be non-empty")
 
         if self.mode not in ("aesop", "aesop?", "grind"):
-
             raise ValueError("mode must be 'aesop', 'aesop?', or 'grind'")
 
         if self.budget_s_per <= 0:
-
             raise ValueError("budget_s_per must be positive")
 
         if self.limit <= 0:
-
             raise ValueError("limit must be positive")
 
         if self.ordering not in ("file_order", "rank_targets"):
-
             raise ValueError("ordering must be 'file_order' or 'rank_targets'")
 
 
-
 @dataclass(frozen=True)
-
 class ProbeFileResult:
     """
 
@@ -310,7 +279,6 @@ class ProbeFileResult:
         metadata: Metadata about execution
     """
 
-
     api_version: str
     status: str
     file: str
@@ -322,13 +290,11 @@ class ProbeFileResult:
     metadata: dict[str, Any]
 
 
-
 # ============================================================================
 
 # Port Interfaces (Abstract)
 
 # ============================================================================
-
 
 
 class ArtifactStore(Protocol):
@@ -345,19 +311,12 @@ class ArtifactStore(Protocol):
     Requirements: Logging and debugging support
     """
 
-
     def store(
-
         self,
-
         run_id: str,
-
         command: Any,
-
         result: Any,
-
         full_logs: str,
-
     ) -> None:
         """
 
@@ -380,7 +339,6 @@ class ArtifactStore(Protocol):
             RuntimeError: If artifact storage fails
         """
         ...
-
 
 
 class AutomationClassifier(Protocol):
@@ -406,19 +364,12 @@ class AutomationClassifier(Protocol):
         classify: Classify automation outcome based on execution results
     """
 
-
     def classify(
-
         self,
-
         outcome: str,
-
         diagnostics: list[dict],
-
         timing: dict[str, float],
-
         budget_s: float,
-
     ) -> str:
         """
 
@@ -453,13 +404,11 @@ class AutomationClassifier(Protocol):
         ...
 
 
-
 # ============================================================================
 
 # Command Handler (Core Orchestrator)
 
 # ============================================================================
-
 
 
 class ProbeCommandHandler:
@@ -496,25 +445,15 @@ class ProbeCommandHandler:
     Requirements: 1.1-1.6, 3.2-3.8, 6.1-6.4, 7.1-7.4, 8.1-8.2, 10.1-10.5
     """
 
-
     def __init__(
-
         self,
-
         validator: "ProofValidator",
-
         querier: "Querier",
-
         workspace_provider: "WorkspaceProvider",
-
         classifier: AutomationClassifier,
-
         harness_constructor: "HarnessConstructor",
-
         artifact_store: ArtifactStore | None = None,
-
         metadata_collector: "MetadataCollector | None" = None,
-
     ):
         """
 
@@ -549,8 +488,6 @@ class ProbeCommandHandler:
         self.harness_constructor = harness_constructor
         self.artifact_store = artifact_store
         self.metadata_collector = metadata_collector
-
-
 
     def handle(self, cmd: ProbeCommand, lean_server: "LeanServer | None" = None) -> ProbeResult:
         """
@@ -598,30 +535,23 @@ class ProbeCommandHandler:
 
         start_time = time.time()
 
-
         # 1. Generate run_id
 
         run_id = self._generate_run_id(cmd)
 
-
         # 2. Determine if we're using a reusable server or creating a workspace
 
         if lean_server is not None:
-
             # Server reuse mode: skip workspace creation
 
             return self._handle_with_server(cmd, run_id, lean_server, start_time)
         else:
-
             # Traditional mode: create workspace and use validator
 
             return self._handle_with_workspace(cmd, run_id, start_time)
 
-
     def _handle_with_workspace(
-
         self, cmd: ProbeCommand, run_id: str, start_time: float
-
     ) -> ProbeResult:
         """
 
@@ -657,74 +587,57 @@ class ProbeCommandHandler:
         harness_file_path = None
 
         try:
-
             workspace = self.workspace_provider.create_workspace(cmd.file_path)
 
         except Exception as e:
-
             logger.error(f"Workspace creation failed: {e}")
 
             return self._build_error_result(
-
                 cmd, run_id, "workspace_error", f"Failed to create workspace: {e}", start_time
-
             )
 
-
         try:
-
             # 3. Construct automation harness and write to file
 
             try:
-
                 # Import HarnessConfig for construction
 
                 from .harness_construction import HarnessConfig, HarnessError
-
 
                 # Determine additional imports based on mode
 
                 additional_imports = []
 
                 if cmd.mode in ("aesop", "aesop?"):
-
                     additional_imports.append("import Aesop")
-
 
                 # Convert absolute file_path to relative path from project root
 
                 file_path_obj = Path(cmd.file_path)
 
                 if file_path_obj.is_absolute():
-
                     # Find the project root by looking for lakefile.toml or lakefile.lean
 
                     project_root = self._find_project_root(file_path_obj)
 
                     if project_root:
-
                         try:
-
                             relative_path = file_path_obj.relative_to(project_root)
 
                             file_path_for_harness = str(relative_path)
 
                         except ValueError:
-
                             # Fallback: use the original path
 
                             file_path_for_harness = cmd.file_path
 
                     else:
-
                         # No project root found, use original path
 
                         file_path_for_harness = cmd.file_path
 
                 else:
-
                     file_path_for_harness = cmd.file_path
-
 
                 # Build harness config — populate file_content and declarations
                 # so the constructor (RangeBasedHarnessConstructor) stays pure.
@@ -732,31 +645,21 @@ class ProbeCommandHandler:
                 file_content = self.querier.read_source_file(file_path_for_harness)
 
                 config = HarnessConfig(
-
                     theorem_id=cmd.theorem_id,
-
                     file_path=file_path_for_harness,
-
                     proof_attempt=cmd.mode,
-
                     file_content=file_content,
-
                     declarations=declarations,
-
                     additional_imports=additional_imports,
-
                 )
-
 
                 # Use injected harness constructor
 
                 result = self.harness_constructor.construct(config)
 
-
                 # Check if construction was successful
 
                 if isinstance(result, HarnessError):
-
                     if result.error_type == "theorem_not_found":
                         return self._build_fail_result(
                             cmd, run_id, result.error_type, result.message, start_time
@@ -765,19 +668,14 @@ class ProbeCommandHandler:
                     logger.error(f"Harness construction failed: {result.message}")
 
                     return self._build_error_result(
-
                         cmd, run_id, result.error_type, result.message, start_time
-
                     )
 
-
                 harness_content = result.code
-
 
                 # Add trace configuration if requested
 
                 if cmd.trace_config:
-
                     # Insert trace options after imports
 
                     lines = harness_content.split("\n")
@@ -785,20 +683,15 @@ class ProbeCommandHandler:
                     import_end = 0
 
                     for i, line in enumerate(lines):
-
                         if line.strip() and not line.strip().startswith("import"):
-
                             import_end = i
 
                             break
 
-
                     trace_lines = []
 
                     for key, value in cmd.trace_config.items():
-
                         trace_lines.append(f"set_option {key} {str(value).lower()}")
-
 
                     # Insert trace options after imports
 
@@ -806,52 +699,35 @@ class ProbeCommandHandler:
 
                     harness_content = "\n".join(lines)
 
-
                 harness_file_path = self._write_harness(cmd, workspace.path, harness_content)
 
                 logger.info(f"Wrote harness file: {harness_file_path}")
 
             except ValueError as e:
-
                 # Theorem not found or invalid
 
                 logger.warning(f"Harness construction failed: {e}")
 
-                return self._build_fail_result(
-
-                    cmd, run_id, "theorem_not_found", str(e), start_time
-
-                )
+                return self._build_fail_result(cmd, run_id, "theorem_not_found", str(e), start_time)
 
             except Exception as e:
-
                 logger.error(f"Unexpected harness construction error: {e}")
 
                 return self._build_error_result(
-
                     cmd, run_id, "harness_error", f"Failed to construct harness: {e}", start_time
-
                 )
-
 
             # 4. Run Lean with automation tactic on the harness file
 
             try:
-
                 lean_result = self.validator.verify_file(
-
                     workspace_path=workspace.path,
-
                     file_path=harness_file_path,
-
                     theorem_id=None,  # Harness has only one theorem, no need to filter
-
                     budget_s=cmd.budget_s,
-
                 )
 
             except TimeoutError:
-
                 # Timeout is expected, convert to timeout result
 
                 logger.info(f"Probe timed out after {cmd.budget_s}s")
@@ -859,29 +735,20 @@ class ProbeCommandHandler:
                 return self._build_timeout_result(cmd, run_id, start_time)
 
             except ValueError as e:
-
                 # Theorem not found or invalid
 
                 logger.warning(f"Theorem validation failed: {e}")
 
-                return self._build_fail_result(
-
-                    cmd, run_id, "theorem_not_found", str(e), start_time
-
-                )
+                return self._build_fail_result(cmd, run_id, "theorem_not_found", str(e), start_time)
 
             except Exception as e:
-
                 # Toolchain or execution error
 
                 logger.error(f"Lean execution failed: {e}")
 
                 return self._build_error_result(
-
                     cmd, run_id, "execution_error", f"Lean execution failed: {e}", start_time
-
                 )
-
 
             # 5. Parse and classify outcome
 
@@ -891,23 +758,17 @@ class ProbeCommandHandler:
 
             logger.info("Lean result processed, preparing to return...")
 
-
             # 6. Store artifacts if artifact_store is configured (async to not block response)
 
             if self.artifact_store is not None:
                 import threading
 
-
                 def store_async():
-
                     try:
-
                         self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
 
                     except Exception as e:
-
                         logger.warning(f"Failed to store artifacts for {run_id}: {e}")
-
 
                 thread = threading.Thread(target=store_async, daemon=True)
 
@@ -915,60 +776,42 @@ class ProbeCommandHandler:
 
                 logger.info("Started background thread for artifact storage")
 
-
             logger.info("About to return result from handle()")
             return result
 
-
         finally:
-
             # 7. Cleanup harness file and workspace (always runs)
 
             logger.info("Entering finally block for cleanup...")
             if harness_file_path:
-
                 try:
-
                     harness_path = workspace.path / harness_file_path
 
                     if harness_path.exists():
-
                         harness_path.unlink()
 
                         logger.debug(f"Cleaned up harness file: {harness_file_path}")
 
                 except Exception as e:
-
                     logger.warning(f"Harness file cleanup failed: {e}")
 
             logger.info("Finally block completed")
 
-
             if workspace:
-
                 try:
-
                     self.workspace_provider.cleanup_workspace(workspace)
 
                 except Exception as e:
-
                     # Log but don't propagate cleanup errors
 
                     logger.warning(f"Workspace cleanup failed: {e}")
 
-
     def _handle_with_server(
-
         self,
-
         cmd: ProbeCommand,
-
         run_id: str,
-
         lean_server: "LeanServer",
-
         start_time: float,
-
     ) -> ProbeResult:
         """
 
@@ -1008,69 +851,50 @@ class ProbeCommandHandler:
 
         # filename and verify it
 
-
         # Generate harness relative path (must match _write_harness logic)
         harness_filename = self._harness_relative_path(cmd.theorem_id)
 
-
         try:
-
             # Run verification using the reusable server on the harness file
 
             lean_result = lean_server.verify_file(
-
                 file_path=harness_filename,
-
                 theorem_id=None,  # Harness has only one theorem
-
                 budget_s=cmd.budget_s,
-
             )
 
         except TimeoutError:
-
             logger.info(f"Probe timed out after {cmd.budget_s}s")
 
             return self._build_timeout_result(cmd, run_id, start_time)
 
         except ValueError as e:
-
             logger.warning(f"Theorem validation failed: {e}")
 
             return self._build_fail_result(cmd, run_id, "theorem_not_found", str(e), start_time)
 
         except Exception as e:
-
             logger.error(f"Lean execution failed: {e}")
 
             return self._build_error_result(
-
                 cmd, run_id, "execution_error", f"Lean execution failed: {e}", start_time
-
             )
-
 
         # Process the result (no workspace object in server reuse mode)
 
         result = self._process_lean_result(cmd, run_id, lean_result, start_time, workspace=None)
-
 
         # Store artifacts if artifact_store is configured (async to not block response)
 
         if self.artifact_store is not None:
             import threading
 
-
             def store_async():
-
                 try:
-
                     self.artifact_store.store(run_id, cmd, result, lean_result.full_logs)
 
                 except Exception as e:
-
                     logger.warning(f"Failed to store artifacts for {run_id}: {e}")
-
 
             thread = threading.Thread(target=store_async, daemon=True)
 
@@ -1078,21 +902,13 @@ class ProbeCommandHandler:
 
         return result
 
-
     def _process_lean_result(
-
         self,
-
         cmd: ProbeCommand,
-
         run_id: str,
-
         lean_result: Any,
-
         start_time: float,
-
         workspace: Any | None,
-
     ) -> ProbeResult:
         """
 
@@ -1131,7 +947,6 @@ class ProbeCommandHandler:
 
         diagnostics = self._normalize_diagnostics(lean_result.diagnostics)
 
-
         # Determine raw outcome
 
         logger.info(f"Determining outcome from status={lean_result.status}...")
@@ -1144,19 +959,15 @@ class ProbeCommandHandler:
         else:
             outcome = "not_closed"
 
-
         # Classify outcome
 
         logger.info(f"Calling classifier.classify() with outcome={outcome}...")
 
         classification = self.classifier.classify(
-
             outcome, diagnostics, lean_result.timing, cmd.budget_s
-
         )
 
         logger.info(f"Classification complete: {classification}")
-
 
         # Extract suggested script for aesop? mode
 
@@ -1165,34 +976,22 @@ class ProbeCommandHandler:
         suggested_script = None
 
         if cmd.mode == "aesop?" and outcome == "closed":
-
             suggested_script = self._extract_suggested_script(lean_result.full_logs)
-
 
         # Build structured result
 
         logger.info("Building result...")
 
         return self._build_result(
-
             cmd,
-
             run_id,
-
             outcome,
-
             classification,
-
             suggested_script,
-
             diagnostics,
-
             lean_result,
-
             start_time,
-
         )
-
 
     def _generate_run_id(self, cmd: ProbeCommand) -> str:
         """
@@ -1231,7 +1030,6 @@ class ProbeCommandHandler:
 
         return f"probe-{timestamp}-{file_hash}-{random_suffix}"
 
-
     def _write_harness(self, cmd: ProbeCommand, workspace_path: Path, harness_content: str) -> str:
         """
 
@@ -1269,17 +1067,14 @@ class ProbeCommandHandler:
         harness_relative_path = self._harness_relative_path(cmd.theorem_id)
         harness_path = workspace_path / harness_relative_path
 
-
         try:
             harness_path.parent.mkdir(parents=True, exist_ok=True)
 
             with open(harness_path, "w", encoding="utf-8") as f:
-
                 f.write(harness_content)
             return str(harness_relative_path)
 
         except Exception as e:
-
             raise OSError(f"Failed to write harness file: {e}") from e
 
     def _harness_relative_path(self, theorem_id: str) -> Path:
@@ -1287,8 +1082,6 @@ class ProbeCommandHandler:
         safe_theorem_id = "".join(c if c.isalnum() else "_" for c in theorem_id)
         harness_filename = f"_probe_harness_{safe_theorem_id}.lean"
         return Path(HARNESS_CACHE_DIR) / harness_filename
-
-
 
     def _find_project_root(self, file_path: Path) -> Path | None:
         """
@@ -1308,24 +1101,19 @@ class ProbeCommandHandler:
 
         current = file_path if file_path.is_dir() else file_path.parent
 
-
         # Search up to 10 levels
 
         for _ in range(10):
-
             if (current / "lakefile.toml").exists() or (current / "lakefile.lean").exists():
                 return current
 
             parent = current.parent
 
             if parent == current:  # Reached filesystem root
-
                 break
             current = parent
 
-
         return None
-
 
     def _extract_suggested_script(self, logs: str) -> str | None:
         """
@@ -1351,24 +1139,18 @@ class ProbeCommandHandler:
         Requirements: 3.5
         """
         if not logs:
-
             return None
-
 
         # Look for aesop? suggestion pattern
 
         # Typically appears as "Try this: <script>"
         import re
 
-
         match = re.search(r"Try this:\s*(.+?)(?:\n|$)", logs, re.DOTALL)
         if match:
-
             return match.group(1).strip()
 
-
         return None
-
 
     def _normalize_diagnostics(self, diagnostics: list[dict]) -> list[dict]:
         """
@@ -1398,59 +1180,41 @@ class ProbeCommandHandler:
 
         normalized = []
         for diag in diagnostics:
-
             # Safely extract location, handling None case
 
             location = diag.get("location")
 
-
             # If location is explicitly None, keep it as None
 
             if location is None:
-
                 normalized_location = None
 
             elif isinstance(location, dict):
-
                 # Normalize dict location
 
                 normalized_location = {
-
                     "file": location.get("file", ""),
-
                     "line": location.get("line", 0),
-
                     "col": location.get("col", 0),
-
                     "end_line": location.get("end_line"),
-
                     "end_col": location.get("end_col"),
-
                 }
             else:
-
                 # Invalid location type, treat as None
 
                 normalized_location = None
 
-
             normalized_diag = {
-
                 "severity": self._normalize_severity(diag.get("severity", "error")),
-
                 "message": diag.get("message", ""),
-
                 "location": normalized_location,
-
             }
 
             normalized.append(normalized_diag)
 
-
         # Sort diagnostics deterministically
 
         return self._sort_diagnostics(normalized)
-
 
     def _normalize_severity(self, severity: str) -> str:
         """
@@ -1477,11 +1241,9 @@ class ProbeCommandHandler:
             return "error"
 
         elif "warn" in severity_lower:
-
             return "warning"
         else:
             return "info"
-
 
     def _sort_diagnostics(self, diagnostics: list[dict]) -> list[dict]:
         """
@@ -1507,68 +1269,40 @@ class ProbeCommandHandler:
 
         severity_order = {"error": 0, "warning": 1, "info": 2}
 
-
         def sort_key(d: dict) -> tuple:
-
             location = d["location"]
 
             if location is None:
-
                 # Sort None locations last using high values
 
                 return (
-
                     "~" * 100,
-
                     999999,
-
                     999999,
-
                     severity_order.get(d["severity"], 3),
-
                     d["message"],
-
                 )
             else:
-
                 return (
-
                     location["file"],
-
                     location["line"],
-
                     location["col"],
-
                     severity_order.get(d["severity"], 3),
-
                     d["message"],
-
                 )
-
 
         return sorted(diagnostics, key=sort_key)
 
-
     def _build_result(
-
         self,
-
         cmd: ProbeCommand,
-
         run_id: str,
-
         outcome: str,
-
         classification: str,
-
         suggested_script: str | None,
-
         diagnostics: list[dict],
-
         lean_result: Any,
-
         start_time: float,
-
     ) -> ProbeResult:
         """
 
@@ -1606,21 +1340,14 @@ class ProbeCommandHandler:
 
         elapsed_ms = elapsed_s * 1000.0
 
-
         # Build probe outcome
 
         probe_outcome = ProbeOutcome(
-
             mode=cmd.mode,
-
             outcome=outcome,
-
             classification=classification,
-
             suggested_script=suggested_script,
-
         )
-
 
         # Determine status
         if outcome == "error":
@@ -1632,17 +1359,12 @@ class ProbeCommandHandler:
         else:
             status = "fail"
 
-
         # Build timing
 
         timing = {
-
             "elapsed_ms": round(elapsed_ms, 2),
-
             "budget_s": cmd.budget_s,
-
         }
-
 
         # Build metadata
 
@@ -1652,28 +1374,18 @@ class ProbeCommandHandler:
 
         logger.info("Metadata built, creating ProbeResult...")
 
-
         result = ProbeResult(
-
             api_version="0.1.0",
-
             status=status,
-
             run_id=run_id,
-
             probe_result=probe_outcome,
-
             diagnostics=diagnostics,
-
             timing=timing,
-
             metadata=metadata,
-
         )
 
         logger.info("ProbeResult created successfully")
         return result
-
 
     def _build_fail_result(
         self,
@@ -1738,19 +1450,12 @@ class ProbeCommandHandler:
         )
 
     def _build_error_result(
-
         self,
-
         cmd: ProbeCommand,
-
         run_id: str,
-
         error_type: str,
-
         error_message: str,
-
         start_time: float,
-
     ) -> ProbeResult:
         """
 
@@ -1782,76 +1487,48 @@ class ProbeCommandHandler:
 
         elapsed_ms = elapsed_s * 1000.0
 
-
         # Build error outcome
 
         probe_outcome = ProbeOutcome(
-
             mode=cmd.mode,
-
             outcome="error",
-
             classification="error",
-
             suggested_script=None,
-
         )
-
 
         # Build error diagnostic
 
         diagnostics = [
-
             {
-
                 "severity": "error",
-
                 "message": f"{error_type}: {error_message}",
-
                 "location": None,
-
             }
-
         ]
-
 
         # Build timing
 
         timing = {
-
             "elapsed_ms": round(elapsed_ms, 2),
-
             "budget_s": cmd.budget_s,
-
         }
-
 
         # Build minimal metadata
 
         metadata = {
-
             "error_type": error_type,
-
         }
 
-
         return ProbeResult(
-
             api_version="0.1.0",
-
             status="error",
-
             run_id=run_id,
-
             probe_result=probe_outcome,
-
             diagnostics=diagnostics,
-
             timing=timing,
-
             metadata=metadata,
-
         )
+
     def _build_fail_result(
         self,
         cmd: ProbeCommand,
@@ -1914,19 +1591,11 @@ class ProbeCommandHandler:
             metadata=metadata,
         )
 
-
-
-
     def _build_timeout_result(
-
         self,
-
         cmd: ProbeCommand,
-
         run_id: str,
-
         start_time: float,
-
     ) -> ProbeResult:
         """
 
@@ -1954,60 +1623,37 @@ class ProbeCommandHandler:
 
         elapsed_ms = elapsed_s * 1000.0
 
-
         # Build timeout outcome
 
         probe_outcome = ProbeOutcome(
-
             mode=cmd.mode,
-
             outcome="timeout",
-
             classification="timed_out",
-
             suggested_script=None,
-
         )
-
 
         # Build timing
 
         timing = {
-
             "elapsed_ms": round(elapsed_ms, 2),
-
             "budget_s": cmd.budget_s,
-
         }
-
 
         # Build minimal metadata
 
         metadata = {
-
             "timeout": True,
-
         }
 
-
         return ProbeResult(
-
             api_version="0.1.0",
-
             status="timeout",
-
             run_id=run_id,
-
             probe_result=probe_outcome,
-
             diagnostics=[],
-
             timing=timing,
-
             metadata=metadata,
-
         )
-
 
     def _build_metadata(self, lean_result: Any) -> dict[str, Any]:
         """
@@ -2036,11 +1682,9 @@ class ProbeCommandHandler:
         """
 
         if self.metadata_collector is None:
-
             logger.debug("No metadata collector configured, skipping metadata collection")
 
             return {}
-
 
         logger.info("Building metadata...")
 
@@ -2048,7 +1692,6 @@ class ProbeCommandHandler:
 
         logger.info("Metadata built, creating ProbeResult...")
         return metadata
-
 
 
 class ProbeFileCommandHandler:
@@ -2086,17 +1729,11 @@ class ProbeFileCommandHandler:
     Requirements: 4.1-4.7, 5.2-5.6, 10.4
     """
 
-
     def __init__(
-
         self,
-
         probe_handler: ProbeCommandHandler,
-
         scan_file_fn: Callable,
-
         rank_targets_fn: Callable | None = None,
-
     ):
         """
 
@@ -2119,7 +1756,6 @@ class ProbeFileCommandHandler:
         self.scan_file_fn = scan_file_fn
 
         self.rank_targets_fn = rank_targets_fn
-
 
     def handle(self, cmd: ProbeFileCommand) -> ProbeFileResult:
         """
@@ -2191,16 +1827,21 @@ class ProbeFileCommandHandler:
 
             for theorem_id in theorem_ids:
                 theorem_result = self._probe_single_theorem(
-                    cmd, theorem_id, file_path_for_harness, workspace,
+                    cmd,
+                    theorem_id,
+                    file_path_for_harness,
+                    workspace,
                 )
                 # Extract and track internal keys before adding to results
                 is_error = theorem_result.pop("_is_error", False)
 
                 if is_error:
-                    errors.append({
-                        "theorem_id": theorem_id,
-                        "error": theorem_result.get("error", "unknown"),
-                    })
+                    errors.append(
+                        {
+                            "theorem_id": theorem_id,
+                            "error": theorem_result.get("error", "unknown"),
+                        }
+                    )
                 else:
                     results.append(theorem_result)
 
@@ -2301,8 +1942,13 @@ class ProbeFileCommandHandler:
             return {"_is_error": True, "error": f"Harness construction failed: {e}"}
 
         if isinstance(harness_result, HarnessError):
-            logger.warning(f"Harness construction failed for '{theorem_id}': {harness_result.message}")
-            return {"_is_error": True, "error": f"Harness construction failed: {harness_result.message}"}
+            logger.warning(
+                f"Harness construction failed for '{theorem_id}': {harness_result.message}"
+            )
+            return {
+                "_is_error": True,
+                "error": f"Harness construction failed: {harness_result.message}",
+            }
 
         harness_content = harness_result.code
 
@@ -2349,7 +1995,11 @@ class ProbeFileCommandHandler:
         # 4. Classify the result
         run_id = self.probe_handler._generate_run_id(probe_cmd)
         probe_result = self.probe_handler._process_lean_result(
-            probe_cmd, run_id, lean_result, probe_start, workspace=None,
+            probe_cmd,
+            run_id,
+            lean_result,
+            probe_start,
+            workspace=None,
         )
 
         # 5. Extract summary
@@ -2372,7 +2022,9 @@ class ProbeFileCommandHandler:
             # Current location (preferred)
             cache_dir = workspace_path / HARNESS_CACHE_DIR
             if cache_dir.exists():
-                stale_files.extend(p for p in cache_dir.glob("_probe_harness_*.lean") if p.is_file())
+                stale_files.extend(
+                    p for p in cache_dir.glob("_probe_harness_*.lean") if p.is_file()
+                )
 
             # Legacy location (backward compatibility)
             stale_files.extend(
@@ -2385,7 +2037,6 @@ class ProbeFileCommandHandler:
                 logger.info(f"Removed {len(stale_files)} stale probe harness file(s)")
         except Exception as e:
             logger.warning(f"Stale harness cleanup failed: {e}")
-
 
     def _enumerate_theorems(self, cmd: ProbeFileCommand) -> list[str]:
         """
@@ -2422,11 +2073,8 @@ class ProbeFileCommandHandler:
 
         scan_result = self.scan_file_fn({"file": cmd.file_path})
 
-
         if scan_result.get("status") != "success":
-
             raise RuntimeError(f"scan_file failed: {scan_result.get('error', 'Unknown error')}")
-
 
         theorems = scan_result.get("theorems", [])
 
@@ -2439,58 +2087,39 @@ class ProbeFileCommandHandler:
 
         # Apply ordering
         if cmd.ordering == "file_order":
-
             # Use file order (already sorted by scan_file)
 
             theorem_ids = [t["theorem_id"] for t in theorems]
 
-
         elif cmd.ordering == "rank_targets":
-
             # Use rank_targets to prioritize
 
             if self.rank_targets_fn is None:
-
                 raise ValueError("rank_targets_fn required for rank_targets ordering")
 
-
             rank_result = self.rank_targets_fn(
-
                 {
-
                     "file": cmd.file_path,
-
                     "objective": "maximize_success",
-
                     "limit": len(theorems),
-
                 }
-
             )
 
-
             if rank_result.get("status") != "success":
-
                 raise RuntimeError(
-
                     f"rank_targets failed: {rank_result.get('error', 'Unknown error')}"
-
                 )
-
 
             # Extract theorem_ids from ranking
 
             theorem_ids = [t["theorem_id"] for t in rank_result.get("ranking", [])]
 
         else:
-
             raise ValueError(f"Invalid ordering mode: {cmd.ordering}")
-
 
         # Apply limit
 
         return theorem_ids[: cmd.limit]
-
 
     def _aggregate_results(self, results: list[dict]) -> dict[str, int]:
         """
@@ -2517,41 +2146,28 @@ class ProbeFileCommandHandler:
         """
 
         summary = {
-
             "total": len(results),
-
             "closed": 0,
-
             "promising": 0,
-
             "failed": 0,
-
             "timed_out": 0,
-
         }
 
         for result in results:
-
             classification = result.get("classification", "")
 
             if classification == "trivial":
-
                 summary["closed"] += 1
             elif classification == "promising":
-
                 summary["promising"] += 1
             elif classification == "failed":
-
                 summary["failed"] += 1
             elif classification == "timed_out":
-
                 summary["timed_out"] += 1
 
             # Note: "error" classification is not counted in summary categories
 
-
         return summary
-
 
     def _extract_summary(self, probe_result: ProbeResult, theorem_id: str) -> dict:
         """
@@ -2580,28 +2196,17 @@ class ProbeFileCommandHandler:
         """
 
         return {
-
             "theorem_id": theorem_id,
-
             "outcome": probe_result.probe_result.outcome,
-
             "classification": probe_result.probe_result.classification,
-
             "elapsed_ms": probe_result.timing.get("elapsed_ms", 0.0),
-
         }
 
-
     def _build_error_result(
-
         self,
-
         cmd: ProbeFileCommand,
-
         error_message: str,
-
         start_time: float,
-
     ) -> ProbeFileResult:
         """
 
@@ -2627,34 +2232,20 @@ class ProbeFileCommandHandler:
 
         elapsed_ms = round((time.time() - start_time) * 1000.0, 2)
 
-
         return ProbeFileResult(
-
             api_version="0.1.0",
-
             status="error",
-
             file=cmd.file_path,
-
             summary={"total": 0, "closed": 0, "promising": 0, "failed": 0, "timed_out": 0},
-
             results=[],
-
             metadata={
-
                 "elapsed_ms": elapsed_ms,
-
                 "error": error_message,
-
             },
-
         )
-
 
 
 # Import LeanServer from lean.ports and WorkspaceProvider from verify_domain for type hints
 
-from .verify_domain import WorkspaceProvider  # noqa: E402
-
 from ..lean.ports import LeanServer  # noqa: E402
-
+from .verify_domain import WorkspaceProvider  # noqa: E402

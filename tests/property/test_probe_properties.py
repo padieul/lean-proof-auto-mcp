@@ -761,6 +761,7 @@ def test_property_1_workspace_isolation(cmd):
 
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -826,9 +827,9 @@ def test_property_2_harness_structure_validity(file_path, theorem_id, mode):
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -923,9 +924,9 @@ def test_property_3_infrastructure_reuse(cmd):
 
     mock_classifier.classify.return_value = "trivial"
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -994,9 +995,9 @@ def test_property_4_hard_timeout_enforcement(file_path, theorem_id, mode, budget
     mock_validator.verify_file.side_effect = TimeoutError("Execution timed out")
     mock_classifier.classify.return_value = "timed_out"
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -1076,9 +1077,9 @@ def test_property_5_result_completeness(cmd):
 
     mock_classifier.classify.return_value = "trivial"
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -1192,9 +1193,9 @@ def test_property_6_no_source_modification(file_content, theorem_id, mode):
 
         mock_classifier.classify.return_value = "trivial"
 
-
         # Setup harness constructor mock
         from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
         mock_harness_constructor.construct.return_value = HarnessSuccess(
             code="theorem test : True := by trivial",
             theorem_statement="True",
@@ -1281,9 +1282,9 @@ def test_property_24_no_external_filesystem_mutation(cmd):
 
             mock_classifier.classify.return_value = "trivial"
 
-
             # Setup harness constructor mock
             from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
             mock_harness_constructor.construct.return_value = HarnessSuccess(
                 code="theorem test : True := by trivial",
                 theorem_statement="True",
@@ -1362,9 +1363,9 @@ def test_property_25_stateless_execution(cmd1, cmd2):
 
     mock_classifier.classify.return_value = "trivial"
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -1450,9 +1451,9 @@ def test_property_26_diagnostic_ordering(diagnostics):
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -1548,9 +1549,9 @@ def test_property_27_severity_normalization(severity):
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -1630,9 +1631,9 @@ def test_property_27_all_diagnostics_have_normalized_severity(diagnostics):
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -1713,9 +1714,9 @@ def test_property_14_aesop_suggested_script_success(
 
     mock_classifier.classify.return_value = "trivial"
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -1796,9 +1797,9 @@ def test_property_14_non_aesop_no_suggested_script(file_path, theorem_id, mode, 
 
     mock_classifier.classify.return_value = "trivial"
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -1874,9 +1875,9 @@ def test_property_14_aesop_failure_no_suggested_script(file_path, theorem_id, bu
 
     mock_classifier.classify.return_value = "promising"
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",
@@ -1933,9 +1934,9 @@ def test_property_14_extract_suggested_script_parsing(file_path, theorem_id, bud
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
-
     # Setup harness constructor mock
     from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
     mock_harness_constructor.construct.return_value = HarnessSuccess(
         code="theorem test : True := by trivial",
         theorem_id="test",

@@ -372,7 +372,11 @@ class TestProbeFileCommandHandler:
         def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
             outcome, classification = classifications[call_idx[0]]
             call_idx[0] += 1
-            status = "success" if outcome == "closed" else ("timeout" if outcome == "timeout" else "fail")
+            status = (
+                "success"
+                if outcome == "closed"
+                else ("timeout" if outcome == "timeout" else "fail")
+            )
             return ProbeResult(
                 api_version="0.1.0",
                 status=status,
@@ -433,7 +437,6 @@ class TestProbeFileCommandHandler:
         }
 
         # Make harness construction fail for theorem2 by returning an error
-        from lean_proof_auto_mcp.core.harness_construction import HarnessError
 
         call_idx = [0]
         theorem_ids = ["theorem1", "theorem2", "theorem3"]

@@ -15,8 +15,8 @@ Markers:
 """
 
 import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 
@@ -26,10 +26,11 @@ _this_dir = Path(__file__).parent
 if str(_this_dir) not in sys.path:
     sys.path.insert(0, str(_this_dir))
 
-from fixtures import get_eval_repo_path, ALL_FIXTURE_FILES, FixtureFile
+from eval_logger import EvalLogger
 from mcp_client import MCPClient
 from result_collector import ResultCollector
-from eval_logger import EvalLogger
+
+from fixtures import ALL_FIXTURE_FILES, FixtureFile, get_eval_repo_path
 
 
 @pytest.fixture(scope="session")

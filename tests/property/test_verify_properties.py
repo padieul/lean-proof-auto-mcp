@@ -154,7 +154,11 @@ class TestProperty1ResponseSchemaCompliance:
         validator = MockValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(
@@ -222,7 +226,11 @@ class TestProperty1ResponseSchemaCompliance:
         validator = MockValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -287,7 +295,11 @@ class TestProperty7DeterministicDiagnosticSorting:
         validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -373,13 +385,21 @@ class TestProperty8DeterministicOutput:
         validator1 = MockValidator(result=lean_result)
         workspace_provider1 = MockWorkspaceProvider()
         artifact_store1 = MockArtifactStore()
-        handler1 = VerifyCommandHandler(validator=validator1, workspace_provider=workspace_provider1, artifact_store=artifact_store1)
+        handler1 = VerifyCommandHandler(
+            validator=validator1,
+            workspace_provider=workspace_provider1,
+            artifact_store=artifact_store1,
+        )
         result1 = handler1.handle(cmd)
 
         validator2 = MockValidator(result=lean_result)
         workspace_provider2 = MockWorkspaceProvider()
         artifact_store2 = MockArtifactStore()
-        handler2 = VerifyCommandHandler(validator=validator2, workspace_provider=workspace_provider2, artifact_store=artifact_store2)
+        handler2 = VerifyCommandHandler(
+            validator=validator2,
+            workspace_provider=workspace_provider2,
+            artifact_store=artifact_store2,
+        )
         result2 = handler2.handle(cmd)
 
         # Assert - Compare results (excluding run_id which should be unique)
@@ -433,7 +453,11 @@ class TestProperty4TimeoutEnforcement:
         validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(file_path=file_path, budget_s=budget_s)
@@ -474,7 +498,11 @@ class TestProperty4TimeoutEnforcement:
         validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(file_path=file_path, budget_s=budget_s)
@@ -528,7 +556,11 @@ class TestProperty5ProcessAndWorkspaceCleanup:
         validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -562,7 +594,11 @@ class TestProperty5ProcessAndWorkspaceCleanup:
         validator = ExceptionValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -618,7 +654,11 @@ class TestProperty16TheoremScopeSupport:
         validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(file_path=file_path, theorem_id=theorem_id)
@@ -705,7 +745,11 @@ class TestProperty12DiagnosticSummaryConsistency:
         validator = MockValidator(result=lean_result)
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -755,7 +799,11 @@ class TestProperty15ConcurrentExecutionSafety:
         validator = MockValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -818,7 +866,11 @@ class TestProperty15ConcurrentExecutionSafety:
         validator = MockValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(file_path=file_path)
@@ -904,7 +956,11 @@ class TestProperty15ConcurrentExecutionSafety:
         validator = SlowMockValidator()
         workspace_provider = MockWorkspaceProvider()
         artifact_store = MockArtifactStore()
-        handler = VerifyCommandHandler(validator=validator, workspace_provider=workspace_provider, artifact_store=artifact_store)
+        handler = VerifyCommandHandler(
+            validator=validator,
+            workspace_provider=workspace_provider,
+            artifact_store=artifact_store,
+        )
 
         try:
             cmd = VerifyCommand(file_path=file_path)

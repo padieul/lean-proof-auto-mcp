@@ -14,14 +14,14 @@ Tier Selection (domain-based, not index-based):
 - Normal: All 23 fixture files (~30 min)
 """
 
-import pytest
 import time
 
-from fixtures import FixtureFile, ALL_FIXTURE_FILES, SMOKE_FIXTURES, QUICK_FIXTURES
+import pytest
+from eval_logger import EvalLogger
 from mcp_client import MCPClient
 from result_collector import ResultCollector
-from eval_logger import EvalLogger
 
+from fixtures import ALL_FIXTURE_FILES, QUICK_FIXTURES, SMOKE_FIXTURES, FixtureFile
 
 pytestmark = [pytest.mark.eval_normal]
 
@@ -141,9 +141,7 @@ def _assert_verify_response_structure(response: dict) -> None:
     api_version, status, run_id, file, diagnostics, diagnostic_summary, timing.
     """
     # Must have the core status field
-    assert "status" in response, (
-        f"Response missing 'status' field. Keys: {list(response.keys())}"
-    )
+    assert "status" in response, f"Response missing 'status' field. Keys: {list(response.keys())}"
     assert response["status"] in ("success", "fail", "timeout", "error"), (
         f"Invalid status: {response['status']}"
     )
@@ -170,9 +168,7 @@ class TestVerifySmoke:
     """Smoke tier: Totient fixtures only. Should complete in < 2 minutes."""
 
     @pytest.mark.eval_smoke
-    @pytest.mark.parametrize(
-        "fixture_file", SMOKE_FIXTURES, ids=lambda f: f.relative_path
-    )
+    @pytest.mark.parametrize("fixture_file", SMOKE_FIXTURES, ids=lambda f: f.relative_path)
     def test_verify_smoke(
         self,
         mcp_client: MCPClient,
@@ -183,8 +179,12 @@ class TestVerifySmoke:
         _skip_if_no_fixtures(SMOKE_FIXTURES, "smoke")
         idx = SMOKE_FIXTURES.index(fixture_file)
         response = _run_verify_and_record(
-            mcp_client, fixture_file, result_collector,
-            logger=eval_logger, index=idx + 1, total=len(SMOKE_FIXTURES),
+            mcp_client,
+            fixture_file,
+            result_collector,
+            logger=eval_logger,
+            index=idx + 1,
+            total=len(SMOKE_FIXTURES),
         )
         _assert_verify_response_structure(response)
 
@@ -193,9 +193,7 @@ class TestVerifyQuick:
     """Quick tier: Data + Group domain fixtures. Should complete in < 10 minutes."""
 
     @pytest.mark.eval_quick
-    @pytest.mark.parametrize(
-        "fixture_file", QUICK_FIXTURES, ids=lambda f: f.relative_path
-    )
+    @pytest.mark.parametrize("fixture_file", QUICK_FIXTURES, ids=lambda f: f.relative_path)
     def test_verify_quick(
         self,
         mcp_client: MCPClient,
@@ -206,8 +204,12 @@ class TestVerifyQuick:
         _skip_if_no_fixtures(QUICK_FIXTURES, "quick")
         idx = QUICK_FIXTURES.index(fixture_file)
         response = _run_verify_and_record(
-            mcp_client, fixture_file, result_collector,
-            logger=eval_logger, index=idx + 1, total=len(QUICK_FIXTURES),
+            mcp_client,
+            fixture_file,
+            result_collector,
+            logger=eval_logger,
+            index=idx + 1,
+            total=len(QUICK_FIXTURES),
         )
         _assert_verify_response_structure(response)
 
@@ -216,9 +218,7 @@ class TestVerifyNormal:
     """Normal tier: All 23 fixture files. Should complete in < 30 minutes."""
 
     @pytest.mark.eval_normal
-    @pytest.mark.parametrize(
-        "fixture_file", ALL_FIXTURE_FILES, ids=lambda f: f.relative_path
-    )
+    @pytest.mark.parametrize("fixture_file", ALL_FIXTURE_FILES, ids=lambda f: f.relative_path)
     def test_verify_normal(
         self,
         mcp_client: MCPClient,
@@ -229,7 +229,11 @@ class TestVerifyNormal:
         _skip_if_no_fixtures(ALL_FIXTURE_FILES, "normal")
         idx = ALL_FIXTURE_FILES.index(fixture_file)
         response = _run_verify_and_record(
-            mcp_client, fixture_file, result_collector,
-            logger=eval_logger, index=idx + 1, total=len(ALL_FIXTURE_FILES),
+            mcp_client,
+            fixture_file,
+            result_collector,
+            logger=eval_logger,
+            index=idx + 1,
+            total=len(ALL_FIXTURE_FILES),
         )
         _assert_verify_response_structure(response)

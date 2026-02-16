@@ -118,7 +118,7 @@ class SearchAutomatedProofHandler:
     ):
         self.metadata_collector = metadata_collector
         # ...
-    
+
     def _build_metadata(self) -> dict[str, str]:
         """Build metadata section with version information."""
         if self.metadata_collector is None:
@@ -164,17 +164,17 @@ from typing import Protocol
 
 class MetadataCollector(Protocol):
     """Port for collecting environment metadata."""
-    
+
     def collect_version_info(self) -> dict[str, str]:
         """
         Collect version metadata from the environment.
-        
+
         Returns:
             Dictionary with optional keys:
             - repo_commit: Git commit hash (if in a git repository)
             - lean_version: Lean version string (if lean is available)
             - lake_version: Lake version string (if lake is available)
-        
+
         Note:
             This method never raises exceptions. If a tool is not
             available or a command fails, the corresponding key is
@@ -242,11 +242,11 @@ class LeanInteractQuerier(Protocol):
     def extract_declarations(self, file_path: str) -> list[Declaration]:
         """Extract all declarations from a file using FileCommand(declarations=True)."""
         ...
-    
+
     def get_proof_references(self, file_path: str, theorem_id: str) -> list[str]:
         """Extract lemma references from a proof using value.constants + text parsing."""
         ...
-    
+
     def get_theorem_context(self, file_path: str, theorem_id: str) -> TheoremContext:
         """Get full context for a theorem including scope and hypotheses."""
         ...
@@ -281,7 +281,7 @@ class ProofStateInspector(Protocol):
     def get_initial_proof_state(self, theorem: Declaration) -> ProofState:
         """Get initial proof state using Command with sorry."""
         ...
-    
+
     def apply_tactic(self, proof_state_id: int, tactic: str) -> TacticResult:
         """Apply a tactic using ProofStep."""
         ...
@@ -308,8 +308,8 @@ class ValidationResult:
 
 class ProofValidator(Protocol):
     def validate_proof(
-        self, 
-        theorem_statement: str, 
+        self,
+        theorem_statement: str,
         proof_attempt: str,
         timeout_s: float = 10.0
     ) -> ValidationResult:
@@ -333,11 +333,11 @@ class ServerManager(Protocol):
     def get_server(self, file_path: str) -> LeanInteractServer:
         """Get or create server instance for file."""
         ...
-    
+
     def restart_server(self, file_path: str) -> None:
         """Restart crashed server."""
         ...
-    
+
     def shutdown_all(self) -> None:
         """Shutdown all server instances."""
         ...
@@ -367,7 +367,7 @@ class Candidate:
 class CandidateGenerator:
     def __init__(self, querier: LeanInteractQuerier):
         self.querier = querier
-    
+
     def generate_candidates(
         self,
         file_path: str,
@@ -413,7 +413,7 @@ class SimilarProof:
 class ContextExtractor:
     def __init__(self, querier: LeanInteractQuerier):
         self.querier = querier
-    
+
     def extract_context(
         self,
         file_path: str,
@@ -504,7 +504,7 @@ class SearchOrchestrator:
         self.feedback_builder = feedback_builder
         self.validator = validator
         self.metadata_collector = metadata_collector
-    
+
     def search(
         self,
         file_path: str,
@@ -513,7 +513,7 @@ class SearchOrchestrator:
     ) -> SearchResult:
         """Execute search with given configuration."""
         ...
-    
+
     def _build_metadata(self) -> dict[str, str]:
         """Build metadata section with version information."""
         if self.metadata_collector is None:
@@ -546,7 +546,7 @@ def search_automated_proof(
     max_candidates: int = 50,
     candidate_sources: list[str] = [
         "goal_symbols",
-        "local_context", 
+        "local_context",
         "same_namespace",
         "original_proof_refs"
     ],
@@ -629,11 +629,11 @@ class Declaration:
     attributes: list[str]  # [simp], [instance], etc.
     range: Range  # Position in file
     namespace: str  # Current namespace
-    
+
     @property
     def is_theorem(self) -> bool:
         return "theorem" in self.type or "lemma" in self.type
-    
+
     @property
     def has_simp_attribute(self) -> bool:
         return "simp" in self.attributes
@@ -648,7 +648,7 @@ class DeclValue:
     pp: str  # Pretty-printed text
     constants: list[str]  # Constants/lemmas referenced
     range: Range  # Position in file
-    
+
     def get_all_references(self) -> list[str]:
         """Get all references (constants + parsed from pp)."""
         # Primary: use constants list
@@ -668,7 +668,7 @@ class ProofState:
     hypotheses: list[str]  # Available hypotheses
     type_context: str  # Type context
     goals_remaining: int  # Number of goals left
-    
+
     def complexity_score(self) -> float:
         """Estimate goal complexity (higher = more complex)."""
         # Based on goal length, nesting depth, etc.
@@ -686,7 +686,7 @@ class Candidate:
     source: str  # Where it came from
     rank: float  # Relevance score (higher = more relevant)
     declaration: Declaration | None  # Full declaration if available
-    
+
     def to_hint_annotation(self) -> str:
         """Convert to Lean hint annotation."""
         return f"{self.hint_type} {self.name}"
@@ -765,7 +765,7 @@ class SearchConfig:
     return_context: bool
     return_similar_proofs: bool
     return_search_trace: bool
-    
+
     @staticmethod
     def from_depth(depth: str) -> "SearchConfig":
         """Create config from depth preset."""

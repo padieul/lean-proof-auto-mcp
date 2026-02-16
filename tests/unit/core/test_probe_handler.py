@@ -56,7 +56,14 @@ class TestProbeCommandHandler:
         return Mock()
 
     @pytest.fixture
-    def handler(self, mock_validator, mock_querier, mock_workspace_provider, mock_classifier, mock_harness_constructor):
+    def handler(
+        self,
+        mock_validator,
+        mock_querier,
+        mock_workspace_provider,
+        mock_classifier,
+        mock_harness_constructor,
+    ):
         """Create ProbeCommandHandler with mocked dependencies."""
         return ProbeCommandHandler(
             validator=mock_validator,
@@ -67,7 +74,12 @@ class TestProbeCommandHandler:
         )
 
     def test_successful_probe_execution(
-        self, handler, mock_validator, mock_workspace_provider, mock_classifier, mock_harness_constructor
+        self,
+        handler,
+        mock_validator,
+        mock_workspace_provider,
+        mock_classifier,
+        mock_harness_constructor,
     ):
         """Test successful probe execution with mocked dependencies."""
         # Setup
@@ -80,6 +92,7 @@ class TestProbeCommandHandler:
 
         # Mock harness construction
         from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
         mock_harness_constructor.construct.return_value = HarnessSuccess(
             code="-- harness code",
             theorem_id="MyTheorem",
@@ -143,7 +156,9 @@ class TestProbeCommandHandler:
         # Verify cleanup was not called (workspace was never created)
         mock_workspace_provider.cleanup_workspace.assert_not_called()
 
-    def test_theorem_not_found_error(self, handler, mock_validator, mock_workspace_provider, mock_harness_constructor):
+    def test_theorem_not_found_error(
+        self, handler, mock_validator, mock_workspace_provider, mock_harness_constructor
+    ):
         """Test error handling for theorem not found."""
         # Setup
         cmd = ProbeCommand(
@@ -155,6 +170,7 @@ class TestProbeCommandHandler:
 
         # Mock harness construction failure
         from lean_proof_auto_mcp.core.harness_construction import HarnessError
+
         mock_harness_constructor.construct.return_value = HarnessError(
             error_type="theorem_not_found",
             message="Theorem 'NonExistentTheorem' not found",
@@ -174,7 +190,9 @@ class TestProbeCommandHandler:
         # Verify cleanup was called
         mock_workspace_provider.cleanup_workspace.assert_called_once()
 
-    def test_toolchain_error_handling(self, handler, mock_validator, mock_workspace_provider, mock_harness_constructor):
+    def test_toolchain_error_handling(
+        self, handler, mock_validator, mock_workspace_provider, mock_harness_constructor
+    ):
         """Test error handling for toolchain failures."""
         # Setup
         cmd = ProbeCommand(
@@ -186,6 +204,7 @@ class TestProbeCommandHandler:
 
         # Mock harness construction
         from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
         mock_harness_constructor.construct.return_value = HarnessSuccess(
             code="-- harness code",
             theorem_id="MyTheorem",
@@ -212,7 +231,9 @@ class TestProbeCommandHandler:
         # Verify cleanup was called
         mock_workspace_provider.cleanup_workspace.assert_called_once()
 
-    def test_timeout_handling(self, handler, mock_validator, mock_workspace_provider, mock_harness_constructor):
+    def test_timeout_handling(
+        self, handler, mock_validator, mock_workspace_provider, mock_harness_constructor
+    ):
         """Test timeout handling."""
         # Setup
         cmd = ProbeCommand(
@@ -224,6 +245,7 @@ class TestProbeCommandHandler:
 
         # Mock harness construction
         from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
         mock_harness_constructor.construct.return_value = HarnessSuccess(
             code="-- harness code",
             theorem_id="MyTheorem",
@@ -263,6 +285,7 @@ class TestProbeCommandHandler:
 
         # Mock harness construction
         from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
         mock_harness_constructor.construct.return_value = HarnessSuccess(
             code="-- harness code",
             theorem_id="MyTheorem",
@@ -292,6 +315,7 @@ class TestProbeCommandHandler:
 
         # Mock harness construction
         from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
         mock_harness_constructor.construct.return_value = HarnessSuccess(
             code="-- harness code",
             theorem_id="MyTheorem",
@@ -388,7 +412,12 @@ class TestProbeCommandHandler:
         assert normalized[2]["location"] is None
 
     def test_classification_integration(
-        self, handler, mock_validator, mock_workspace_provider, mock_classifier, mock_harness_constructor
+        self,
+        handler,
+        mock_validator,
+        mock_workspace_provider,
+        mock_classifier,
+        mock_harness_constructor,
     ):
         """Test that classification is called with correct parameters."""
         # Setup
@@ -401,6 +430,7 @@ class TestProbeCommandHandler:
 
         # Mock harness construction
         from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
         mock_harness_constructor.construct.return_value = HarnessSuccess(
             code="-- harness code",
             theorem_id="MyTheorem",

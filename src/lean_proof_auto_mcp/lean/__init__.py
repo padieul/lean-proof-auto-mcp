@@ -33,86 +33,41 @@ Components:
 - server_manager: Server lifecycle management
 """
 
-
-
 from .ports import (
-
-
     Declaration,
-
-
     DeclValue,
-
-
-    Querier,
-
-
     ProofState,
-
-
     ProofStateInspector,
-
-
     ProofValidator,
-
-
+    Querier,
     Range,
-
-
     ServerManager,
-
-
     TacticResult,
-
-
     TheoremContext,
-
-
     ValidationResult,
-
-
 )
-
-
 from .proof_state import LeanInteractProofStateInspector
-
-
 from .querier import LeanInteractQuerier
-
-
-from .server_manager import LeanInteractServerManager, get_shared_server_manager, shutdown_all_shared_managers
-
-
+from .server_manager import (
+    LeanInteractServerManager,
+    get_shared_server_manager,
+    shutdown_all_shared_managers,
+)
 from .validator import LeanInteractProofValidator
 
-
-
 __all__ = [
-
     # Ports (protocols)
-
     "Declaration",
-
     "DeclValue",
-
     "Querier",
-
     "ProofState",
-
     "ProofStateInspector",
-
     "ProofValidator",
-
     "Range",
-
     "ServerManager",
-
     "TacticResult",
-
     "TheoremContext",
-
     "ValidationResult",
-
     # Implementations
     "LeanInteractQuerier",
     "LeanInteractProofStateInspector",
@@ -121,5 +76,3 @@ __all__ = [
     "get_shared_server_manager",
     "shutdown_all_shared_managers",
 ]
-
-

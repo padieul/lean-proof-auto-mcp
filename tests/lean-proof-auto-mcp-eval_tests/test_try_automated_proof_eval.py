@@ -1,4 +1,4 @@
-﻿"""Tests for try_automated_proof tool evaluation.
+"""Tests for try_automated_proof tool evaluation.
 
 This module tests the try_automated_proof tool on selected theorems from
 each mathematical domain in the evaluation repository. Tests are organized
@@ -23,16 +23,16 @@ Golden Proof Round-Trip Strategy:
 - Validates the full harness construction + splice pipeline end-to-end
 """
 
-import pytest
 import time
 from dataclasses import dataclass
 from typing import Any
 
-from fixtures import FixtureFile, ALL_FIXTURE_FILES
+import pytest
+from eval_logger import EvalLogger
 from mcp_client import MCPClient
 from result_collector import ResultCollector
-from eval_logger import EvalLogger
 
+from fixtures import ALL_FIXTURE_FILES, FixtureFile
 
 pytestmark = [pytest.mark.eval_normal]
 
@@ -49,23 +49,22 @@ TRY_AUTOMATED_PROOF_CASES: list[tuple[str, str, str]] = [
     (r"Algebra\Group\Defs.lean", "mul_left_cancel", "simp"),
     (r"Algebra\Module\Defs.lean", "add_smul", "simp"),
     (r"Algebra\Polynomial\Basic.lean", "Polynomial.coeff_zero", "simp"),
-
     # Analysis domain (2 files)
     (r"Analysis\Calculus\Deriv\Basic.lean", "deriv_const", "simp"),
     (r"Analysis\Calculus\Deriv\MeanValue.lean", "exists_hasDerivAt_eq_slope", "simp"),
-
     # Data domain (2 files)
     (r"Data\Int\GCD.lean", "Int.gcd_def", "rfl"),
     (r"Data\Nat\Totient.lean", "Nat.totient_one", "rfl"),
-
     # GroupTheory domain (4 files)
     (r"GroupTheory\GroupAction\Basic.lean", "MulAction.orbit_eq_univ", "simp"),
     (r"GroupTheory\QuotientGroup\Defs.lean", "QuotientGroup.coe_mk'", "rfl"),
-
     # LinearAlgebra domain (4 files)
-    (r"LinearAlgebra\LinearIndependent\Defs.lean", "linearIndependent_iff_injective_finsuppLinearCombination", "rfl"),
+    (
+        r"LinearAlgebra\LinearIndependent\Defs.lean",
+        "linearIndependent_iff_injective_finsuppLinearCombination",
+        "rfl",
+    ),
     (r"LinearAlgebra\Matrix\Determinant\Basic.lean", "Matrix.det_apply", "simp"),
-
     # RingTheory domain (3 files)
     (r"RingTheory\Ideal\Defs.lean", "Ideal.mul_mem_left", "simp"),
     (r"RingTheory\Ideal\Quotient\Operations.lean", "RingHom.kerLift_mk", "simp"),
@@ -79,7 +78,7 @@ def _skip_if_no_cases() -> None:
 
 
 def _check_try_automated_proof_response_structure(
-    response: dict[str, Any]
+    response: dict[str, Any],
 ) -> tuple[bool, list[str]]:
     """Check try_automated_proof response structure without raising.
 
@@ -106,8 +105,15 @@ def _check_try_automated_proof_response_structure(
             failures.append(f"Missing '{key}'")
 
     # Validate flat result fields (no try_result wrapper)
-    for key in ("validation_status", "error_message", "error_location",
-                "proof_state", "suggestions", "metadata", "timing"):
+    for key in (
+        "validation_status",
+        "error_message",
+        "error_location",
+        "proof_state",
+        "suggestions",
+        "metadata",
+        "timing",
+    ):
         if key not in response:
             failures.append(f"Missing '{key}'")
 
@@ -278,10 +284,7 @@ class TestTryAutomatedProofNormal:
         # Build test cases from validation cases
         test_cases = []
         for relative_path, theorem_id, proof_script in TRY_AUTOMATED_PROOF_CASES:
-            fixture = next(
-                (f for f in ALL_FIXTURE_FILES if f.relative_path == relative_path),
-                None
-            )
+            fixture = next((f for f in ALL_FIXTURE_FILES if f.relative_path == relative_path), None)
             if fixture:
                 test_cases.append((fixture, theorem_id, proof_script))
 
@@ -341,9 +344,10 @@ GOLDEN_PROOF_CASES: list[tuple[str, str]] = [
 @dataclass(frozen=True)
 class GoldenProofResult:
     """Result of extracting a golden proof from a theorem."""
+
     theorem_id: str
-    value_pp: str          # Pretty-printed proof (from get_proof_context)
-    raw_source: str        # Raw source text at value range
+    value_pp: str  # Pretty-printed proof (from get_proof_context)
+    raw_source: str  # Raw source text at value range
     raw_source_error: str  # Non-empty if raw range extraction failed/skipped
     extraction_error: str  # Non-empty if extraction failed
 
@@ -502,6 +506,7 @@ def _extract_raw_source_proof(
             logger.log_info(f"golden_proof: raw source extraction failed: {e}")
         return ("", f"raw source extraction failed: {e}")
 
+
 class TestGoldenProofRoundTrip:
     """Golden proof round-trip tests: feed original proof back, expect success.
 
@@ -549,15 +554,17 @@ class TestGoldenProofRoundTrip:
 
             if golden.extraction_error:
                 eval_logger.log_info(f"golden_proof: SKIP â€” {golden.extraction_error}")
-                results.append({
-                    "file": relative_path,
-                    "theorem_id": theorem_id,
-                    "source": "value_pp",
-                    "status": "skip",
-                    "passed": False,
-                    "failures": [golden.extraction_error],
-                    "elapsed_s": 0.0,
-                })
+                results.append(
+                    {
+                        "file": relative_path,
+                        "theorem_id": theorem_id,
+                        "source": "value_pp",
+                        "status": "skip",
+                        "passed": False,
+                        "failures": [golden.extraction_error],
+                        "elapsed_s": 0.0,
+                    }
+                )
                 continue
 
             # Phase 2: Feed value.pp back through try_automated_proof
@@ -582,31 +589,35 @@ class TestGoldenProofRoundTrip:
                     f"got status={status}: {str(error_msg)[:200]}"
                 )
 
-            eval_logger.log_info(f"golden_proof: value_pp round-trip status={status}, passed={passed}")
+            eval_logger.log_info(
+                f"golden_proof: value_pp round-trip status={status}, passed={passed}"
+            )
 
-            results.append({
-                "file": relative_path,
-                "theorem_id": theorem_id,
-                "source": "value_pp",
-                "status": status,
-                "passed": passed,
-                "failures": failures,
-                "elapsed_s": response.get("timing", {}).get("total_s", 0.0),
-            })
+            results.append(
+                {
+                    "file": relative_path,
+                    "theorem_id": theorem_id,
+                    "source": "value_pp",
+                    "status": status,
+                    "passed": passed,
+                    "failures": failures,
+                    "elapsed_s": response.get("timing", {}).get("total_s", 0.0),
+                }
+            )
 
         eval_logger.log_summary(results)
 
         # Assert: at least one golden proof must succeed for the test to be meaningful
         successes = [r for r in results if r["passed"]]
         non_skipped = [r for r in results if r["status"] != "skip"]
-        assert len(non_skipped) > 0, "All golden proof cases were skipped (context extraction failed)"
+        assert len(non_skipped) > 0, (
+            "All golden proof cases were skipped (context extraction failed)"
+        )
         # Log failures but don't hard-fail the whole test â€” individual failures
         # indicate specific harness/splice bugs worth investigating
         for r in results:
             if not r["passed"] and r["status"] != "skip":
-                eval_logger.log_info(
-                    f"golden_proof: FAILURE {r['theorem_id']} â€” {r['failures']}"
-                )
+                eval_logger.log_info(f"golden_proof: FAILURE {r['theorem_id']} â€” {r['failures']}")
 
     @pytest.mark.eval_normal
     def test_golden_proof_raw_source(
@@ -643,15 +654,17 @@ class TestGoldenProofRoundTrip:
 
             if golden.extraction_error:
                 eval_logger.log_info(f"golden_proof: SKIP â€” {golden.extraction_error}")
-                results.append({
-                    "file": relative_path,
-                    "theorem_id": theorem_id,
-                    "source": "raw_source",
-                    "status": "skip",
-                    "passed": False,
-                    "failures": [golden.extraction_error],
-                    "elapsed_s": 0.0,
-                })
+                results.append(
+                    {
+                        "file": relative_path,
+                        "theorem_id": theorem_id,
+                        "source": "raw_source",
+                        "status": "skip",
+                        "passed": False,
+                        "failures": [golden.extraction_error],
+                        "elapsed_s": 0.0,
+                    }
+                )
                 continue
 
             if not golden.raw_source:
@@ -660,15 +673,17 @@ class TestGoldenProofRoundTrip:
                     f"golden_proof: SKIP raw_source - {reason} "
                     f"(value.pp available: {bool(golden.value_pp)})"
                 )
-                results.append({
-                    "file": relative_path,
-                    "theorem_id": theorem_id,
-                    "source": "raw_source",
-                    "status": "skip",
-                    "passed": False,
-                    "failures": [reason],
-                    "elapsed_s": 0.0,
-                })
+                results.append(
+                    {
+                        "file": relative_path,
+                        "theorem_id": theorem_id,
+                        "source": "raw_source",
+                        "status": "skip",
+                        "passed": False,
+                        "failures": [reason],
+                        "elapsed_s": 0.0,
+                    }
+                )
                 continue
 
             # Phase 2: Feed raw source back through try_automated_proof
@@ -693,27 +708,30 @@ class TestGoldenProofRoundTrip:
                     f"got status={status}: {str(error_msg)[:200]}"
                 )
 
-            eval_logger.log_info(f"golden_proof: raw_source round-trip status={status}, passed={passed}")
+            eval_logger.log_info(
+                f"golden_proof: raw_source round-trip status={status}, passed={passed}"
+            )
 
-            results.append({
-                "file": relative_path,
-                "theorem_id": theorem_id,
-                "source": "raw_source",
-                "status": status,
-                "passed": passed,
-                "failures": failures,
-                "elapsed_s": response.get("timing", {}).get("total_s", 0.0),
-            })
+            results.append(
+                {
+                    "file": relative_path,
+                    "theorem_id": theorem_id,
+                    "source": "raw_source",
+                    "status": status,
+                    "passed": passed,
+                    "failures": failures,
+                    "elapsed_s": response.get("timing", {}).get("total_s", 0.0),
+                }
+            )
 
         eval_logger.log_summary(results)
 
         # Same assertion strategy as value_pp test
         successes = [r for r in results if r["passed"]]
         non_skipped = [r for r in results if r["status"] != "skip"]
-        assert len(non_skipped) > 0, "All golden proof cases were skipped (raw source extraction failed)"
+        assert len(non_skipped) > 0, (
+            "All golden proof cases were skipped (raw source extraction failed)"
+        )
         for r in results:
             if not r["passed"] and r["status"] != "skip":
-                eval_logger.log_info(
-                    f"golden_proof: FAILURE {r['theorem_id']} â€” {r['failures']}"
-                )
-
+                eval_logger.log_info(f"golden_proof: FAILURE {r['theorem_id']} â€” {r['failures']}")

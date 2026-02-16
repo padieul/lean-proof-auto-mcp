@@ -1,272 +1,240 @@
 """
-Unit tests for caching infrastructure in ImportBasedHarnessConstructor.
+Unit tests for the querier-level caching pattern.
 
-Tests verify:
-- File content caching
-- Declaration extraction caching
-- Theorem verification caching
-- Cache clearing
+With the migration to RangeBasedHarnessConstructor, caching moved from the
+constructor (which is now pure/stateless) to the Querier. These tests verify:
+- RangeBasedHarnessConstructor determinism (stateless, same input → same output)
+- Caller-side caching pattern (shared file_content across theorems)
 """
-
-from unittest.mock import Mock, call
-
-import pytest
 
 from lean_proof_auto_mcp.core.harness_construction import (
     HarnessConfig,
     HarnessSuccess,
-    ImportBasedHarnessConstructor,
-    TheoremType,
+    RangeBasedHarnessConstructor,
 )
+from lean_proof_auto_mcp.lean.ports import Declaration, DeclValue, Range
 
 
-class TestImportBasedHarnessConstructorCaching:
-    """Test caching infrastructure in ImportBasedHarnessConstructor."""
+def _decl(
+    name: str,
+    full_name: str = "",
+    kind: str = "theorem",
+    start_line: int = 1,
+    end_line: int = 2,
+    value_start: int = 1,
+    value_start_col: int = 22,
+    value_end: int = 2,
+    value_end_col: int = 8,
+) -> Declaration:
+    """Create a Declaration with minimal boilerplate."""
+    if not full_name:
+        full_name = name
+    return Declaration(
+        name=name,
+        full_name=full_name,
+        type="True",
+        value=DeclValue(
+            pp="sorry",
+            constants=[],
+            range=Range(value_start, value_start_col, value_end, value_end_col),
+        ),
+        attributes=[],
+        range=Range(start_line, 0, end_line, 0),
+        namespace="",
+        kind=kind,
+    )
 
-    def test_declaration_cache_hit(self, tmp_path):
-        """Test that declaration extraction is cached."""
-        # Create a test file
-        test_file = tmp_path / "test.lean"
-        test_file.write_text("""import Mathlib
 
-theorem test : True := by trivial
-""", encoding="utf-8")
+class TestRangeBasedHarnessConstructorStatelessness:
+    """Verify RangeBasedHarnessConstructor is stateless and deterministic."""
 
-        # Setup mocks
-        mock_querier = Mock()
-        mock_server_manager = Mock()
-        mock_server_manager.workspace_path = tmp_path
-        mock_querier.server_manager = mock_server_manager
+    def test_same_input_same_output(self):
+        """Identical configs produce identical results — no hidden state."""
+        constructor = RangeBasedHarnessConstructor()
 
-        mock_decl = Mock()
-        mock_decl.name = "test"
-        mock_decl.full_name = "test"
-        mock_querier.extract_declarations.return_value = [mock_decl]
+        file_content = "import Mathlib\n\ntheorem test : True := by\n  trivial\n"
+        declarations = [
+            _decl(
+                "test",
+                start_line=3,
+                end_line=4,
+                value_start=3,
+                value_start_col=23,
+                value_end=4,
+                value_end_col=9,
+            )
+        ]
 
-        type_extractor = Mock()
-        type_extractor.querier = mock_querier
-        type_extractor.extract_type.return_value = TheoremType(
-            type_expr="FULL_FILE:test", source="test"
-        )
-
-        path_converter = Mock()
-
-        constructor = ImportBasedHarnessConstructor(
-            type_extractor=type_extractor, path_converter=path_converter
-        )
-
-        # First call - should call extract_type
-        config1 = HarnessConfig(
-            theorem_id="test", file_path="test.lean", proof_attempt="trivial"
-        )
-        result1 = constructor.construct(config1)
-        assert isinstance(result1, HarnessSuccess)
-        assert type_extractor.extract_type.call_count == 1
-
-        # Second call with same file and theorem - should use cache
-        config2 = HarnessConfig(
-            theorem_id="test", file_path="test.lean", proof_attempt="aesop"
-        )
-        result2 = constructor.construct(config2)
-        assert isinstance(result2, HarnessSuccess)
-        # Should still be 1 - cache hit
-        assert type_extractor.extract_type.call_count == 1
-
-    def test_file_cache_hit(self, tmp_path):
-        """Test that file content is cached."""
-        # Create a test file
-        test_file = tmp_path / "test.lean"
-        test_file.write_text("""import Mathlib
-
-theorem test1 : True := by trivial
-
-theorem test2 : True := by trivial
-""", encoding="utf-8")
-
-        # Setup mocks
-        mock_querier = Mock()
-        mock_server_manager = Mock()
-        mock_server_manager.workspace_path = tmp_path
-        mock_querier.server_manager = mock_server_manager
-
-        type_extractor = Mock()
-        type_extractor.querier = mock_querier
-
-        # Return different theorem types for different theorems
-        def extract_type_side_effect(file_path, theorem_id):
-            return TheoremType(type_expr=f"FULL_FILE:{theorem_id}", source="test")
-
-        type_extractor.extract_type.side_effect = extract_type_side_effect
-
-        path_converter = Mock()
-
-        constructor = ImportBasedHarnessConstructor(
-            type_extractor=type_extractor, path_converter=path_converter
-        )
-
-        # First call - should read file
-        config1 = HarnessConfig(
-            theorem_id="test1", file_path="test.lean", proof_attempt="trivial"
-        )
-        result1 = constructor.construct(config1)
-        assert isinstance(result1, HarnessSuccess)
-
-        # Check that file was read (cache populated)
-        file_path_str = str(tmp_path / "test.lean")
-        assert file_path_str in constructor._file_cache
-
-        # Second call with different theorem but same file - should use cached file
-        config2 = HarnessConfig(
-            theorem_id="test2", file_path="test.lean", proof_attempt="aesop"
-        )
-        result2 = constructor.construct(config2)
-        assert isinstance(result2, HarnessSuccess)
-
-        # Verify cache was used (same file content)
-        assert constructor._file_cache[file_path_str] == test_file.read_text(encoding="utf-8")
-
-    def test_theorem_verified_cache(self, tmp_path):
-        """Test that theorem verification is cached."""
-        # Create a test file
-        test_file = tmp_path / "test.lean"
-        test_file.write_text("""import Mathlib
-
-theorem test : True := by trivial
-""", encoding="utf-8")
-
-        # Setup mocks
-        mock_querier = Mock()
-        mock_server_manager = Mock()
-        mock_server_manager.workspace_path = tmp_path
-        mock_querier.server_manager = mock_server_manager
-
-        type_extractor = Mock()
-        type_extractor.querier = mock_querier
-        type_extractor.extract_type.return_value = TheoremType(
-            type_expr="FULL_FILE:test", source="test"
-        )
-
-        path_converter = Mock()
-
-        constructor = ImportBasedHarnessConstructor(
-            type_extractor=type_extractor, path_converter=path_converter
-        )
-
-        # First call
         config = HarnessConfig(
-            theorem_id="test", file_path="test.lean", proof_attempt="trivial"
+            theorem_id="test",
+            file_path="test.lean",
+            proof_attempt="aesop",
+            file_content=file_content,
+            declarations=declarations,
         )
+
+        result1 = constructor.construct(config)
+        result2 = constructor.construct(config)
+
+        assert isinstance(result1, HarnessSuccess)
+        assert isinstance(result2, HarnessSuccess)
+        assert result1.code == result2.code
+
+    def test_different_proof_attempts_differ(self):
+        """Different proof attempts on same file produce different harnesses."""
+        constructor = RangeBasedHarnessConstructor()
+
+        file_content = "import Mathlib\n\ntheorem test : True := by\n  trivial\n"
+        declarations = [
+            _decl(
+                "test",
+                start_line=3,
+                end_line=4,
+                value_start=3,
+                value_start_col=23,
+                value_end=4,
+                value_end_col=9,
+            )
+        ]
+
+        config1 = HarnessConfig(
+            theorem_id="test", file_path="test.lean", proof_attempt="aesop",
+            file_content=file_content, declarations=declarations,
+        )
+        config2 = HarnessConfig(
+            theorem_id="test", file_path="test.lean", proof_attempt="grind",
+            file_content=file_content, declarations=declarations,
+        )
+
+        result1 = constructor.construct(config1)
+        result2 = constructor.construct(config2)
+
+        assert isinstance(result1, HarnessSuccess)
+        assert isinstance(result2, HarnessSuccess)
+        assert result1.code != result2.code
+        assert "aesop" in result1.code
+        assert "grind" in result2.code
+
+    def test_no_io_no_side_effects(self):
+        """Constructor works with in-memory data only — no filesystem access."""
+        constructor = RangeBasedHarnessConstructor()
+
+        file_content = "import Fake.Module\n\nlemma foo : 1 = 1 := by\n  rfl\n"
+        declarations = [
+            _decl(
+                "foo",
+                kind="lemma",
+                start_line=3,
+                end_line=4,
+                value_start=3,
+                value_start_col=21,
+                value_end=4,
+                value_end_col=5,
+            )
+        ]
+
+        config = HarnessConfig(
+            theorem_id="foo", file_path="nonexistent/path.lean", proof_attempt="omega",
+            file_content=file_content, declarations=declarations,
+        )
+
         result = constructor.construct(config)
         assert isinstance(result, HarnessSuccess)
+        assert "omega" in result.code
 
-        # Verify theorem verification was cached
-        cache_key = "test.lean::test"
-        assert cache_key in constructor._theorem_verified
-        assert constructor._theorem_verified[cache_key] is True
 
-    def test_clear_cache(self, tmp_path):
-        """Test that clear_cache empties all caches."""
-        # Create a test file
-        test_file = tmp_path / "test.lean"
-        test_file.write_text("""import Mathlib
+class TestCallerCachingPattern:
+    """Verify the caller-side caching pattern works correctly."""
 
-theorem test : True := by trivial
-""", encoding="utf-8")
+    def test_shared_file_content_across_theorems(self):
+        """Multiple theorems in same file share the same file_content string."""
+        constructor = RangeBasedHarnessConstructor()
 
-        # Setup mocks
-        mock_querier = Mock()
-        mock_server_manager = Mock()
-        mock_server_manager.workspace_path = tmp_path
-        mock_querier.server_manager = mock_server_manager
-
-        type_extractor = Mock()
-        type_extractor.querier = mock_querier
-        type_extractor.extract_type.return_value = TheoremType(
-            type_expr="FULL_FILE:test", source="test"
+        file_content = (
+            "import Mathlib\n\n"
+            "theorem t1 : True := by\n  trivial\n\n"
+            "theorem t2 : True := by\n  trivial\n"
         )
+        declarations = [
+            _decl(
+                "t1",
+                start_line=3,
+                end_line=4,
+                value_start=3,
+                value_start_col=21,
+                value_end=4,
+                value_end_col=9,
+            ),
+            _decl(
+                "t2",
+                start_line=6,
+                end_line=7,
+                value_start=6,
+                value_start_col=21,
+                value_end=7,
+                value_end_col=9,
+            ),
+        ]
 
-        path_converter = Mock()
-
-        constructor = ImportBasedHarnessConstructor(
-            type_extractor=type_extractor, path_converter=path_converter
-        )
-
-        # Populate caches
-        config = HarnessConfig(
-            theorem_id="test", file_path="test.lean", proof_attempt="trivial"
-        )
-        result = constructor.construct(config)
-        assert isinstance(result, HarnessSuccess)
-
-        # Verify caches are populated
-        assert len(constructor._file_cache) > 0
-        assert len(constructor._decl_cache) > 0
-        assert len(constructor._theorem_verified) > 0
-
-        # Clear caches
-        constructor.clear_cache()
-
-        # Verify all caches are empty
-        assert len(constructor._file_cache) == 0
-        assert len(constructor._decl_cache) == 0
-        assert len(constructor._theorem_verified) == 0
-
-    def test_cache_isolation_different_files(self, tmp_path):
-        """Test that caches are isolated for different files."""
-        # Create two test files
-        test_file1 = tmp_path / "test1.lean"
-        test_file1.write_text("""import Mathlib
-
-theorem test : True := by trivial
-""", encoding="utf-8")
-
-        test_file2 = tmp_path / "test2.lean"
-        test_file2.write_text("""import Mathlib
-
-theorem test : False ∨ True := by right; trivial
-""", encoding="utf-8")
-
-        # Setup mocks
-        mock_querier = Mock()
-        mock_server_manager = Mock()
-        mock_server_manager.workspace_path = tmp_path
-        mock_querier.server_manager = mock_server_manager
-
-        type_extractor = Mock()
-        type_extractor.querier = mock_querier
-
-        def extract_type_side_effect(file_path, theorem_id):
-            return TheoremType(type_expr=f"FULL_FILE:{theorem_id}", source=file_path)
-
-        type_extractor.extract_type.side_effect = extract_type_side_effect
-
-        path_converter = Mock()
-
-        constructor = ImportBasedHarnessConstructor(
-            type_extractor=type_extractor, path_converter=path_converter
-        )
-
-        # Construct from first file
         config1 = HarnessConfig(
-            theorem_id="test", file_path="test1.lean", proof_attempt="trivial"
+            theorem_id="t1", file_path="test.lean", proof_attempt="aesop",
+            file_content=file_content, declarations=declarations,
         )
-        result1 = constructor.construct(config1)
-        assert isinstance(result1, HarnessSuccess)
-
-        # Construct from second file
         config2 = HarnessConfig(
-            theorem_id="test", file_path="test2.lean", proof_attempt="aesop"
+            theorem_id="t2", file_path="test.lean", proof_attempt="aesop",
+            file_content=file_content, declarations=declarations,
         )
+
+        result1 = constructor.construct(config1)
         result2 = constructor.construct(config2)
+
+        assert isinstance(result1, HarnessSuccess)
         assert isinstance(result2, HarnessSuccess)
+        assert result1.code != result2.code
 
-        # Verify both files are cached separately
-        file1_path = str(tmp_path / "test1.lean")
-        file2_path = str(tmp_path / "test2.lean")
-        assert file1_path in constructor._file_cache
-        assert file2_path in constructor._file_cache
-        assert constructor._file_cache[file1_path] != constructor._file_cache[file2_path]
+    def test_different_files_isolated(self):
+        """Configs from different files produce independent harnesses."""
+        constructor = RangeBasedHarnessConstructor()
 
-        # Verify both theorems are cached separately
-        assert "test1.lean::test" in constructor._decl_cache
-        assert "test2.lean::test" in constructor._decl_cache
+        file1 = "import A\n\ntheorem t : True := by\n  trivial\n"
+        file2 = "import B\n\ntheorem t : False ∨ True := by\n  right; trivial\n"
+
+        decls1 = [
+            _decl(
+                "t",
+                start_line=3,
+                end_line=4,
+                value_start=3,
+                value_start_col=21,
+                value_end=4,
+                value_end_col=9,
+            )
+        ]
+        decls2 = [
+            _decl(
+                "t",
+                start_line=3,
+                end_line=4,
+                value_start=3,
+                value_start_col=28,
+                value_end=4,
+                value_end_col=16,
+            )
+        ]
+
+        config1 = HarnessConfig(
+            theorem_id="t", file_path="file1.lean", proof_attempt="aesop",
+            file_content=file1, declarations=decls1,
+        )
+        config2 = HarnessConfig(
+            theorem_id="t", file_path="file2.lean", proof_attempt="aesop",
+            file_content=file2, declarations=decls2,
+        )
+
+        result1 = constructor.construct(config1)
+        result2 = constructor.construct(config2)
+
+        assert isinstance(result1, HarnessSuccess)
+        assert isinstance(result2, HarnessSuccess)
+        assert "import A" in result1.code
+        assert "import B" in result2.code

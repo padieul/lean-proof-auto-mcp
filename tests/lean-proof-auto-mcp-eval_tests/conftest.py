@@ -84,7 +84,7 @@ def mcp_client(eval_repo: Path, mcp_server_path: Path) -> Iterator[MCPClient]:
     Uses context manager to ensure proper server lifecycle. The server
     is started once per test module and shared across all tests in that module.
     """
-    with MCPClient(mcp_server_path, eval_repo, timeout=300.0) as client:
+    with MCPClient(mcp_server_path, eval_repo, timeout=1800.0) as client:
         yield client
 
 

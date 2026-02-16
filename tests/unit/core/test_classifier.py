@@ -270,3 +270,65 @@ class TestHeuristicClassifier:
 
         # Verify: Case splits suggest some depth, but only 2 cases is still promising
         assert result == "promising"
+
+    # ========================================================================
+    # Partial Progress Tests (mixed diagnostics from real Lean output)
+    # ========================================================================
+
+    def test_promising_when_unsolved_goals_with_aesop_failure(self):
+        """Unsolved goals + aesop failure = promising, not failed.
+
+        Real Lean output contains both 'unsolved goals' (partial progress)
+        and 'aesop failed' messages. The partial progress signal should
+        take priority over the generic failure message.
+        """
+        outcome = "not_closed"
+        diagnostics = [
+            {"message": "declaration uses 'sorry'"},
+            {"message": "unsolved goals\ncase mp\nn : ℕ\na : Odd (φ n)\n⊢ n = 1 ∨ n = 2"},
+            {"message": "aesop: failed to prove the goal after exhaustive search."},
+        ]
+        timing = {"elapsed_ms": 2000.0}
+        budget_s = 30.0
+
+        result = self.classifier.classify(outcome, diagnostics, timing, budget_s)
+
+        assert result == "promising"
+
+    def test_failed_when_only_aesop_made_no_progress(self):
+        """Pure 'made no progress' with no unsolved goals = failed.
+
+        When aesop couldn't even start reducing the goal, there's no
+        partial progress to report.
+        """
+        outcome = "not_closed"
+        diagnostics = [
+            {"message": "declaration uses 'sorry'"},
+            {"message": "tactic 'aesop' failed, made no progress\nInitial goal:\n⊢ a ∣ 2"},
+        ]
+        timing = {"elapsed_ms": 1000.0}
+        budget_s = 30.0
+
+        result = self.classifier.classify(outcome, diagnostics, timing, budget_s)
+
+        assert result == "failed"
+
+    def test_promising_with_sorry_noise_and_unsolved_goals(self):
+        """Real-world scenario: many sorry warnings + one unsolved goals error.
+
+        The classifier should see through the sorry noise and detect the
+        partial progress signal.
+        """
+        outcome = "not_closed"
+        sorry_diags = [{"message": "declaration uses 'sorry'"} for _ in range(34)]
+        signal_diags = [
+            {"message": "unsolved goals\na_ne_zero : ¬a = 0\n⊢ #({x ∈ Ico k (k + n) | a.Coprime x}) ≤ φ a * (n / a + 1)"},
+            {"message": "aesop: failed to prove the goal after exhaustive search."},
+        ]
+        diagnostics = sorry_diags + signal_diags
+        timing = {"elapsed_ms": 54000.0}
+        budget_s = 30.0
+
+        result = self.classifier.classify(outcome, diagnostics, timing, budget_s)
+
+        assert result == "promising"

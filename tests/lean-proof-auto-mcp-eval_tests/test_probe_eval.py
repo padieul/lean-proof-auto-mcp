@@ -141,6 +141,16 @@ def _assert_probe_response_structure(response: dict[str, Any]) -> None:
         )
 
 
+_NOISE_PATTERNS = (
+    "declaration uses 'sorry'",
+)
+
+
+def _is_noise_diagnostic(message: str) -> bool:
+    """Return True if the diagnostic is background noise (e.g. sorry warnings)."""
+    return any(pattern in message for pattern in _NOISE_PATTERNS)
+
+
 def _log_probe_details(logger: EvalLogger, response: dict[str, Any]) -> None:
     """Log probe-specific response details.
 
@@ -161,12 +171,25 @@ def _log_probe_details(logger: EvalLogger, response: dict[str, Any]) -> None:
 
     diagnostics = response.get("diagnostics", [])
     if isinstance(diagnostics, list):
-        logger.log_info(f"diagnostics_count={len(diagnostics)}")
-        for i, d in enumerate(diagnostics[:3]):
-            if isinstance(d, dict):
-                sev = d.get("severity", "?")
-                msg = d.get("message", "")[:120]
-                logger.log_info(f"  diag[{i}]: {sev}: {msg}")
+        noise_count = 0
+        signal_diags: list[tuple[int, dict]] = []
+        for i, d in enumerate(diagnostics):
+            if not isinstance(d, dict):
+                continue
+            msg = d.get("message", "")
+            if _is_noise_diagnostic(msg):
+                noise_count += 1
+            else:
+                signal_diags.append((i, d))
+        logger.log_info(
+            f"diagnostics_count={len(diagnostics)} "
+            f"(signal={len(signal_diags)}, noise={noise_count})"
+        )
+        for i, d in signal_diags:
+            sev = d.get("severity", "?")
+            msg = d.get("message", "")
+            line = d.get("line", "?")
+            logger.log_info(f"  diag[{i}] L{line} {sev}: {msg}")
 
     timing = response.get("timing", {})
     if isinstance(timing, dict):

@@ -18,6 +18,17 @@ from lean_proof_auto_mcp.core.search_automated_proof_domain import (
     CandidateSource,
 )
 from lean_proof_auto_mcp.core.source import SourceText, Span
+from lean_proof_auto_mcp.lean.ports import Declaration, Range
+
+
+class _NullQuerier:
+    """Minimal querier stub for property tests — no I/O, returns empty data."""
+
+    def extract_declarations(self, file_path: str) -> list[Declaration]:
+        return []
+
+    def get_proof_references(self, file_path: str, theorem_id: str) -> list[str]:
+        return []
 
 # ============================================================================
 # Hypothesis Strategies
@@ -145,7 +156,7 @@ end TestNamespace
 """
 
     source, index, theorem_decl = create_simple_source_and_index(theorem_text)
-    generator = CandidateGenerator(source, index)
+    generator = CandidateGenerator(source, index, _NullQuerier())
 
     # Generate candidates
     candidates = generator.generate(theorem_decl, config.sources, config)
@@ -204,7 +215,7 @@ end Polynomial
 """
 
     source, index, theorem_decl = create_simple_source_and_index(theorem_text)
-    generator = CandidateGenerator(source, index)
+    generator = CandidateGenerator(source, index, _NullQuerier())
 
     # Execute: Generate candidates from all sources
     try:
@@ -278,7 +289,7 @@ end BigNamespace
 """
 
     source, index, theorem_decl = create_simple_source_and_index(theorem_text)
-    generator = CandidateGenerator(source, index)
+    generator = CandidateGenerator(source, index, _NullQuerier())
 
     # Select sources
     all_sources = list(CandidateSource)
@@ -333,7 +344,7 @@ end Test
 """
 
     source, index, theorem_decl = create_simple_source_and_index(theorem_text)
-    generator = CandidateGenerator(source, index)
+    generator = CandidateGenerator(source, index, _NullQuerier())
 
     # Use multiple sources
     sources = [
@@ -390,7 +401,7 @@ end Test
 """
 
     source, index, theorem_decl = create_simple_source_and_index(theorem_text)
-    generator = CandidateGenerator(source, index)
+    generator = CandidateGenerator(source, index, _NullQuerier())
 
     # Use proof refs source to get both candidates
     sources = [CandidateSource.ORIGINAL_PROOF_REFS]
@@ -438,7 +449,7 @@ end Test
 """
 
     source, index, theorem_decl = create_simple_source_and_index(theorem_text)
-    generator = CandidateGenerator(source, index)
+    generator = CandidateGenerator(source, index, _NullQuerier())
 
     # Execute: Generate candidates multiple times
     candidates1 = generator.generate(theorem_decl, config.sources, config)
@@ -475,7 +486,7 @@ end Test
 """
 
     source, index, theorem_decl = create_simple_source_and_index(theorem_text)
-    generator = CandidateGenerator(source, index)
+    generator = CandidateGenerator(source, index, _NullQuerier())
 
     # Execute: Generate candidates
     candidates = generator.generate(theorem_decl, config.sources, config)
@@ -517,7 +528,7 @@ end Test
 """
 
     source, index, theorem_decl = create_simple_source_and_index(theorem_text)
-    generator = CandidateGenerator(source, index)
+    generator = CandidateGenerator(source, index, _NullQuerier())
 
     # Use multiple sources including proof refs
     sources = [

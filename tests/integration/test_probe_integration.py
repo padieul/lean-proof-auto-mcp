@@ -275,12 +275,12 @@ class TestProbeIntegration:
             }
         )
 
-        # Verify error status
-        assert result["status"] == "error", f"Expected error but got {result['status']}"
+        # Verify fail status (theorem not found is expected non-success, not error)
+        assert result["status"] == "fail", f"Expected fail but got {result['status']}"
 
-        # Verify error classification
+        # Verify fail classification
         probe_result = result["probe_result"]
-        assert probe_result["classification"] == "error"
+        assert probe_result["classification"] == "failed"
 
         # Verify error diagnostics
         error_diagnostics = [d for d in result["diagnostics"] if d["severity"] == "error"]

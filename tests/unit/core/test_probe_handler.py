@@ -165,10 +165,10 @@ class TestProbeCommandHandler:
         # Execute
         result = handler.handle(cmd)
 
-        # Verify error result
-        assert result.status == "error"
-        assert result.probe_result.outcome == "error"
-        assert result.probe_result.classification == "error"
+        # Verify fail result (theorem not found is expected non-success, not error)
+        assert result.status == "fail"
+        assert result.probe_result.outcome == "not_closed"
+        assert result.probe_result.classification == "failed"
         assert "theorem_not_found" in result.diagnostics[0]["message"]
 
         # Verify cleanup was called

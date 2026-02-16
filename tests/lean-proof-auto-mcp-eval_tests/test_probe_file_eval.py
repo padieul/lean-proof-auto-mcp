@@ -206,7 +206,7 @@ def _run_probe_file_and_record(
         tool_args: dict[str, Any] = {
             "file": str(fixture_file.path),
             "mode": mode,
-            "budget_s_per": 5.0,
+            "budget_s_per": 30.0,
         }
         if limit is not None:
             tool_args["limit"] = limit

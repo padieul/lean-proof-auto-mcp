@@ -330,3 +330,50 @@ class TestValidatorImportBased:
             assert "theorem validation_theorem" in code
             assert "import" not in code
 
+    def test_validate_harness_code_executes_exact_input(self):
+        """Prebuilt harness path should execute exactly the provided code."""
+        mock_server_manager = Mock()
+        mock_server = Mock()
+        mock_server_manager.get_server.return_value = mock_server
+
+        mock_response = Mock()
+        mock_response.messages = []
+        mock_response.sorries = []
+        mock_response.goals = []
+        mock_server.run.return_value = mock_response
+
+        validator = LeanInteractProofValidator(server_manager=mock_server_manager)
+        harness_code = "import Test\n\nexample : True := by\n  trivial\n"
+
+        result = validator.validate_harness_code(
+            harness_code=harness_code,
+            timeout_s=10.0,
+            file_path="Test.lean",
+        )
+
+        assert result.status == "success"
+        assert mock_server.run.called
+        command = mock_server.run.call_args[0][0]
+        assert command.cmd == harness_code
+
+    def test_validate_harness_code_ignores_non_target_sorries(self):
+        """Prebuilt harness validation should not classify response.sorries as incomplete."""
+        mock_server_manager = Mock()
+        mock_server = Mock()
+        mock_server_manager.get_server.return_value = mock_server
+
+        mock_response = Mock()
+        mock_response.messages = []
+        mock_response.sorries = [Mock()]  # expected in harness for non-target decls
+        mock_response.goals = []
+        mock_server.run.return_value = mock_response
+
+        validator = LeanInteractProofValidator(server_manager=mock_server_manager)
+        result = validator.validate_harness_code(
+            harness_code="example : True := by\n  trivial\n",
+            timeout_s=10.0,
+            file_path="Test.lean",
+        )
+
+        assert result.status == "success"
+

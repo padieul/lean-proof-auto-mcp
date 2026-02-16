@@ -99,7 +99,7 @@ def _check_get_proof_context_response_structure(
         return False, failures
 
     status = response["status"]
-    if status not in ("success", "error"):
+    if status not in ("success", "fail", "error"):
         failures.append(f"Invalid status: {status}")
         return False, failures
 
@@ -251,37 +251,31 @@ def _log_get_proof_context_details(logger: EvalLogger, response: dict[str, Any])
         logger.log_info(f"metadata={metadata}")
 
 
-def _run_get_proof_context_and_record(
+def _is_transient_lean_crash(response: dict[str, Any]) -> bool:
+    """Detect transient Lean server crashes that are recoverable via retry.
+
+    The Lean REPL can crash unexpectedly due to OOM or corrupted cache.
+    These failures are transient and typically succeed on a second attempt
+    after the MCP server restarts its internal REPL.
+    """
+    if response.get("status") != "error":
+        return False
+    metadata = response.get("metadata", {})
+    if not isinstance(metadata, dict):
+        return False
+    error_msg = metadata.get("error_message", "")
+    return "Lean server closed unexpectedly" in error_msg
+
+
+def _call_get_proof_context(
     mcp_client: MCPClient,
     fixture_file: FixtureFile,
     theorem_id: str,
-    result_collector: ResultCollector,
-    logger: EvalLogger | None = None,
-    index: int = 0,
-    total: int = 0,
-) -> dict[str, Any]:
-    """Run get_proof_context tool on a theorem, record result, return response.
+) -> tuple[dict[str, Any], float, str]:
+    """Execute a single get_proof_context call, returning (response, elapsed_ms, status).
 
-    Args:
-        mcp_client: MCP client instance
-        fixture_file: Fixture file containing the theorem
-        theorem_id: Theorem identifier to extract context for
-        result_collector: Result collector for recording outcomes
-        logger: Optional logger for detailed output
-        index: Current test index (for logging)
-        total: Total number of tests (for logging)
-
-    Returns:
-        The parsed tool response dict
+    Pure orchestration: no logging, no recording, no side effects beyond the MCP call.
     """
-    if logger:
-        logger.log_fixture_start(
-            f"{fixture_file.relative_path}::{theorem_id}",
-            0,  # File size not relevant for get_proof_context
-            index,
-            total,
-        )
-
     start = time.perf_counter()
 
     try:
@@ -294,10 +288,8 @@ def _run_get_proof_context_and_record(
         )
         elapsed_ms = (time.perf_counter() - start) * 1000
 
-        # Determine status from get_proof_context tool's target response schema
-        # Target statuses: success, error
         tool_status = response.get("status", "")
-        if tool_status in ("success", "error"):
+        if tool_status in ("success", "fail", "error"):
             status = tool_status
         else:
             status = "error"
@@ -306,14 +298,80 @@ def _run_get_proof_context_and_record(
         elapsed_ms = (time.perf_counter() - start) * 1000
         status = "timeout"
         response = {"error": "timeout", "status": "timeout"}
-        if logger:
-            logger.log_error(elapsed_ms / 1000, "timeout")
     except Exception as e:
         elapsed_ms = (time.perf_counter() - start) * 1000
         status = "error"
         response = {"error": str(e), "status": "error"}
+
+    return response, elapsed_ms, status
+
+
+def _run_get_proof_context_and_record(
+    mcp_client: MCPClient,
+    fixture_file: FixtureFile,
+    theorem_id: str,
+    result_collector: ResultCollector,
+    logger: EvalLogger | None = None,
+    index: int = 0,
+    total: int = 0,
+    max_retries: int = 1,
+) -> dict[str, Any]:
+    """Run get_proof_context tool on a theorem, record result, return response.
+
+    On transient Lean server crashes (OOM / corrupted REPL cache), restarts
+    the MCP client and retries up to max_retries times before recording failure.
+
+    Args:
+        mcp_client: MCP client instance
+        fixture_file: Fixture file containing the theorem
+        theorem_id: Theorem identifier to extract context for
+        result_collector: Result collector for recording outcomes
+        logger: Optional logger for detailed output
+        index: Current test index (for logging)
+        total: Total number of tests (for logging)
+        max_retries: Maximum retry attempts for transient Lean crashes
+
+    Returns:
+        The parsed tool response dict
+    """
+    if logger:
+        logger.log_fixture_start(
+            f"{fixture_file.relative_path}::{theorem_id}",
+            0,  # File size not relevant for get_proof_context
+            index,
+            total,
+        )
+
+    response, elapsed_ms, status = _call_get_proof_context(
+        mcp_client, fixture_file, theorem_id,
+    )
+
+    # Retry on transient Lean server crashes (OOM / corrupted REPL)
+    for attempt in range(1, max_retries + 1):
+        if not _is_transient_lean_crash(response):
+            break
         if logger:
-            logger.log_error(elapsed_ms / 1000, str(e))
+            logger.log_info(
+                f"Transient Lean crash detected, restarting MCP client "
+                f"(retry {attempt}/{max_retries})"
+            )
+        try:
+            mcp_client.restart()
+        except Exception as restart_err:
+            if logger:
+                logger.log_error(0, f"MCP restart failed: {restart_err}")
+            break
+        response, retry_ms, status = _call_get_proof_context(
+            mcp_client, fixture_file, theorem_id,
+        )
+        elapsed_ms += retry_ms
+
+    if status == "timeout" and logger:
+        logger.log_error(elapsed_ms / 1000, "timeout")
+    elif status == "error" and "error" in response and logger:
+        error_val = response["error"]
+        if isinstance(error_val, str):
+            logger.log_error(elapsed_ms / 1000, error_val)
 
     result_collector.record(
         tool="get_proof_context",

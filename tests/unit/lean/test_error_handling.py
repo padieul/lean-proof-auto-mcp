@@ -238,7 +238,7 @@ class TestProofValidatorErrorHandling:
             )
 
         # Assert
-        assert result.status == "error"
+        assert result.status == "rejected"
         assert "type mismatch" in result.error_message.lower()
         assert result.error_location == (5, 10)
         assert any("type" in s.lower() for s in result.suggestions)
@@ -275,7 +275,7 @@ class TestProofValidatorErrorHandling:
             )
 
         # Assert
-        assert result.status == "error"
+        assert result.status == "rejected"
         assert "unknown identifier" in result.error_message.lower()
         assert any("spelling" in s.lower() or "import" in s.lower() for s in result.suggestions)
 

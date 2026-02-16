@@ -420,6 +420,15 @@ theorem test_theorem : True := by
                 range=Range(start_line=1, start_col=0, end_line=2, end_col=0),
                 namespace="",
             ),
+            Declaration(
+                name="some_reference",
+                full_name="some_reference",
+                type="True",
+                value=None,
+                attributes=["simp"],
+                range=Range(start_line=0, start_col=0, end_line=0, end_col=0),
+                namespace="",
+            ),
         ]
 
         querier = MockLeanInteractQuerier(

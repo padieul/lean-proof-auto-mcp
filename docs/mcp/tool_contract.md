@@ -15,11 +15,10 @@
 - rank_targets
 - probe
 - probe_file
-- search_annotations
-- check_patch
+- search_automated_proof
+- try_automated_proof
+- get_proof_context
 - verify
-- apply_patch (optional)
-- get_artifacts
 
 ---
 

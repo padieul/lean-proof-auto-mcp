@@ -43,16 +43,15 @@ Provides deterministic, sandboxed, budget-bounded verification of Lean files and
 - Continuous integration testing
 - Deterministic testing workflows
 
-### Future Tools
+### Proof Automation Tools
 
-The following tools are planned but not yet implemented:
+The following tools are implemented for proof automation workflows:
 
-- **probe**: Interactive proof state exploration
-- **probe_file**: File-level proof search
-- **check_patch**: Patch validation before application
-- **search_annotations**: Annotation-guided proof search
-- **apply_patch**: Apply patches to Lean files
-- **get_artifacts**: Retrieve stored artifacts by run_id
+- **probe**: Single-theorem automation probe and classification
+- **probe_file**: Batch probe across many theorems in a file
+- **search_automated_proof**: Bounded hint-search for automation
+- **try_automated_proof**: Validate a proposed proof attempt
+- **get_proof_context**: Extract rich theorem context for iterative reasoning
 
 ## Tool Categories
 
@@ -66,17 +65,12 @@ The following tools are planned but not yet implemented:
 ### Verification & Testing
 - `verify` - Lean compilation verification
 
-### Proof Automation (Planned)
+### Proof Automation
 - `probe` - Interactive proof exploration
 - `probe_file` - Automated proof search
-- `search_annotations` - Annotation-guided search
-
-### Patch Management (Planned)
-- `check_patch` - Validate patches
-- `apply_patch` - Apply patches
-
-### Artifact Management (Planned)
-- `get_artifacts` - Retrieve stored artifacts
+- `search_automated_proof` - Annotation-guided search
+- `try_automated_proof` - Proof attempt validation
+- `get_proof_context` - Context extraction
 
 ## Common Patterns
 

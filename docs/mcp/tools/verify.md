@@ -8,7 +8,7 @@ The `verify` tool is the foundational Lean execution primitive for the `lean-pro
 
 The `verify` tool answers one fundamental question: "Does Lean accept this scope (file or theorem), and if not, what are the diagnostics?"
 
-This tool establishes the core Lean execution runtime that other tools (`probe`, `probe_file`, `check_patch`, `search_annotations`) will reuse. It is pure infrastructure with no LLM calls, designed for reproducible verification in isolated workspaces.
+This tool establishes the core Lean execution runtime that other tools (`probe`, `probe_file`, `search_automated_proof`, `try_automated_proof`, `get_proof_context`) reuse. It is pure infrastructure with no LLM calls, designed for reproducible verification in isolated workspaces.
 
 ## Use Cases
 
@@ -598,8 +598,9 @@ verify_result = verify({
 The `verify` tool serves as the foundation for:
 - **probe**: Interactive proof state exploration
 - **probe_file**: File-level proof search
-- **check_patch**: Patch validation before application
-- **search_annotations**: Annotation-guided proof search
+- **search_automated_proof**: Annotation-guided proof search
+- **try_automated_proof**: Validate concrete proof attempts
+- **get_proof_context**: Extract theorem context for iterative loops
 
 ## Artifact Storage
 

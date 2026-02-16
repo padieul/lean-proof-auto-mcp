@@ -46,9 +46,8 @@ jobs:
         # Fast CI profile across all Python versions:
         # - skip tests requiring local Lean installation
         # - skip heavy suites (property + eval tests) by marker and path
-        # - skip investigation-only eval tests
         run: >
           uv run pytest
-          -m "not requires_lean and not heavy and not eval_investigation"
+          -m "not requires_lean and not heavy"
           --ignore=tests/property
           --ignore=tests/lean-proof-auto-mcp-eval_tests

@@ -583,41 +583,6 @@ class CandidateGenerator:
         # Default to ADD_SAFE for other lemmas
         return HintType.ADD_SAFE
 
-    def _infer_hint_type_from_name(
-        self, identifier: str, config: CandidateConfig
-    ) -> HintType | None:
-        """
-        Infer hint type from identifier name (fallback when declaration not available).
-
-        Uses naming conventions to determine the appropriate hint type.
-
-        Args:
-            identifier: The identifier name
-            config: Candidate generation configuration
-
-        Returns:
-            Inferred hint type, or None if not allowed by config
-
-        Requirements: 3.7, 3.8
-        """
-        # Check for definition hints
-        if identifier.endswith("_def") or identifier.endswith(".def"):
-            if config.allow_unfold_hints:
-                return HintType.UNFOLD
-            else:
-                return None
-
-        # Check for simp lemmas (heuristic: lemmas with certain patterns)
-        simp_patterns = ["_comm", "_assoc", "_zero", "_one", "_add", "_mul", "_eq"]
-        if any(pattern in identifier for pattern in simp_patterns):
-            if config.allow_simp_hints:
-                return HintType.SIMP
-            else:
-                return None
-
-        # Default to ADD_SAFE for other lemmas
-        return HintType.ADD_SAFE
-
     def _get_declarations(self) -> list[Declaration]:
         """
         Get declarations from LeanInteract with caching.

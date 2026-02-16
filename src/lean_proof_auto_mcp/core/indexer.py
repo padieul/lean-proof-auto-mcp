@@ -741,23 +741,6 @@ def _find_tactic_proof_end(lines: list[str], start_line: int) -> int:
             break
 
     return end_line
-
-
-def _find_proof_end(lines: list[str], start_line: int) -> int:
-    """Find the end of a tactic proof starting with 'by'.
-
-    This is the legacy function - use _find_tactic_proof_end for enhanced detection.
-
-    Args:
-        lines: Lines of the source file
-        start_line: Line where proof starts (1-indexed)
-
-    Returns:
-        Line number where proof ends (1-indexed)
-    """
-    return _find_tactic_proof_end(lines, start_line)
-
-
 def _find_term_proof_end(lines: list[str], start_line: int) -> int:
     """Find the end of a term-mode proof or definition.
 

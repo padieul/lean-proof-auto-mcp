@@ -75,4 +75,3 @@ def to_json_serializable(obj: Any) -> Any:
 
     # For other types, try to convert to string
     return str(obj)
-

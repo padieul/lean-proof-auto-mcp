@@ -741,6 +741,8 @@ def _find_tactic_proof_end(lines: list[str], start_line: int) -> int:
             break
 
     return end_line
+
+
 def _find_term_proof_end(lines: list[str], start_line: int) -> int:
     """Find the end of a term-mode proof or definition.
 

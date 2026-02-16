@@ -45,11 +45,11 @@ Abstract interface defined in `ports.py`:
 ```python
 class MetadataCollector(Protocol):
     """Port for collecting environment metadata."""
-    
+
     def collect_version_info(self) -> dict[str, str]:
         """
         Collect version metadata from the environment.
-        
+
         Returns:
             Dictionary with optional keys:
             - repo_commit: Git commit hash
@@ -67,10 +67,10 @@ Implementation in `metadata_collector.py`:
 class SubprocessMetadataCollector:
     """
     Collects metadata using subprocess commands.
-    
+
     Uses threading to avoid Windows pipe deadlock issues.
     """
-    
+
     def collect_version_info(self) -> dict[str, str]:
         """Collect git commit, lean version, lake version."""
         ...
@@ -86,7 +86,7 @@ Domain handlers receive the metadata collector via dependency injection:
 class ProbeCommandHandler:
     def __init__(
         self,
-        lean_runner: LeanRunner,
+        validator: ProofValidator,
         workspace_provider: WorkspaceProvider,
         classifier: AutomationClassifier,
         artifact_store: ArtifactStore | None = None,
@@ -94,12 +94,12 @@ class ProbeCommandHandler:
     ):
         self.metadata_collector = metadata_collector
         # ...
-    
+
     def _build_metadata(self, lean_result: Any) -> dict[str, Any]:
         """Build metadata section with version information."""
         if self.metadata_collector is None:
             return {}
-        
+
         return self.metadata_collector.collect_version_info()
 ```
 
@@ -145,19 +145,19 @@ When the MCP server runs as a subprocess (e.g., spawned by GitHub Copilot), nest
 def _run_command_safe(self, cmd: list[str], timeout: float = 1.0) -> str | None:
     """Run command with timeout, avoiding pipe deadlock using threads."""
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    
+
     # Read output in separate thread to avoid blocking
     stdout_data = []
     def read_stdout():
         stdout_data.append(proc.stdout.read())
-    
+
     stdout_thread = threading.Thread(target=read_stdout, daemon=True)
     stdout_thread.start()
-    
+
     # Wait for process with timeout
     proc.wait(timeout=timeout)
     stdout_thread.join(timeout=0.5)
-    
+
     return stdout_data[0].strip() if proc.returncode == 0 and stdout_data else None
 ```
 
@@ -203,7 +203,7 @@ Easy to add new metadata sources without changing core domain:
 ```python
 class EnvironmentMetadataCollector:
     """Collect metadata from environment variables."""
-    
+
     def collect_version_info(self) -> dict[str, str]:
         return {
             "repo_commit": os.getenv("GIT_COMMIT", ""),

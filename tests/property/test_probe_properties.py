@@ -731,7 +731,9 @@ def test_property_1_workspace_isolation(cmd):
     Validates: Requirements 1.1, 7.4
     """
     # Setup: Create mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
@@ -744,7 +746,7 @@ def test_property_1_workspace_isolation(cmd):
     mock_workspace_provider.create_workspace.return_value = workspace
 
     # Mock successful Lean execution
-    mock_lean_runner.verify_file.return_value = LeanRunResult(
+    mock_validator.verify_file.return_value = LeanRunResult(
         status="success",
         diagnostics=[],
         scope_used="theorem",
@@ -756,10 +758,22 @@ def test_property_1_workspace_isolation(cmd):
     mock_classifier.classify.return_value = "trivial"
 
     # Create handler
+
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     # Mock harness construction to avoid file I/O
@@ -807,14 +821,27 @@ def test_property_2_harness_structure_validity(file_path, theorem_id, mode):
     Validates: Requirements 1.2
     """
     # Setup: Create handler with mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     # Create command
@@ -869,7 +896,9 @@ def test_property_3_infrastructure_reuse(cmd):
     Validates: Requirements 1.3, 6.4
     """
     # Setup: Create handler with mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
@@ -881,7 +910,7 @@ def test_property_3_infrastructure_reuse(cmd):
     mock_workspace_provider.create_workspace.return_value = workspace
 
     # Mock Lean execution with diagnostics
-    mock_lean_runner.verify_file.return_value = LeanRunResult(
+    mock_validator.verify_file.return_value = LeanRunResult(
         status="success",
         diagnostics=[
             {"severity": "ERROR", "message": "Test", "location": None},
@@ -895,10 +924,21 @@ def test_property_3_infrastructure_reuse(cmd):
 
     mock_classifier.classify.return_value = "trivial"
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     from unittest.mock import patch
@@ -907,8 +947,8 @@ def test_property_3_infrastructure_reuse(cmd):
         # Execute
         result = handler.handle(cmd)
 
-    # Verify: LeanRunner was used
-    mock_lean_runner.verify_file.assert_called_once()
+    # Verify: ProofValidator was used
+    mock_validator.verify_file.assert_called_once()
 
     # Verify: Diagnostics were normalized (severity normalized to lowercase)
     assert all(d["severity"] in ("error", "warning", "info") for d in result.diagnostics)
@@ -938,7 +978,9 @@ def test_property_4_hard_timeout_enforcement(file_path, theorem_id, mode, budget
     Validates: Requirements 1.4, 8.2
     """
     # Setup: Create handler with mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
@@ -950,13 +992,24 @@ def test_property_4_hard_timeout_enforcement(file_path, theorem_id, mode, budget
     mock_workspace_provider.create_workspace.return_value = workspace
 
     # Mock timeout
-    mock_lean_runner.verify_file.side_effect = TimeoutError("Execution timed out")
+    mock_validator.verify_file.side_effect = TimeoutError("Execution timed out")
     mock_classifier.classify.return_value = "timed_out"
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     cmd = ProbeCommand(
@@ -976,8 +1029,8 @@ def test_property_4_hard_timeout_enforcement(file_path, theorem_id, mode, budget
     assert result.status == "timeout"
     assert result.probe_result.classification == "timed_out"
 
-    # Verify: Budget was passed to lean_runner
-    call_args = mock_lean_runner.verify_file.call_args
+    # Verify: Budget was passed to validator
+    call_args = mock_validator.verify_file.call_args
     assert call_args[1]["budget_s"] == budget_s
 
 
@@ -1000,7 +1053,9 @@ def test_property_5_result_completeness(cmd):
     Validates: Requirements 1.5, 3.2, 3.3, 3.4, 3.6, 3.7, 3.8
     """
     # Setup: Create handler with mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
@@ -1011,7 +1066,7 @@ def test_property_5_result_completeness(cmd):
     )
     mock_workspace_provider.create_workspace.return_value = workspace
 
-    mock_lean_runner.verify_file.return_value = LeanRunResult(
+    mock_validator.verify_file.return_value = LeanRunResult(
         status="success",
         diagnostics=[],
         scope_used="theorem",
@@ -1022,10 +1077,21 @@ def test_property_5_result_completeness(cmd):
 
     mock_classifier.classify.return_value = "trivial"
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     from unittest.mock import patch
@@ -1104,7 +1170,9 @@ def test_property_6_no_source_modification(file_content, theorem_id, mode):
         hash_before = hashlib.sha256(test_file.read_bytes()).hexdigest()
 
         # Create handler
-        mock_lean_runner = Mock()
+        mock_validator = Mock()
+        mock_querier = Mock()
+        mock_harness_constructor = Mock()
         mock_workspace_provider = Mock()
         mock_classifier = Mock()
 
@@ -1114,7 +1182,7 @@ def test_property_6_no_source_modification(file_content, theorem_id, mode):
             mode="temp",
         )
 
-        mock_lean_runner.verify_file.return_value = LeanRunResult(
+        mock_validator.verify_file.return_value = LeanRunResult(
             status="success",
             diagnostics=[],
             scope_used="theorem",
@@ -1125,10 +1193,20 @@ def test_property_6_no_source_modification(file_content, theorem_id, mode):
 
         mock_classifier.classify.return_value = "trivial"
 
+        # Setup harness constructor mock
+        from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+        mock_harness_constructor.construct.return_value = HarnessSuccess(
+            code="theorem test : True := by trivial",
+            theorem_statement="True",
+        )
+
         handler = ProbeCommandHandler(
-            lean_runner=mock_lean_runner,
+            validator=mock_validator,
+            querier=mock_querier,
             workspace_provider=mock_workspace_provider,
             classifier=mock_classifier,
+            harness_constructor=mock_harness_constructor,
         )
 
         cmd = ProbeCommand(
@@ -1178,7 +1256,9 @@ def test_property_24_no_external_filesystem_mutation(cmd):
         initial_files = set(external_path.rglob("*"))
 
         # Create handler with mocked dependencies
-        mock_lean_runner = Mock()
+        mock_validator = Mock()
+        mock_querier = Mock()
+        mock_harness_constructor = Mock()
         mock_workspace_provider = Mock()
         mock_classifier = Mock()
 
@@ -1191,7 +1271,7 @@ def test_property_24_no_external_filesystem_mutation(cmd):
             )
             mock_workspace_provider.create_workspace.return_value = workspace
 
-            mock_lean_runner.verify_file.return_value = LeanRunResult(
+            mock_validator.verify_file.return_value = LeanRunResult(
                 status="success",
                 diagnostics=[],
                 scope_used="theorem",
@@ -1202,10 +1282,20 @@ def test_property_24_no_external_filesystem_mutation(cmd):
 
             mock_classifier.classify.return_value = "trivial"
 
+            # Setup harness constructor mock
+            from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+            mock_harness_constructor.construct.return_value = HarnessSuccess(
+                code="theorem test : True := by trivial",
+                theorem_statement="True",
+            )
+
             handler = ProbeCommandHandler(
-                lean_runner=mock_lean_runner,
+                validator=mock_validator,
+                querier=mock_querier,
                 workspace_provider=mock_workspace_provider,
                 classifier=mock_classifier,
+                harness_constructor=mock_harness_constructor,
             )
 
             from unittest.mock import patch
@@ -1242,7 +1332,9 @@ def test_property_25_stateless_execution(cmd1, cmd2):
     Validates: Requirements 7.2
     """
     # Setup: Create handler with mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
@@ -1260,7 +1352,7 @@ def test_property_25_stateless_execution(cmd1, cmd2):
     mock_workspace_provider.create_workspace.side_effect = [workspace1, workspace2]
 
     # Mock Lean execution
-    mock_lean_runner.verify_file.return_value = LeanRunResult(
+    mock_validator.verify_file.return_value = LeanRunResult(
         status="success",
         diagnostics=[],
         scope_used="theorem",
@@ -1271,10 +1363,21 @@ def test_property_25_stateless_execution(cmd1, cmd2):
 
     mock_classifier.classify.return_value = "trivial"
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     from unittest.mock import patch
@@ -1342,14 +1445,27 @@ def test_property_26_diagnostic_ordering(diagnostics):
     Validates: Requirements 9.1
     """
     # Setup: Create handler with mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     # Execute: Normalize diagnostics (which includes sorting)
@@ -1427,14 +1543,27 @@ def test_property_27_severity_normalization(severity):
     Validates: Requirements 9.3
     """
     # Setup: Create handler with mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     # Execute: Normalize severity
@@ -1496,14 +1625,27 @@ def test_property_27_all_diagnostics_have_normalized_severity(diagnostics):
     Validates: Requirements 9.3
     """
     # Setup: Create handler with mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     # Execute: Normalize diagnostics
@@ -1545,7 +1687,9 @@ def test_property_14_aesop_suggested_script_success(
     Validates: Requirements 3.5
     """
     # Setup: Create handler with mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
@@ -1559,7 +1703,7 @@ def test_property_14_aesop_suggested_script_success(
     # Mock successful Lean execution with aesop? output
     # Note: The regex pattern stops at newline, so we only include the first line
     full_logs = f"Try this: {suggested_script}"
-    mock_lean_runner.verify_file.return_value = LeanRunResult(
+    mock_validator.verify_file.return_value = LeanRunResult(
         status="success",
         diagnostics=[],
         scope_used="theorem",
@@ -1570,10 +1714,21 @@ def test_property_14_aesop_suggested_script_success(
 
     mock_classifier.classify.return_value = "trivial"
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     cmd = ProbeCommand(
@@ -1617,7 +1772,9 @@ def test_property_14_non_aesop_no_suggested_script(file_path, theorem_id, mode, 
     Validates: Requirements 3.5
     """
     # Setup: Create handler with mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
@@ -1629,7 +1786,7 @@ def test_property_14_non_aesop_no_suggested_script(file_path, theorem_id, mode, 
     mock_workspace_provider.create_workspace.return_value = workspace
 
     # Mock successful Lean execution
-    mock_lean_runner.verify_file.return_value = LeanRunResult(
+    mock_validator.verify_file.return_value = LeanRunResult(
         status="success",
         diagnostics=[],
         scope_used="theorem",
@@ -1640,10 +1797,21 @@ def test_property_14_non_aesop_no_suggested_script(file_path, theorem_id, mode, 
 
     mock_classifier.classify.return_value = "trivial"
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     cmd = ProbeCommand(
@@ -1682,7 +1850,9 @@ def test_property_14_aesop_failure_no_suggested_script(file_path, theorem_id, bu
     Validates: Requirements 3.5
     """
     # Setup: Create handler with mocked dependencies
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
@@ -1694,7 +1864,7 @@ def test_property_14_aesop_failure_no_suggested_script(file_path, theorem_id, bu
     mock_workspace_provider.create_workspace.return_value = workspace
 
     # Mock failed Lean execution (not_closed)
-    mock_lean_runner.verify_file.return_value = LeanRunResult(
+    mock_validator.verify_file.return_value = LeanRunResult(
         status="fail",
         diagnostics=[{"message": "unsolved goals", "severity": "error", "location": None}],
         scope_used="theorem",
@@ -1705,10 +1875,21 @@ def test_property_14_aesop_failure_no_suggested_script(file_path, theorem_id, bu
 
     mock_classifier.classify.return_value = "promising"
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     cmd = ProbeCommand(
@@ -1747,14 +1928,27 @@ def test_property_14_extract_suggested_script_parsing(file_path, theorem_id, bud
     Validates: Requirements 3.5
     """
     # Setup: Create handler
-    mock_lean_runner = Mock()
+    mock_validator = Mock()
+    mock_querier = Mock()
+    mock_harness_constructor = Mock()
     mock_workspace_provider = Mock()
     mock_classifier = Mock()
 
+    # Setup harness constructor mock
+    from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
+
+    mock_harness_constructor.construct.return_value = HarnessSuccess(
+        code="theorem test : True := by trivial",
+        theorem_id="test",
+        file_path="test.lean",
+    )
+
     handler = ProbeCommandHandler(
-        lean_runner=mock_lean_runner,
+        validator=mock_validator,
+        querier=mock_querier,
         workspace_provider=mock_workspace_provider,
         classifier=mock_classifier,
+        harness_constructor=mock_harness_constructor,
     )
 
     # Test various log formats

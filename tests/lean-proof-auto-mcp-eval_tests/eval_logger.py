@@ -17,7 +17,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-
 LOGS_DIR = Path(__file__).resolve().parent / "logs"
 
 
@@ -38,9 +37,8 @@ class FileLogWriter:
     def write_line(self, line: str) -> None:
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         formatted = f"[{ts}] {line}"
-        with self._lock:
-            with open(self._path, "a", encoding="utf-8") as f:
-                f.write(formatted + "\n")
+        with self._lock, open(self._path, "a", encoding="utf-8") as f:
+            f.write(formatted + "\n")
 
 
 class EvalLogger:
@@ -75,9 +73,7 @@ class EvalLogger:
         self._log(f"Tier: {tier}, Fixtures: {fixture_count}")
         self._log(f"{'=' * 60}")
 
-    def log_fixture_start(
-        self, relative_path: str, file_size: int, index: int, total: int
-    ) -> None:
+    def log_fixture_start(self, relative_path: str, file_size: int, index: int, total: int) -> None:
         """Log the start of a fixture verification."""
         self._log("")
         self._log(f"{'=' * 60}")
@@ -92,7 +88,7 @@ class EvalLogger:
         failures: list[str],
     ) -> None:
         """Log the result of a fixture verification.
-        
+
         Tool-agnostic: works with verify (diagnostic_summary), probe
         (probe_result), search (outcome/feedback), try (validation_status),
         and get_proof_context (flat context fields).
@@ -101,7 +97,7 @@ class EvalLogger:
         run_id = response.get("run_id", "N/A")
 
         self._log(f"  Status: {status}")
-        
+
         # Log diagnostics summary if present (verify-specific)
         summary = response.get("diagnostic_summary")
         diagnostics = response.get("diagnostics", [])
@@ -115,7 +111,7 @@ class EvalLogger:
             )
         elif isinstance(diagnostics, list) and diagnostics:
             self._log(f"  Diagnostics: {len(diagnostics)} items")
-        
+
         self._log(f"  Run ID: {run_id}")
         self._log(f"  Elapsed: {elapsed_s:.1f}s")
 

@@ -40,6 +40,11 @@ class HeuristicClassifier:
         automation attempt. The classification helps downstream tools decide
         whether to pursue further search or annotation.
 
+        Priority order for not_closed outcomes:
+        1. Check for partial progress (unsolved goals) — indicates promising
+        2. Check for explicit failure with no progress — indicates failed
+        3. Fall back to subgoal depth estimation
+
         Args:
             outcome: Raw outcome ("closed", "not_closed", "timeout", "error")
             diagnostics: Diagnostic messages from Lean
@@ -61,26 +66,55 @@ class HeuristicClassifier:
 
         # Success classification (Requirement 2.1)
         if outcome == "closed":
-            elapsed_s = timing.get("elapsed_ms", 0.0) / 1000.0
-            # Trivial if solved quickly (< 20% of budget)
-            if elapsed_s < budget_s * 0.2:
-                return "trivial"
-            else:
-                # Still trivial if it closed, regardless of time
-                return "trivial"
+            return "trivial"
 
         # Failure classification (outcome == "not_closed")
-        # First check for explicit failure messages in diagnostics (Requirement 2.3)
+        # Check for partial progress first — unsolved goals means the tactic
+        # made headway but couldn't finish, which is more informative than
+        # a generic "failed" (Requirement 2.2)
+        has_partial_progress = self._has_partial_progress(diagnostics)
         has_explicit_failure = self._has_explicit_failure(diagnostics)
+
+        if has_partial_progress:
+            # Partial progress detected — classify based on subgoal depth
+            subgoal_depth = self._estimate_subgoal_depth(diagnostics)
+            if subgoal_depth <= 3:
+                return "promising"
+            else:
+                return "failed"
+
+        # No partial progress — check for explicit failure (Requirement 2.3)
         if has_explicit_failure:
             return "failed"
 
-        # Analyze diagnostics to determine if promising (Requirement 2.2, 2.3)
+        # No clear signals — estimate from diagnostics structure
         subgoal_depth = self._estimate_subgoal_depth(diagnostics)
         if subgoal_depth <= 3:
             return "promising"
         else:
             return "failed"
+
+    def _has_partial_progress(self, diagnostics: list[dict]) -> bool:
+        """
+        Check for partial progress indicators in diagnostics.
+
+        Partial progress means the tactic made some headway (e.g. reduced
+        the goal, split cases) but couldn't close it completely. The key
+        signal is an "unsolved goals" error diagnostic from Lean.
+
+        Args:
+            diagnostics: List of diagnostic messages from Lean
+
+        Returns:
+            True if partial progress detected, False otherwise
+
+        Requirements: 2.2
+        """
+        for diag in diagnostics:
+            message = diag.get("message", "").lower()
+            if "unsolved goals" in message:
+                return True
+        return False
 
     def _has_explicit_failure(self, diagnostics: list[dict]) -> bool:
         """

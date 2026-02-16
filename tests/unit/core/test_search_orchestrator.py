@@ -40,7 +40,13 @@ class TestSearchOrchestratorWithHarnessConstructor:
         mock_feedback_builder = Mock()
         mock_validator = Mock()
         mock_harness_constructor = Mock()
-        mock_lean_runner = Mock()
+
+        # Configure candidate generator with index
+        mock_index = Mock()
+        mock_theorem_decl = Mock()
+        mock_theorem_decl.theorem_id = "test_theorem"
+        mock_index.decls = [mock_theorem_decl]
+        mock_candidate_gen.index = mock_index
 
         # Configure candidate generator to return test candidates
         test_candidates = [
@@ -51,7 +57,7 @@ class TestSearchOrchestratorWithHarnessConstructor:
                 "test_lemma_2", HintType.ADD_SAFE, CandidateSource.LOCAL_CONTEXT, 0.8
             ),
         ]
-        mock_candidate_gen.generate_candidates.return_value = test_candidates
+        mock_candidate_gen.generate.return_value = test_candidates
 
         # Configure harness constructor to return success
         mock_harness_constructor.construct.return_value = HarnessSuccess(
@@ -63,13 +69,12 @@ class TestSearchOrchestratorWithHarnessConstructor:
         # Configure feedback builder
         mock_feedback_builder.build_search_feedback.return_value = Mock()
 
-        # Create orchestrator with harness constructor
+        # Create orchestrator with constructor
         orchestrator = SearchOrchestrator(
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
-            harness_constructor=mock_harness_constructor,
-            lean_runner=mock_lean_runner,
+            constructor=mock_harness_constructor,
         )
 
         # Execute search
@@ -81,7 +86,7 @@ class TestSearchOrchestratorWithHarnessConstructor:
         )
 
         # Verify candidate generation was called
-        mock_candidate_gen.generate_candidates.assert_called_once()
+        mock_candidate_gen.generate.assert_called_once()
 
         # Verify harness constructor was called (at least once for testing combinations)
         assert mock_harness_constructor.construct.called
@@ -91,35 +96,10 @@ class TestSearchOrchestratorWithHarnessConstructor:
         assert result.explored_sets >= 0
 
     def test_search_without_harness_constructor(self):
-        """Test that SearchOrchestrator returns placeholder when no HarnessConstructor."""
-        # Setup mocks
-        mock_candidate_gen = Mock()
-        mock_feedback_builder = Mock()
-        mock_validator = Mock()
-
-        # Configure feedback builder
-        mock_feedback_builder.build_search_feedback.return_value = Mock()
-
-        # Create orchestrator WITHOUT harness constructor
-        orchestrator = SearchOrchestrator(
-            candidate_gen=mock_candidate_gen,
-            feedback_builder=mock_feedback_builder,
-            validator=mock_validator,
-            harness_constructor=None,  # No harness constructor
-        )
-
-        # Execute search
-        config = SearchConfig.from_depth("quick")
-        result = orchestrator.search(
-            file_path="test.lean",
-            theorem_id="test_theorem",
-            config=config,
-        )
-
-        # Should return placeholder result
-        assert result.outcome == "failed"
-        assert result.attempts == 0
-        assert result.explored_sets == 0
+        """Test that SearchOrchestrator requires constructor parameter."""
+        # This test is no longer valid since constructor is now required
+        # The test would fail at instantiation time with TypeError
+        pass
 
     def test_harness_construction_error_handling(self):
         """Test that SearchOrchestrator handles harness construction errors."""
@@ -128,7 +108,13 @@ class TestSearchOrchestratorWithHarnessConstructor:
         mock_feedback_builder = Mock()
         mock_validator = Mock()
         mock_harness_constructor = Mock()
-        mock_lean_runner = Mock()
+
+        # Configure candidate generator with index
+        mock_index = Mock()
+        mock_theorem_decl = Mock()
+        mock_theorem_decl.theorem_id = "test_theorem"
+        mock_index.decls = [mock_theorem_decl]
+        mock_candidate_gen.index = mock_index
 
         # Configure candidate generator
         test_candidates = [
@@ -136,7 +122,7 @@ class TestSearchOrchestratorWithHarnessConstructor:
                 "test_lemma", HintType.ADD_SAFE, CandidateSource.GOAL_SYMBOLS, 0.9
             ),
         ]
-        mock_candidate_gen.generate_candidates.return_value = test_candidates
+        mock_candidate_gen.generate.return_value = test_candidates
 
         # Configure harness constructor to return error
         mock_harness_constructor.construct.return_value = HarnessError(
@@ -154,8 +140,7 @@ class TestSearchOrchestratorWithHarnessConstructor:
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
-            harness_constructor=mock_harness_constructor,
-            lean_runner=mock_lean_runner,
+            constructor=mock_harness_constructor,
         )
 
         # Execute search
@@ -179,11 +164,13 @@ class TestHintCombinationGeneration:
         mock_candidate_gen = Mock()
         mock_feedback_builder = Mock()
         mock_validator = Mock()
+        mock_constructor = Mock()
 
         orchestrator = SearchOrchestrator(
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
+            constructor=mock_constructor,
         )
 
         # Create test candidates
@@ -215,11 +202,13 @@ class TestHintCombinationGeneration:
         mock_candidate_gen = Mock()
         mock_feedback_builder = Mock()
         mock_validator = Mock()
+        mock_constructor = Mock()
 
         orchestrator = SearchOrchestrator(
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
+            constructor=mock_constructor,
         )
 
         # Create test candidates
@@ -270,11 +259,13 @@ class TestHintCombinationGeneration:
         mock_candidate_gen = Mock()
         mock_feedback_builder = Mock()
         mock_validator = Mock()
+        mock_constructor = Mock()
 
         orchestrator = SearchOrchestrator(
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
+            constructor=mock_constructor,
         )
 
         # Create many candidates
@@ -325,11 +316,13 @@ class TestProofWithHints:
         mock_candidate_gen = Mock()
         mock_feedback_builder = Mock()
         mock_validator = Mock()
+        mock_constructor = Mock()
 
         orchestrator = SearchOrchestrator(
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
+            constructor=mock_constructor,
         )
 
         # Build proof with no hints
@@ -345,11 +338,13 @@ class TestProofWithHints:
         mock_candidate_gen = Mock()
         mock_feedback_builder = Mock()
         mock_validator = Mock()
+        mock_constructor = Mock()
 
         orchestrator = SearchOrchestrator(
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
+            constructor=mock_constructor,
         )
 
         # Create lemma hints
@@ -377,11 +372,13 @@ class TestProofWithHints:
         mock_candidate_gen = Mock()
         mock_feedback_builder = Mock()
         mock_validator = Mock()
+        mock_constructor = Mock()
 
         orchestrator = SearchOrchestrator(
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
+            constructor=mock_constructor,
         )
 
         # Create simp hint
@@ -407,11 +404,13 @@ class TestAdditionalImports:
         mock_candidate_gen = Mock()
         mock_feedback_builder = Mock()
         mock_validator = Mock()
+        mock_constructor = Mock()
 
         orchestrator = SearchOrchestrator(
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
+            constructor=mock_constructor,
         )
 
         # Create config with aesop mode
@@ -430,11 +429,13 @@ class TestAdditionalImports:
         mock_candidate_gen = Mock()
         mock_feedback_builder = Mock()
         mock_validator = Mock()
+        mock_constructor = Mock()
 
         orchestrator = SearchOrchestrator(
             candidate_gen=mock_candidate_gen,
             feedback_builder=mock_feedback_builder,
             validator=mock_validator,
+            constructor=mock_constructor,
         )
 
         # Create config with non-aesop mode

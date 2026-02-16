@@ -7,14 +7,59 @@ ordering, limit enforcement, summary aggregation, and partial success handling.
 Requirements: 4.1-4.7, 5.2-5.6, 10.4
 """
 
+from pathlib import Path
 from unittest.mock import Mock
 
+from lean_proof_auto_mcp.core.harness_construction import HarnessSuccess
 from lean_proof_auto_mcp.core.probe_domain import (
     ProbeFileCommand,
     ProbeFileCommandHandler,
     ProbeOutcome,
     ProbeResult,
 )
+
+
+def _make_probe_handler_mock() -> Mock:
+    """Create a probe_handler mock with querier, constructor, validator, and workspace wired up.
+
+    ProbeFileCommandHandler.handle() calls _probe_single_theorem which accesses:
+    - probe_handler.querier.read_source_file()
+    - probe_handler.querier.extract_declarations()
+    - probe_handler.harness_constructor.construct()
+    - probe_handler._write_harness()
+    - probe_handler.validator.verify_file()
+    - probe_handler._generate_run_id()
+    - probe_handler._process_lean_result()
+    - probe_handler.workspace_provider.create_workspace() / cleanup_workspace()
+    """
+    probe_handler = Mock()
+
+    # Querier returns synthetic data
+    probe_handler.querier.read_source_file.return_value = (
+        "import Mathlib\n\ntheorem stub : True := by trivial\n"
+    )
+    probe_handler.querier.extract_declarations.return_value = []
+
+    # Constructor returns success
+    probe_handler.harness_constructor.construct.return_value = HarnessSuccess(
+        code="import Mathlib\n\ntheorem stub : True := by aesop\n",
+        theorem_id="stub",
+        file_path="test.lean",
+    )
+
+    # Workspace
+    mock_workspace = Mock()
+    mock_workspace.path = Path("/tmp/fake_workspace")
+    mock_workspace.workspace_id = "fake-ws-001"
+    probe_handler.workspace_provider.create_workspace.return_value = mock_workspace
+
+    # _write_harness returns a file path string
+    probe_handler._write_harness.return_value = "harness_test.lean"
+
+    # _generate_run_id returns a string
+    probe_handler._generate_run_id.return_value = "run-001"
+
+    return probe_handler
 
 
 class TestProbeFileCommandHandler:
@@ -27,7 +72,7 @@ class TestProbeFileCommandHandler:
         Requirements: 4.1-4.7, 5.2-5.6
         """
         # Setup mocks
-        probe_handler = Mock()
+        probe_handler = _make_probe_handler_mock()
         scan_file_fn = Mock()
         rank_targets_fn = None
 
@@ -41,12 +86,18 @@ class TestProbeFileCommandHandler:
             ],
         }
 
-        # Mock probe results
-        def mock_probe_handle(cmd, lean_server=None):
+        # Mock validator to return a successful lean result
+        mock_lean_result = Mock()
+        mock_lean_result.messages = []
+        mock_lean_result.sorries = []
+        probe_handler.validator.verify_file.return_value = mock_lean_result
+
+        # Mock _process_lean_result to return a closed ProbeResult
+        def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
             return ProbeResult(
                 api_version="0.1.0",
                 status="success",
-                run_id=f"probe-{cmd.theorem_id}",
+                run_id=run_id,
                 probe_result=ProbeOutcome(
                     mode=cmd.mode,
                     outcome="closed",
@@ -58,7 +109,7 @@ class TestProbeFileCommandHandler:
                 metadata={},
             )
 
-        probe_handler.handle = Mock(side_effect=mock_probe_handle)
+        probe_handler._process_lean_result = Mock(side_effect=mock_process)
 
         # Create handler
         handler = ProbeFileCommandHandler(probe_handler, scan_file_fn, rank_targets_fn)
@@ -82,7 +133,6 @@ class TestProbeFileCommandHandler:
         assert result.summary["closed"] == 3
         assert len(result.results) == 3
         assert scan_file_fn.call_count == 1
-        assert probe_handler.handle.call_count == 3
 
     def test_theorem_enumeration_file_order(self):
         """
@@ -91,7 +141,7 @@ class TestProbeFileCommandHandler:
         Requirements: 4.1, 5.5
         """
         # Setup mocks
-        probe_handler = Mock()
+        probe_handler = _make_probe_handler_mock()
         scan_file_fn = Mock()
 
         # Mock scan_file response with specific order
@@ -104,12 +154,17 @@ class TestProbeFileCommandHandler:
             ],
         }
 
-        # Mock probe results
-        probe_handler.handle = Mock(
-            return_value=ProbeResult(
+        # Mock validator and _process_lean_result
+        mock_lean_result = Mock()
+        mock_lean_result.messages = []
+        mock_lean_result.sorries = []
+        probe_handler.validator.verify_file.return_value = mock_lean_result
+
+        def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
+            return ProbeResult(
                 api_version="0.1.0",
                 status="success",
-                run_id="probe-test",
+                run_id=run_id,
                 probe_result=ProbeOutcome(
                     mode="aesop",
                     outcome="closed",
@@ -120,7 +175,8 @@ class TestProbeFileCommandHandler:
                 timing={"elapsed_ms": 100.0, "budget_s": 5.0},
                 metadata={},
             )
-        )
+
+        probe_handler._process_lean_result = Mock(side_effect=mock_process)
 
         # Create handler
         handler = ProbeFileCommandHandler(probe_handler, scan_file_fn, None)
@@ -149,7 +205,7 @@ class TestProbeFileCommandHandler:
         Requirements: 4.1, 5.5
         """
         # Setup mocks
-        probe_handler = Mock()
+        probe_handler = _make_probe_handler_mock()
         scan_file_fn = Mock()
         rank_targets_fn = Mock()
 
@@ -173,12 +229,17 @@ class TestProbeFileCommandHandler:
             ],
         }
 
-        # Mock probe results
-        probe_handler.handle = Mock(
-            return_value=ProbeResult(
+        # Mock validator and _process_lean_result
+        mock_lean_result = Mock()
+        mock_lean_result.messages = []
+        mock_lean_result.sorries = []
+        probe_handler.validator.verify_file.return_value = mock_lean_result
+
+        def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
+            return ProbeResult(
                 api_version="0.1.0",
                 status="success",
-                run_id="probe-test",
+                run_id=run_id,
                 probe_result=ProbeOutcome(
                     mode="aesop",
                     outcome="closed",
@@ -189,7 +250,8 @@ class TestProbeFileCommandHandler:
                 timing={"elapsed_ms": 100.0, "budget_s": 5.0},
                 metadata={},
             )
-        )
+
+        probe_handler._process_lean_result = Mock(side_effect=mock_process)
 
         # Create handler
         handler = ProbeFileCommandHandler(probe_handler, scan_file_fn, rank_targets_fn)
@@ -219,7 +281,7 @@ class TestProbeFileCommandHandler:
         Requirements: 5.6
         """
         # Setup mocks
-        probe_handler = Mock()
+        probe_handler = _make_probe_handler_mock()
         scan_file_fn = Mock()
 
         # Mock scan_file response with 5 theorems
@@ -228,12 +290,17 @@ class TestProbeFileCommandHandler:
             "theorems": [{"theorem_id": f"theorem{i}"} for i in range(5)],
         }
 
-        # Mock probe results
-        probe_handler.handle = Mock(
-            return_value=ProbeResult(
+        # Mock validator and _process_lean_result
+        mock_lean_result = Mock()
+        mock_lean_result.messages = []
+        mock_lean_result.sorries = []
+        probe_handler.validator.verify_file.return_value = mock_lean_result
+
+        def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
+            return ProbeResult(
                 api_version="0.1.0",
                 status="success",
-                run_id="probe-test",
+                run_id=run_id,
                 probe_result=ProbeOutcome(
                     mode="aesop",
                     outcome="closed",
@@ -244,7 +311,8 @@ class TestProbeFileCommandHandler:
                 timing={"elapsed_ms": 100.0, "budget_s": 5.0},
                 metadata={},
             )
-        )
+
+        probe_handler._process_lean_result = Mock(side_effect=mock_process)
 
         # Create handler
         handler = ProbeFileCommandHandler(probe_handler, scan_file_fn, None)
@@ -263,7 +331,6 @@ class TestProbeFileCommandHandler:
 
         # Verify only 2 theorems were probed
         assert len(result.results) == 2
-        assert probe_handler.handle.call_count == 2
         assert result.summary["total"] == 2
 
     def test_summary_aggregation(self):
@@ -273,7 +340,7 @@ class TestProbeFileCommandHandler:
         Requirements: 4.4, 5.3
         """
         # Setup mocks
-        probe_handler = Mock()
+        probe_handler = _make_probe_handler_mock()
         scan_file_fn = Mock()
 
         # Mock scan_file response
@@ -287,67 +354,45 @@ class TestProbeFileCommandHandler:
             ],
         }
 
-        # Mock probe results with different classifications
-        probe_results = [
-            ProbeResult(
+        # Mock validator
+        mock_lean_result = Mock()
+        mock_lean_result.messages = []
+        mock_lean_result.sorries = []
+        probe_handler.validator.verify_file.return_value = mock_lean_result
+
+        # Mock _process_lean_result with different classifications per call
+        classifications = [
+            ("closed", "trivial"),
+            ("not_closed", "promising"),
+            ("not_closed", "failed"),
+            ("timeout", "timed_out"),
+        ]
+        call_idx = [0]
+
+        def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
+            outcome, classification = classifications[call_idx[0]]
+            call_idx[0] += 1
+            status = (
+                "success"
+                if outcome == "closed"
+                else ("timeout" if outcome == "timeout" else "fail")
+            )
+            return ProbeResult(
                 api_version="0.1.0",
-                status="success",
-                run_id="probe-1",
+                status=status,
+                run_id=run_id,
                 probe_result=ProbeOutcome(
                     mode="aesop",
-                    outcome="closed",
-                    classification="trivial",
+                    outcome=outcome,
+                    classification=classification,
                     suggested_script=None,
                 ),
                 diagnostics=[],
                 timing={"elapsed_ms": 100.0, "budget_s": 5.0},
                 metadata={},
-            ),
-            ProbeResult(
-                api_version="0.1.0",
-                status="fail",
-                run_id="probe-2",
-                probe_result=ProbeOutcome(
-                    mode="aesop",
-                    outcome="not_closed",
-                    classification="promising",
-                    suggested_script=None,
-                ),
-                diagnostics=[],
-                timing={"elapsed_ms": 200.0, "budget_s": 5.0},
-                metadata={},
-            ),
-            ProbeResult(
-                api_version="0.1.0",
-                status="fail",
-                run_id="probe-3",
-                probe_result=ProbeOutcome(
-                    mode="aesop",
-                    outcome="not_closed",
-                    classification="failed",
-                    suggested_script=None,
-                ),
-                diagnostics=[],
-                timing={"elapsed_ms": 300.0, "budget_s": 5.0},
-                metadata={},
-            ),
-            ProbeResult(
-                api_version="0.1.0",
-                status="timeout",
-                run_id="probe-4",
-                probe_result=ProbeOutcome(
-                    mode="aesop",
-                    outcome="timeout",
-                    classification="timed_out",
-                    suggested_script=None,
-                ),
-                diagnostics=[],
-                timing={"elapsed_ms": 5000.0, "budget_s": 5.0},
-                metadata={},
-            ),
-        ]
+            )
 
-        probe_handler.handle = Mock(side_effect=probe_results)
+        probe_handler._process_lean_result = Mock(side_effect=mock_process)
 
         # Create handler
         handler = ProbeFileCommandHandler(probe_handler, scan_file_fn, None)
@@ -378,7 +423,7 @@ class TestProbeFileCommandHandler:
         Requirements: 4.6, 10.4
         """
         # Setup mocks
-        probe_handler = Mock()
+        probe_handler = _make_probe_handler_mock()
         scan_file_fn = Mock()
 
         # Mock scan_file response
@@ -391,14 +436,35 @@ class TestProbeFileCommandHandler:
             ],
         }
 
-        # Mock probe results - second one raises exception
-        def mock_probe_handle(cmd, lean_server=None):
-            if cmd.theorem_id == "theorem2":
-                raise RuntimeError("Probe failed for theorem2")
+        # Make harness construction fail for theorem2 by returning an error
+
+        call_idx = [0]
+        theorem_ids = ["theorem1", "theorem2", "theorem3"]
+
+        def mock_construct(config):
+            idx = call_idx[0]
+            call_idx[0] += 1
+            if config.theorem_id == "theorem2" or (idx == 1):
+                raise RuntimeError("Harness construction failed for theorem2")
+            return HarnessSuccess(
+                code="import Mathlib\n\ntheorem stub : True := by aesop\n",
+                theorem_id=config.theorem_id,
+                file_path=config.file_path,
+            )
+
+        probe_handler.harness_constructor.construct = Mock(side_effect=mock_construct)
+
+        # Mock validator and _process_lean_result for successful theorems
+        mock_lean_result = Mock()
+        mock_lean_result.messages = []
+        mock_lean_result.sorries = []
+        probe_handler.validator.verify_file.return_value = mock_lean_result
+
+        def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
             return ProbeResult(
                 api_version="0.1.0",
                 status="success",
-                run_id=f"probe-{cmd.theorem_id}",
+                run_id=run_id,
                 probe_result=ProbeOutcome(
                     mode=cmd.mode,
                     outcome="closed",
@@ -410,7 +476,7 @@ class TestProbeFileCommandHandler:
                 metadata={},
             )
 
-        probe_handler.handle = Mock(side_effect=mock_probe_handle)
+        probe_handler._process_lean_result = Mock(side_effect=mock_process)
 
         # Create handler
         handler = ProbeFileCommandHandler(probe_handler, scan_file_fn, None)
@@ -443,7 +509,7 @@ class TestProbeFileCommandHandler:
         Requirements: 10.4
         """
         # Setup mocks
-        probe_handler = Mock()
+        probe_handler = _make_probe_handler_mock()
         scan_file_fn = Mock()
 
         # Mock scan_file failure
@@ -472,7 +538,6 @@ class TestProbeFileCommandHandler:
         assert result.summary["total"] == 0
         assert len(result.results) == 0
         assert "error" in result.metadata
-        assert probe_handler.handle.call_count == 0  # Should not probe any theorems
 
     def test_empty_file_handling(self):
         """
@@ -481,7 +546,7 @@ class TestProbeFileCommandHandler:
         Requirements: 4.1
         """
         # Setup mocks
-        probe_handler = Mock()
+        probe_handler = _make_probe_handler_mock()
         scan_file_fn = Mock()
 
         # Mock scan_file response with no theorems
@@ -509,7 +574,6 @@ class TestProbeFileCommandHandler:
         assert result.status == "success"
         assert result.summary["total"] == 0
         assert len(result.results) == 0
-        assert probe_handler.handle.call_count == 0
 
     def test_rank_targets_without_function_raises_error(self):
         """
@@ -518,7 +582,7 @@ class TestProbeFileCommandHandler:
         Requirements: 5.5
         """
         # Setup mocks
-        probe_handler = Mock()
+        probe_handler = _make_probe_handler_mock()
         scan_file_fn = Mock()
 
         # Mock scan_file response

@@ -13,25 +13,20 @@ context (type class instances, variables, namespaces, notation).
 Requirements: 7.2, 7.3
 """
 
-
 from unittest.mock import Mock
 
 from lean_proof_auto_mcp.lean.validator import LeanInteractProofValidator
 
 
 class TestValidatorImportBased:
-
     """Test import-based validation approach."""
 
-
     def test_construct_validation_with_import_basic(self):
-
         """Test basic import-based validation construction."""
 
         # Arrange
         mock_server_manager = Mock()
         validator = LeanInteractProofValidator(server_manager=mock_server_manager)
-
 
         file_path = "Fixtures/Algebra/Group.lean"
         theorem_id = "mul_left_cancel"
@@ -40,15 +35,11 @@ class TestValidatorImportBased:
 
         proof_attempt = "intro a b c h\nexact mul_left_cancel h"
 
-
         # Act
 
         result = validator._construct_validation_with_import(
-
             file_path, theorem_id, theorem_statement, proof_attempt
-
         )
-
 
         # Assert
 
@@ -65,15 +56,12 @@ class TestValidatorImportBased:
         # Should NOT contain "theorem validation_theorem"
         assert "theorem validation_theorem" not in result
 
-
     def test_construct_validation_with_import_nested_path(self):
-
         """Test import path conversion for nested directories."""
 
         # Arrange
         mock_server_manager = Mock()
         validator = LeanInteractProofValidator(server_manager=mock_server_manager)
-
 
         file_path = "Fixtures/Algebra/Group/Subgroup/Basic.lean"
 
@@ -83,15 +71,11 @@ class TestValidatorImportBased:
 
         proof_attempt = "apply closure_is_closed"
 
-
         # Act
 
         result = validator._construct_validation_with_import(
-
             file_path, theorem_id, theorem_statement, proof_attempt
-
         )
-
 
         # Assert
 
@@ -99,15 +83,12 @@ class TestValidatorImportBased:
 
         assert ".lean" not in result  # Should strip .lean extension
 
-
     def test_construct_validation_with_import_multiline_proof(self):
-
         """Test import-based validation with multiline proof."""
 
         # Arrange
         mock_server_manager = Mock()
         validator = LeanInteractProofValidator(server_manager=mock_server_manager)
-
 
         file_path = "Test.lean"
         theorem_id = "test_theorem"
@@ -116,15 +97,11 @@ class TestValidatorImportBased:
 
         proof_attempt = "intro\napply And.intro\n· trivial\n· trivial"
 
-
         # Act
 
         result = validator._construct_validation_with_import(
-
             file_path, theorem_id, theorem_statement, proof_attempt
-
         )
-
 
         # Assert
 
@@ -137,9 +114,7 @@ class TestValidatorImportBased:
 
         assert "  · trivial" in result
 
-
     def test_validate_proof_uses_import_when_context_provided(self):
-
         """Test that validate_proof uses import-based approach when file_path and
         theorem_id provided."""
 
@@ -160,23 +135,15 @@ class TestValidatorImportBased:
 
         validator = LeanInteractProofValidator(server_manager=mock_server_manager)
 
-
         # Act
 
         validator.validate_proof(
-
             theorem_statement="True",
-
             proof_attempt="trivial",
-
             timeout_s=10.0,
-
             file_path="Test.lean",
-
             theorem_id="test_theorem",
-
         )
-
 
         # Assert
 
@@ -191,7 +158,6 @@ class TestValidatorImportBased:
         command = call_args[0][0]
         code = command.cmd
 
-
         # Verify it uses import-based approach
 
         assert "import Test" in code
@@ -202,9 +168,7 @@ class TestValidatorImportBased:
         # Should NOT use standalone approach
         assert "theorem validation_theorem" not in code
 
-
     def test_validate_proof_fallback_without_context(self):
-
         """Test that validate_proof falls back to standalone when context not provided."""
 
         # Arrange
@@ -224,21 +188,14 @@ class TestValidatorImportBased:
 
         validator = LeanInteractProofValidator(server_manager=mock_server_manager)
 
-
         # Act
 
         validator.validate_proof(
-
             theorem_statement="True",
-
             proof_attempt="trivial",
-
             timeout_s=10.0,
-
             # Note: NOT providing file_path and theorem_id
-
         )
-
 
         # Assert
 
@@ -253,7 +210,6 @@ class TestValidatorImportBased:
         command = call_args[0][0]
         code = command.cmd
 
-
         # Verify it uses standalone approach (fallback)
 
         assert "theorem validation_theorem : True := by" in code
@@ -264,9 +220,7 @@ class TestValidatorImportBased:
 
         assert "example" not in code
 
-
     def test_validate_proof_partial_context_uses_fallback(self):
-
         """Test that validate_proof uses fallback if only file_path OR theorem_id provided."""
 
         # Arrange
@@ -286,47 +240,77 @@ class TestValidatorImportBased:
 
         validator = LeanInteractProofValidator(server_manager=mock_server_manager)
 
-
         # Act - only file_path provided
 
         validator.validate_proof(
-
             theorem_statement="True",
-
             proof_attempt="trivial",
-
             timeout_s=10.0,
-
             file_path="Test.lean",
-
             # Note: NOT providing theorem_id
-
         )
-
 
         # Act - only theorem_id provided
 
         validator.validate_proof(
-
             theorem_statement="True",
-
             proof_attempt="trivial",
-
             timeout_s=10.0,
-
             theorem_id="test_theorem",
-
             # Note: NOT providing file_path
-
         )
-
 
         # Assert both use fallback
 
         for call_args in mock_server.run.call_args_list:
-
             command = call_args[0][0]
             code = command.cmd
             assert "theorem validation_theorem" in code
             assert "import" not in code
 
+    def test_validate_harness_code_executes_exact_input(self):
+        """Prebuilt harness path should execute exactly the provided code."""
+        mock_server_manager = Mock()
+        mock_server = Mock()
+        mock_server_manager.get_server.return_value = mock_server
+
+        mock_response = Mock()
+        mock_response.messages = []
+        mock_response.sorries = []
+        mock_response.goals = []
+        mock_server.run.return_value = mock_response
+
+        validator = LeanInteractProofValidator(server_manager=mock_server_manager)
+        harness_code = "import Test\n\nexample : True := by\n  trivial\n"
+
+        result = validator.validate_harness_code(
+            harness_code=harness_code,
+            timeout_s=10.0,
+            file_path="Test.lean",
+        )
+
+        assert result.status == "success"
+        assert mock_server.run.called
+        command = mock_server.run.call_args[0][0]
+        assert command.cmd == harness_code
+
+    def test_validate_harness_code_ignores_non_target_sorries(self):
+        """Prebuilt harness validation should not classify response.sorries as incomplete."""
+        mock_server_manager = Mock()
+        mock_server = Mock()
+        mock_server_manager.get_server.return_value = mock_server
+
+        mock_response = Mock()
+        mock_response.messages = []
+        mock_response.sorries = [Mock()]  # expected in harness for non-target decls
+        mock_response.goals = []
+        mock_server.run.return_value = mock_response
+
+        validator = LeanInteractProofValidator(server_manager=mock_server_manager)
+        result = validator.validate_harness_code(
+            harness_code="example : True := by\n  trivial\n",
+            timeout_s=10.0,
+            file_path="Test.lean",
+        )
+
+        assert result.status == "success"

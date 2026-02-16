@@ -11,7 +11,7 @@ Requirements: 8.2, 8.3, 8.4, 8.5, 8.6
 import logging
 from dataclasses import dataclass
 
-from ..lean.ports import Declaration, Querier, ProofStateInspector, TheoremContext
+from ..lean.ports import Declaration, ProofStateInspector, Querier, Range, TheoremContext
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ class ProofContext:
     in_scope: list[str]  # Declarations in scope
     namespace: str
     similar_proofs: list[SimilarProof]
+    value_range: Range | None = None
 
 
 class ContextExtractor:
@@ -152,6 +153,7 @@ class ContextExtractor:
                 in_scope=theorem_context.in_scope,
                 namespace=theorem_context.namespace,
                 similar_proofs=similar_proofs,
+                value_range=theorem_context.value_range,
             )
 
             # Cache context (without similar proofs)
@@ -309,6 +311,9 @@ class ContextExtractor:
         Clear the context cache.
 
         This should be called when the file changes to ensure fresh context.
+        Also cascades to the querier's declarations cache.
         """
         self._context_cache.clear()
+        if hasattr(self.querier, "clear_cache"):
+            self.querier.clear_cache()
         logger.debug("Cleared context cache")

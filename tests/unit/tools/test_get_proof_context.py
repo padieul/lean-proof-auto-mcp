@@ -7,6 +7,7 @@ Requirements: 8.2, 8.3, 8.4, 8.5, 8.6
 import pytest
 
 from lean_proof_auto_mcp.core.context_extractor import ProofContext, SimilarProof
+from lean_proof_auto_mcp.lean.ports import Range
 from lean_proof_auto_mcp.tools.get_proof_context import (
     _build_error_response,
     _format_response,
@@ -340,6 +341,37 @@ class TestContextExtraction:
         assert response["namespace"] == ""
         assert response["similar_proofs"] == []
         assert response["metadata"] == {}
+
+    def test_format_response_adds_value_range_metadata(self):
+        """value_range should be exposed as additive metadata.value_range."""
+        context = ProofContext(
+            theorem_statement="theorem t : True",
+            original_proof="by trivial",
+            hypotheses=[],
+            in_scope=[],
+            namespace="",
+            similar_proofs=[],
+            value_range=Range(start_line=10, start_col=4, end_line=12, end_col=20),
+        )
+        metadata = {"repo_commit": "abc123"}
+
+        response = _format_response(
+            context=context,
+            file_path="test.lean",
+            theorem_id="t",
+            run_id="context-20240101-12345678-abcdef",
+            metadata=metadata,
+        )
+
+        assert response["metadata"]["repo_commit"] == "abc123"
+        assert response["metadata"]["value_range"] == {
+            "start_line": 10,
+            "start_col": 4,
+            "end_line": 12,
+            "end_col": 20,
+        }
+        # Original metadata input remains unchanged.
+        assert "value_range" not in metadata
 
 
 class TestJSONResponseFormat:

@@ -1,59 +1,37 @@
 """
-
 Abstract interfaces (ports) for LeanInteract Adapter Layer.
 
-
 This module defines the protocols that the Core Domain Layer depends on.
-
 These are abstract interfaces that enable testing without LeanInteract and
-
 allow swapping implementations.
 
-
 Following hexagonal architecture:
-
 - Core Domain depends on these protocols
-
 - Adapter implementations depend inward toward these protocols
-
 - No dependency on LeanInteract implementation details
-
 
 Requirements: 9.1, 9.2, 9.3, 9.5
 """
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
-
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-
-    from .server_manager import LeanInteractServerManager as _ServerManager
     from ..core.verify_domain import LeanRunResult
-    from ..core.verify_domain import LeanRunResult
-
 
 
 @dataclass(frozen=True)
-
 class Range:
-
     """Position range in a file."""
 
-
     start_line: int
-
     start_col: int
-
     end_line: int
-
     end_col: int
 
 
-
 @dataclass(frozen=True)
-
 class DeclValue:
     """
 
@@ -68,13 +46,11 @@ class DeclValue:
     Requirements: 1.2, 1.3, 2.1, 2.2
     """
 
-
     pp: str  # Pretty-printed proof text
 
     constants: list[str]  # Constants/lemmas referenced
 
     range: Range  # Position in file
-
 
     def get_all_references(self) -> list[str]:
         """
@@ -99,7 +75,6 @@ class DeclValue:
 
         refs = set(self.constants)
 
-
         # Fallback: parse pp text for additional references
 
         # This is a simple implementation - can be enhanced with proper parsing
@@ -108,13 +83,10 @@ class DeclValue:
 
         # TODO: Implement pp text parsing if constants list is incomplete
 
-
         return list(refs)
 
 
-
 @dataclass(frozen=True)
-
 class Declaration:
     """
 
@@ -128,7 +100,6 @@ class Declaration:
 
     Requirements: 1.1, 1.2, 1.3
     """
-
 
     name: str  # Short name
 
@@ -144,28 +115,22 @@ class Declaration:
 
     namespace: str  # Current namespace
 
+    kind: str = ""  # "theorem", "lemma", "def", "instance", etc.
 
     @property
-
     def is_theorem(self) -> bool:
-
         """Check if this is a theorem or lemma."""
 
-        return "theorem" in self.type or "lemma" in self.type
-
+        return self.kind in ("theorem", "lemma")
 
     @property
-
     def has_simp_attribute(self) -> bool:
-
         """Check if this has the simp attribute."""
 
         return "simp" in self.attributes
 
 
-
 @dataclass(frozen=True)
-
 class ProofState:
     """
 
@@ -180,7 +145,6 @@ class ProofState:
     Requirements: 16.1, 16.2, 16.3, 16.4
     """
 
-
     goal: str  # Current goal
 
     hypotheses: list[str]  # Available hypotheses
@@ -188,7 +152,6 @@ class ProofState:
     type_context: str  # Type context
 
     goals_remaining: int  # Number of goals left
-
 
     def complexity_score(self) -> float:
         """
@@ -222,9 +185,7 @@ class ProofState:
         return float(score)
 
 
-
 @dataclass(frozen=True)
-
 class TacticResult:
     """
 
@@ -234,7 +195,6 @@ class TacticResult:
     Requirements: 16.2
     """
 
-
     success: bool
 
     new_proof_state: ProofState | None
@@ -242,9 +202,7 @@ class TacticResult:
     error_message: str | None
 
 
-
 @dataclass(frozen=True)
-
 class ValidationResult:
     """
 
@@ -259,8 +217,13 @@ class ValidationResult:
     Requirements: 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 17.1, 17.2, 17.3, 17.4, 17.5
     """
 
-
-    status: str  # "success" | "error" | "incomplete" | "timeout"
+    status: str  # "success" | "rejected" | "error" | "incomplete" | "timeout"
+    # "success"    — proof closes all goals
+    # "rejected"   — Lean processed the proof but reported errors (type mismatch,
+    #                tactic failure, etc.). The tool worked correctly; the proof is wrong.
+    # "error"      — infrastructure/tool failure (server crash, missing library, etc.)
+    # "incomplete" — proof compiles but leaves unsolved goals
+    # "timeout"    — validation exceeded time budget
 
     error_message: str | None
 
@@ -273,9 +236,7 @@ class ValidationResult:
     time_s: float
 
 
-
 @dataclass(frozen=True)
-
 class TheoremContext:
     """
 
@@ -290,7 +251,6 @@ class TheoremContext:
     Requirements: 3.1, 3.2, 3.3, 3.4, 8.2, 8.3, 8.4
     """
 
-
     theorem_statement: str
 
     original_proof: str
@@ -299,7 +259,7 @@ class TheoremContext:
 
     in_scope: list[str]  # Declarations in scope
     namespace: str
-
+    value_range: Range | None = None  # Exact DeclValue range for raw source extraction
 
 
 class Querier(Protocol):
@@ -318,14 +278,10 @@ class Querier(Protocol):
     Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 2.3, 3.1, 3.2, 3.3, 3.4
     """
 
-
     @property
-
-    def server_manager(self) -> "_ServerManager":
-
+    def server_manager(self) -> "ServerManager":
         """Get the server manager instance."""
         ...
-
 
     def extract_declarations(self, file_path: str) -> list[Declaration]:
         """
@@ -351,7 +307,6 @@ class Querier(Protocol):
         Requirements: 1.1, 1.2, 1.3
         """
         ...
-
 
     def get_proof_references(self, file_path: str, theorem_id: str) -> list[str]:
         """
@@ -387,7 +342,6 @@ class Querier(Protocol):
         """
         ...
 
-
     def get_theorem_context(self, file_path: str, theorem_id: str) -> TheoremContext:
         """
 
@@ -417,6 +371,31 @@ class Querier(Protocol):
         """
         ...
 
+    def clear_cache(self) -> None:
+        """
+        Clear any cached declarations.
+
+        Call when file contents may have changed to force fresh extraction.
+        """
+        ...
+
+    def read_source_file(self, file_path: str) -> str:
+        """
+        Read source file content, resolving path via workspace_path.
+
+        This moves file-reading I/O from the core layer to the adapter layer
+        where it belongs (hexagonal architecture).
+
+        Args:
+            file_path: Path to Lean file (relative to workspace)
+
+        Returns:
+            File content as string
+
+        Raises:
+            FileNotFoundError: If file cannot be found
+        """
+        ...
 
 
 class ProofStateInspector(Protocol):
@@ -432,7 +411,6 @@ class ProofStateInspector(Protocol):
 
     Requirements: 16.1, 16.2, 16.3, 16.4
     """
-
 
     def get_initial_proof_state(self, theorem: Declaration) -> ProofState:
         """
@@ -459,7 +437,6 @@ class ProofStateInspector(Protocol):
         """
         ...
 
-
     def apply_tactic(self, proof_state_id: int, tactic: str) -> TacticResult:
         """
 
@@ -483,7 +460,6 @@ class ProofStateInspector(Protocol):
         ...
 
 
-
 class ProofValidator(Protocol):
     """
 
@@ -491,24 +467,20 @@ class ProofValidator(Protocol):
 
 
     This protocol defines how the Core Domain Layer validates proofs
-    and verifies entire Lean files without depending on LeanInteract 
+    and verifies entire Lean files without depending on LeanInteract
     implementation details.
 
 
     Requirements: 6.1, 6.2, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8
     """
 
-
     def validate_proof(
-
         self,
-
         theorem_statement: str,
-
         proof_attempt: str,
-
         timeout_s: float = 10.0,
-
+        file_path: str | None = None,
+        theorem_id: str | None = None,
     ) -> ValidationResult:
         """
 
@@ -523,6 +495,10 @@ class ProofValidator(Protocol):
 
             timeout_s: Timeout in seconds
 
+            file_path: Optional path to original file (for context preservation)
+
+            theorem_id: Optional theorem identifier (for context preservation)
+
 
         Returns:
 
@@ -530,6 +506,25 @@ class ProofValidator(Protocol):
 
 
         Requirements: 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8
+        """
+        ...
+
+    def validate_harness_code(
+        self,
+        harness_code: str,
+        timeout_s: float = 10.0,
+        file_path: str | None = None,
+    ) -> ValidationResult:
+        """
+        Validate prebuilt harness code exactly as provided.
+
+        Args:
+            harness_code: Fully constructed harness source to execute
+            timeout_s: Timeout in seconds
+            file_path: Optional file key for server selection
+
+        Returns:
+            ValidationResult with status and feedback
         """
         ...
 
@@ -565,7 +560,6 @@ class ProofValidator(Protocol):
         ...
 
 
-
 class ServerManager(Protocol):
     """
 
@@ -580,6 +574,7 @@ class ServerManager(Protocol):
     Requirements: 10.6, 28.3, 28.4, 28.5, 28.6
     """
 
+    workspace_path: Path | None
 
     def get_server(self, file_path: str) -> "LeanServer":
         """
@@ -604,7 +599,6 @@ class ServerManager(Protocol):
         """
         ...
 
-
     def restart_server(self, file_path: str) -> None:
         """
 
@@ -620,7 +614,6 @@ class ServerManager(Protocol):
         """
         ...
 
-
     def shutdown_all(self) -> None:
         """
 
@@ -631,6 +624,9 @@ class ServerManager(Protocol):
         """
         ...
 
+    def log_request(self, file_path: str, request: str, response: object) -> None:
+        """Log a request/response pair for diagnostics."""
+        ...
 
 
 class LeanServer(Protocol):
@@ -642,15 +638,10 @@ class LeanServer(Protocol):
     This is a minimal protocol for server operations needed by the Core Domain.
     """
 
-
-    def run(self, command: object, timeout: float) -> object:
-
+    def run(self, command: Any, *, timeout: float | None = None) -> Any:
         """Run a command with timeout."""
         ...
 
-
     def kill(self) -> None:
-
         """Kill the server process."""
         ...
-

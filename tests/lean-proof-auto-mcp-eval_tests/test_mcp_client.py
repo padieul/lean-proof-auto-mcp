@@ -15,9 +15,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from mcp_client import MCPClient
 from eval_logger import EvalLogger
+from mcp_client import MCPClient
 
 
 def _make_jsonrpc_response(id: int, result: dict | None = None, error: dict | None = None) -> str:
@@ -91,9 +90,7 @@ class TestMCPClientLifecycle:
         """Test that __exit__ kills process if terminate times out."""
         init_response = _make_jsonrpc_response(1, {"protocolVersion": "2024-11-05"})
         mock_process = _mock_process_with_responses(init_response)
-        mock_process.wait = MagicMock(
-            side_effect=[subprocess.TimeoutExpired("cmd", 5), None]
-        )
+        mock_process.wait = MagicMock(side_effect=[subprocess.TimeoutExpired("cmd", 5), None])
 
         with patch("mcp_client.subprocess.Popen", return_value=mock_process):
             client = MCPClient(Path("/fake/server.py"), Path("/fake/workdir"))
@@ -156,12 +153,17 @@ class TestMCPClientCallTool:
         """Test successful tool call with correct parameter name."""
         tool_result = {
             "content": [
-                {"type": "text", "text": json.dumps({
-                    "api_version": "0.2.0",
-                    "status": "success",
-                    "run_id": "verify-test",
-                    "file": "test.lean",
-                })}
+                {
+                    "type": "text",
+                    "text": json.dumps(
+                        {
+                            "api_version": "0.2.0",
+                            "status": "success",
+                            "run_id": "verify-test",
+                            "file": "test.lean",
+                        }
+                    ),
+                }
             ]
         }
         tool_response = _make_jsonrpc_response(2, tool_result)
@@ -336,11 +338,14 @@ class TestMCPClientIntegration:
         """Test full lifecycle with actual MCP server."""
         try:
             from fixtures import get_eval_repo_path
+
             eval_repo_path = get_eval_repo_path()
         except (ImportError, FileNotFoundError) as e:
             pytest.skip(f"Eval repository not available: {e}")
 
-        server_path = Path(__file__).parent.parent.parent / "src" / "lean_proof_auto_mcp" / "server.py"
+        server_path = (
+            Path(__file__).parent.parent.parent / "src" / "lean_proof_auto_mcp" / "server.py"
+        )
         if not server_path.exists():
             pytest.skip(f"MCP server not found at {server_path}")
 
@@ -353,7 +358,8 @@ class TestMCPClientIntegration:
     def test_verify_tool_returns_valid_response(self):
         """Test that verify tool returns a response matching VerifyResult schema."""
         try:
-            from fixtures import get_eval_repo_path, ALL_FIXTURE_FILES
+            from fixtures import ALL_FIXTURE_FILES, get_eval_repo_path
+
             eval_repo_path = get_eval_repo_path()
         except (ImportError, FileNotFoundError) as e:
             pytest.skip(f"Eval repository not available: {e}")
@@ -361,7 +367,9 @@ class TestMCPClientIntegration:
         if not ALL_FIXTURE_FILES:
             pytest.skip("No fixture files available")
 
-        server_path = Path(__file__).parent.parent.parent / "src" / "lean_proof_auto_mcp" / "server.py"
+        server_path = (
+            Path(__file__).parent.parent.parent / "src" / "lean_proof_auto_mcp" / "server.py"
+        )
         if not server_path.exists():
             pytest.skip(f"MCP server not found at {server_path}")
 
@@ -381,6 +389,11 @@ class TestMCPClientIntegration:
             assert "status" in response, f"Missing 'status'. Keys: {list(response.keys())}"
             assert response["status"] in ("success", "fail", "timeout", "error")
 
-            passed = "status" in response and response["status"] in ("success", "fail", "timeout", "error")
+            passed = "status" in response and response["status"] in (
+                "success",
+                "fail",
+                "timeout",
+                "error",
+            )
             failures = [] if passed else [f"Invalid response: {list(response.keys())}"]
             logger.log_fixture_result(response, elapsed_s, passed, failures)

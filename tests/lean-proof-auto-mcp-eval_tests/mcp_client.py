@@ -16,7 +16,6 @@ Design Patterns:
 - Explicit Error Handling: All failures represented as typed exceptions
 """
 
-import asyncio
 import json
 import os
 import subprocess
@@ -231,9 +230,7 @@ class MCPClient:
                 except (ValueError, OSError):
                     break
 
-        self._stderr_thread = threading.Thread(
-            target=_drain_stderr, daemon=True
-        )
+        self._stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
         self._stderr_thread.start()
 
     def _perform_initialize(self) -> None:
@@ -265,9 +262,7 @@ class MCPClient:
             response = self._read_response()
 
             if "error" in response:
-                raise RuntimeError(
-                    f"MCP initialize failed: {response['error']}"
-                )
+                raise RuntimeError(f"MCP initialize failed: {response['error']}")
 
             # Send initialized notification (no id, no response expected)
             initialized_notification = {

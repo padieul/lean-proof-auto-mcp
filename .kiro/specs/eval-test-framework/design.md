@@ -25,19 +25,19 @@ graph TB
         TCC[test_cross_tool_consistency.py]
         TDC[test_domain_coverage.py]
     end
-    
+
     subgraph "Infrastructure"
         CF[conftest.py]
         MC[MCPClient]
         FD[Fixture Discovery]
         RC[Result Collector]
     end
-    
+
     subgraph "External"
         MCP[MCP Server]
         ER[Eval Repository]
     end
-    
+
     TV --> CF
     TP --> CF
     TPF --> CF
@@ -45,11 +45,11 @@ graph TB
     TPC --> CF
     TCC --> CF
     TDC --> CF
-    
+
     CF --> MC
     CF --> FD
     CF --> RC
-    
+
     MC --> MCP
     FD --> ER
     RC --> FS[File System]
@@ -99,16 +99,16 @@ tests/lean-proof-auto-mcp-eval_tests/
 def get_eval_repo_path() -> Path:
     """
     Resolve the eval repository path with cross-platform support.
-    
+
     Resolution order:
     1. LEAN_EVAL_REPO environment variable (if set)
     2. Platform-specific default:
        - Linux: /home/paul_d/Sources/lean-proof-auto-mcp-eval/
        - Windows: C:\Dev\lean-proof-auto-mcp-eval
-    
+
     Returns:
         Path: Resolved eval repository path
-        
+
     Raises:
         FileNotFoundError: If resolved path does not exist
     """
@@ -140,13 +140,13 @@ class FixtureFile:
 def discover_fixtures(eval_repo_path: Path) -> list[FixtureFile]:
     """
     Discover all fixture files in the eval repository.
-    
+
     Args:
         eval_repo_path: Path to eval repository root
-        
+
     Returns:
         List of FixtureFile objects, one per discovered .lean file
-        
+
     Raises:
         FileNotFoundError: If fixtures directory does not exist
     """
@@ -170,48 +170,48 @@ ALL_FIXTURE_FILES: list[FixtureFile] = discover_fixtures(get_eval_repo_path())
 ```python
 class MCPClient:
     """Reusable MCP client with context manager support."""
-    
+
     def __init__(self, server_path: Path, working_dir: Path, timeout: float = 30.0):
         """
         Initialize MCP client.
-        
+
         Args:
             server_path: Path to MCP server.py script
             working_dir: Working directory for server process (eval repo root)
             timeout: Timeout in seconds for tool calls
         """
-    
+
     def __enter__(self) -> "MCPClient":
         """Start the MCP server process."""
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         """Terminate the MCP server process."""
-    
+
     def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """
         Call an MCP tool and return the result.
-        
+
         Args:
             name: Tool name (e.g., "verify", "probe")
             arguments: Tool arguments as dictionary
-            
+
         Returns:
             JSON-RPC response as dictionary
-            
+
         Raises:
             TimeoutError: If tool call exceeds timeout
             ValueError: If server returns malformed JSON
             RuntimeError: If server process has terminated
         """
-    
+
     def health_check(self) -> bool:
         """
         Check if server is responsive.
-        
+
         Returns:
             True if server responds to ping, False otherwise
         """
-    
+
     def restart(self) -> None:
         """Terminate and restart the server process."""
 ```
@@ -257,10 +257,10 @@ class ToolResult:
 ```python
 class ResultCollector:
     """Collects and persists test results."""
-    
+
     def __init__(self):
         """Initialize result collector with empty results list."""
-    
+
     def record(
         self,
         tool: str,
@@ -275,7 +275,7 @@ class ResultCollector:
     ) -> None:
         """
         Record a tool invocation result.
-        
+
         Args:
             tool: Tool name
             file_path: Path to fixture file
@@ -287,24 +287,24 @@ class ResultCollector:
             theorem_id: Theorem name (optional)
             mode: Execution mode (optional)
         """
-    
+
     def save(self, output_dir: Path) -> None:
         """
         Save results to JSON files.
-        
+
         Args:
             output_dir: Directory to save results
-            
+
         Creates:
             - {output_dir}/results.json: All results
             - {output_dir}/summary.json: Aggregated summary
             - {output_dir}/metadata.json: Execution metadata
         """
-    
+
     def summary(self) -> dict[str, Any]:
         """
         Generate summary statistics.
-        
+
         Returns:
             Dictionary with aggregations:
             - by_tool: Results grouped by tool
@@ -313,14 +313,14 @@ class ResultCollector:
             - total_count: Total number of results
             - total_elapsed_ms: Total execution time
         """
-    
+
     def compare_baseline(self, baseline_path: Path) -> dict[str, Any]:
         """
         Compare current results against a baseline.
-        
+
         Args:
             baseline_path: Path to baseline results.json
-            
+
         Returns:
             Dictionary with:
             - regressions: Tests that changed from success to failure
@@ -384,7 +384,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "eval_normal: Normal tier (~30 min)")
     config.addinivalue_line("markers", "eval_full: Full tier (~2 hours)")
     config.addinivalue_line("markers", "eval_deep: Deep tier (all tests)")
-    
+
     # Domain markers
     config.addinivalue_line("markers", "eval_algebra: Algebra domain")
     config.addinivalue_line("markers", "eval_analysis: Analysis domain")
@@ -410,7 +410,7 @@ pytestmark = [pytest.mark.eval_normal]  # Default tier
 
 class Test{ToolName}:
     """Test {tool_name} tool on fixture files."""
-    
+
     @pytest.mark.eval_smoke
     @pytest.mark.parametrize("fixture_file", SMOKE_FIXTURES, indirect=False)
     def test_{tool_name}_smoke(
@@ -421,7 +421,7 @@ class Test{ToolName}:
     ):
         """Smoke test for {tool_name} tool."""
         start = time.perf_counter()
-        
+
         try:
             response = mcp_client.call_tool(
                 "{tool_name}",
@@ -433,7 +433,7 @@ class Test{ToolName}:
             elapsed_ms = (time.perf_counter() - start) * 1000
             status = "error"
             response = {"error": str(e)}
-        
+
         result_collector.record(
             tool="{tool_name}",
             file_path=str(fixture_file.path),
@@ -443,7 +443,7 @@ class Test{ToolName}:
             domain=fixture_file.domain,
             subdomain=fixture_file.subdomain,
         )
-        
+
         # Assertions
         assert status in ["success", "failure", "error"]
 ```

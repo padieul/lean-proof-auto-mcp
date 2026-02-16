@@ -13,10 +13,11 @@ from dataclasses import dataclass
 from itertools import combinations
 from typing import TYPE_CHECKING, Literal
 
-from ..lean.ports import ProofStateInspector, ProofValidator
+from ..lean.ports import ProofStateInspector, ProofValidator, Querier
 from ..observability.ports import MetadataCollector
 from .candidate_generator import CandidateGenerator
 from .feedback_builder import FeedbackBuilder, SearchFeedback
+from .indexer import TheoremDecl
 from .search_automated_proof_domain import (
     Candidate,
     CandidateSource,
@@ -27,9 +28,41 @@ from .search_automated_proof_domain import (
 
 if TYPE_CHECKING:
     from .harness_construction import HarnessConstructor
-    from .verify_domain import LeanRunner
 
 logger = logging.getLogger(__name__)
+
+
+def _find_theorem_in_index(decls: list[TheoremDecl], theorem_id: str) -> TheoremDecl | None:
+    """Find a theorem declaration in the index using flexible matching.
+
+    Matching strategy (first match wins):
+    1. Exact match on theorem_id
+    2. Index entry has namespace prefix, input is the short name
+       (e.g., index="Nat.totient_one", input="totient_one")
+    3. Input has namespace prefix, index entry is the short name
+       (e.g., input="Group.mul_left_cancel", index="mul_left_cancel")
+
+    Args:
+        decls: List of indexed theorem declarations
+        theorem_id: Theorem identifier to look up
+
+    Returns:
+        Matching TheoremDecl or None
+    """
+    input_short = theorem_id.rsplit(".", 1)[-1] if "." in theorem_id else None
+
+    for decl in decls:
+        # 1. Exact match
+        if decl.theorem_id == theorem_id:
+            return decl
+        # 2. Index has dots, input is the short name
+        if "." in decl.theorem_id and decl.theorem_id.rsplit(".", 1)[-1] == theorem_id:
+            return decl
+        # 3. Input has dots, index entry matches the short name
+        if input_short and decl.theorem_id == input_short:
+            return decl
+
+    return None
 
 
 @dataclass(frozen=True)
@@ -76,10 +109,14 @@ class SearchConfig:
         Requirements: 4.2, 4.3, 4.4, 4.5, 4.6, 4.7
         """
         presets = {
-            "quick": (10.0, 20, 50, 5.0),
-            "normal": (30.0, 50, 100, 30.0),
-            "deep": (60.0, 100, 200, 60.0),
-            "exhaustive": (120.0, 200, 500, 120.0),
+            # (budget_s, max_candidates, max_steps, minimize_budget_s)
+            # Budget must accommodate Mathlib REPL load (10-20s) plus
+            # actual verification time per step. With a 30s per-step
+            # floor, total budget = max_steps * 30s minimum.
+            "quick": (300.0, 20, 10, 30.0),
+            "normal": (600.0, 50, 20, 30.0),
+            "deep": (1200.0, 100, 40, 60.0),
+            "exhaustive": (3600.0, 200, 100, 120.0),
         }
 
         if depth not in presets:
@@ -150,8 +187,8 @@ class SearchOrchestrator:
         candidate_gen: CandidateGenerator,
         feedback_builder: FeedbackBuilder,
         validator: ProofValidator,
-        harness_constructor: "HarnessConstructor | None" = None,
-        lean_runner: "LeanRunner | None" = None,
+        constructor: "HarnessConstructor",
+        querier: "Querier | None" = None,
         proof_state_inspector: ProofStateInspector | None = None,
         metadata_collector: MetadataCollector | None = None,
     ):
@@ -162,18 +199,18 @@ class SearchOrchestrator:
             candidate_gen: CandidateGenerator for extracting hints
             feedback_builder: FeedbackBuilder for building feedback
             validator: ProofValidator for validating proofs
-            harness_constructor: Optional HarnessConstructor for building test harnesses
-            lean_runner: Optional LeanRunner for running Lean verification
+            constructor: HarnessConstructor for building test harnesses
+            querier: Querier for extracting declarations and reading files
             proof_state_inspector: Optional ProofStateInspector for proof states
             metadata_collector: Optional MetadataCollector for environment metadata
 
-        Requirements: 4.1, 9.2, 9.5, 29.2
+        Requirements: 4.1, 5.1, 5.2, 9.2, 9.5, 29.2
         """
         self.candidate_gen = candidate_gen
         self.feedback_builder = feedback_builder
         self.validator = validator
-        self.harness_constructor = harness_constructor
-        self.lean_runner = lean_runner
+        self.constructor = constructor
+        self.querier = querier
         self.proof_state_inspector = proof_state_inspector
         self.metadata_collector = metadata_collector
 
@@ -208,27 +245,16 @@ class SearchOrchestrator:
             f"strategy={config.search_strategy}"
         )
 
-        # If harness_constructor is not provided, return placeholder result
-        if self.harness_constructor is None:
-            logger.warning("No harness_constructor provided, returning placeholder result")
-            return self._build_placeholder_result(config)
-
         # 1. Generate candidates from configured sources
         try:
             # Get theorem declaration from index
             from .search_automated_proof_domain import CandidateConfig
 
-            # Find theorem in index
-            # Try exact match first, then try with namespace prefix
-            theorem_decl = None
-            for decl in self.candidate_gen.index.decls:
-                if decl.theorem_id == theorem_id:
-                    theorem_decl = decl
-                    break
-                # Also try matching the short name (without namespace)
-                if "." in decl.theorem_id and decl.theorem_id.split(".")[-1] == theorem_id:
-                    theorem_decl = decl
-                    break
+            # Find theorem in index using flexible matching:
+            # 1. Exact match
+            # 2. Index has namespace, input is short name
+            # 3. Input has namespace, index is short name (reverse)
+            theorem_decl = _find_theorem_in_index(self.candidate_gen.index.decls, theorem_id)
 
             if theorem_decl is None:
                 raise ValueError(f"Theorem not found in index: {theorem_id}")
@@ -293,7 +319,7 @@ class SearchOrchestrator:
         Execute the configured search strategy.
 
         This method implements the core search logic, testing hint combinations
-        using the harness constructor and lean runner.
+        using the harness constructor and ProofValidator.
 
         Args:
             file_path: Path to Lean file
@@ -479,10 +505,10 @@ class SearchOrchestrator:
         config: SearchConfig,
     ) -> bool:
         """
-        Test a specific hint combination using harness constructor.
+        Test a specific hint combination using ProofValidator.
 
         This method constructs a test harness with the given hints and
-        runs automation to check if the proof succeeds.
+        validates the proof using the ProofValidator port.
 
         Args:
             file_path: Path to Lean file
@@ -493,41 +519,52 @@ class SearchOrchestrator:
         Returns:
             True if proof succeeds with these hints, False otherwise
 
-        Requirements: 4.1
+        Requirements: 5.3, 5.4, 5.5, 5.6
         """
-        if self.harness_constructor is None or self.lean_runner is None:
-            logger.warning("Cannot test hints without harness_constructor and lean_runner")
-            return False
-
         try:
             # Build proof attempt with hints
             proof_attempt = self._build_proof_with_hints(hints, config)
 
-            # Construct harness
-            from .harness_construction import HarnessConfig, HarnessError, HarnessSuccess
+            # Construct harness (uses cache)
+            from .harness_construction import HarnessConfig, HarnessError
 
             harness_config = HarnessConfig(
                 theorem_id=theorem_id,
                 file_path=file_path,
                 proof_attempt=proof_attempt,
+                file_content=self.querier.read_source_file(file_path) if self.querier else "",
+                declarations=self.querier.extract_declarations(file_path) if self.querier else [],
                 additional_imports=self._get_additional_imports(config),
             )
 
-            result = self.harness_constructor.construct(harness_config)
+            harness_result = self.constructor.construct(harness_config)
 
             # Handle construction errors
-            if isinstance(result, HarnessError):
-                logger.debug(f"Harness construction failed: {result.message}")
+            if isinstance(harness_result, HarnessError):
+                logger.debug(f"Harness construction failed: {harness_result.message}")
                 return False
 
-            # Extract harness code
-            assert isinstance(result, HarnessSuccess)
+            # Validate proof using ProofValidator port
+            # Per-step budget: divide total budget across steps, but enforce
+            # a floor of 30s. Mathlib REPL environment loads in 10-20s on
+            # first use; anything below ~30s causes every attempt to timeout
+            # before Lean finishes checking the harness.
+            _MIN_PER_STEP_BUDGET_S = 30.0
+            per_step_budget = max(
+                config.search_budget_s / max(config.max_search_steps, 1),
+                _MIN_PER_STEP_BUDGET_S,
+            )
 
-            # Run Lean verification
-            # TODO: Implement actual Lean verification
-            # For now, return False (no successful proofs)
-            logger.debug(f"Testing hint combination with {len(hints)} hints")
-            return False
+            validation_result = self.validator.validate_proof(
+                theorem_statement=harness_result.theorem_statement,
+                proof_attempt=harness_result.code,
+                timeout_s=per_step_budget,
+                file_path=file_path,
+                theorem_id=theorem_id,
+            )
+
+            # Map result status: success → True, others → False
+            return validation_result.status == "success"
 
         except Exception as e:
             logger.debug(f"Error testing hint combination: {e}")
@@ -597,43 +634,6 @@ class SearchOrchestrator:
             imports.append("import Aesop")
 
         return imports
-
-    def _build_placeholder_result(self, config: SearchConfig) -> SearchResultEnhanced:
-        """
-        Build placeholder result when harness_constructor is not available.
-
-        Args:
-            config: Search configuration
-
-        Returns:
-            SearchResultEnhanced with placeholder data
-
-        Requirements: 4.1
-        """
-        metadata = self._build_metadata()
-
-        feedback = self.feedback_builder.build_search_feedback(
-            search_result=SearchResult(
-                outcome="failed",
-                best_hint_set=None,
-                attempts=0,
-                explored_sets=0,
-                evidence=None,
-            ),
-            initial_proof_state=None,
-            final_proof_state=None,
-            candidates=[],
-        )
-
-        return SearchResultEnhanced(
-            outcome="failed",
-            best_hint_set=None,
-            attempts=0,
-            explored_sets=0,
-            feedback=feedback,
-            metadata=metadata,
-            search_trace=None if not config.return_search_trace else [],
-        )
 
     def _build_error_result(self, config: SearchConfig, error_message: str) -> SearchResultEnhanced:
         """

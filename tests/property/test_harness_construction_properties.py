@@ -1,14 +1,13 @@
 """
-Property-based tests for import-based harness construction.
+Property-based tests for range-based harness construction.
 
-These tests verify universal properties that should hold across all valid executions
-of the harness construction components. Each test runs a minimum of 100 iterations
-with randomized inputs.
+These tests verify universal properties that should hold across all valid
+executions of the RangeBasedHarnessConstructor. Each test runs a minimum
+of 100 iterations with randomized inputs.
 
-**Validates: Requirements 1.1, 1.2, 1.3, 1.4, 1.5**
+The constructor is pure (zero I/O, zero dependencies) so every property
+can be checked without mocks.
 """
-
-from unittest.mock import Mock
 
 import hypothesis.strategies as st
 import pytest
@@ -18,10 +17,75 @@ from lean_proof_auto_mcp.core.harness_construction import (
     HarnessConfig,
     HarnessError,
     HarnessSuccess,
-    ImportBasedHarnessConstructor,
-    ImportPath,
-    TheoremType,
+    RangeBasedHarnessConstructor,
 )
+from lean_proof_auto_mcp.lean.ports import Declaration, DeclValue, Range
+
+# ============================================================================
+# Helpers
+# ============================================================================
+
+
+def _decl(
+    name: str,
+    full_name: str = "",
+    kind: str = "theorem",
+    start_line: int = 3,
+    end_line: int = 4,
+    value_start: int = 3,
+    value_start_col: int = 22,
+    value_end: int = 4,
+    value_end_col: int = 9,
+) -> Declaration:
+    """Create a Declaration with minimal boilerplate."""
+    if not full_name:
+        full_name = name
+    return Declaration(
+        name=name,
+        full_name=full_name,
+        type="True",
+        value=DeclValue(
+            pp="sorry",
+            constants=[],
+            range=Range(value_start, value_start_col, value_end, value_end_col),
+        ),
+        attributes=[],
+        range=Range(start_line, 0, end_line, 0),
+        namespace="",
+        kind=kind,
+    )
+
+
+def _make_file_and_config(
+    theorem_id: str,
+    proof_attempt: str,
+    file_path: str = "Test.lean",
+    additional_imports: list[str] | None = None,
+) -> HarnessConfig:
+    """Build a synthetic file + config for a single-theorem file."""
+    local_name = theorem_id.split(".")[-1] if "." in theorem_id else theorem_id
+    file_content = f"import Mathlib\n\ntheorem {local_name} : True := by\n  trivial\n"
+    theorem_line = f"theorem {local_name} : True := by"
+    by_col = theorem_line.index("by")
+    declarations = [
+        _decl(
+            local_name,
+            full_name=theorem_id,
+            value_start=3,
+            value_start_col=by_col,
+            value_end=4,
+            value_end_col=9,
+        )
+    ]
+    return HarnessConfig(
+        theorem_id=theorem_id,
+        file_path=file_path,
+        proof_attempt=proof_attempt,
+        file_content=file_content,
+        declarations=declarations,
+        additional_imports=additional_imports or [],
+    )
+
 
 # ============================================================================
 # Hypothesis Strategies
@@ -31,7 +95,6 @@ from lean_proof_auto_mcp.core.harness_construction import (
 @st.composite
 def valid_theorem_ids(draw):
     """Generate valid theorem identifiers."""
-    # Lean theorem IDs can have dots, underscores, and alphanumeric characters
     parts = draw(
         st.lists(
             st.text(
@@ -49,13 +112,18 @@ def valid_theorem_ids(draw):
 
 
 @st.composite
+def valid_proof_attempts(draw):
+    """Generate valid proof attempt tactics."""
+    tactics = ["aesop", "grind", "simp", "rfl", "trivial", "exact?", "omega"]
+    return draw(st.sampled_from(tactics))
+
+
+@st.composite
 def valid_file_paths(draw):
     """Generate valid Lean file paths."""
-    # Generate path components
     num_parts = draw(st.integers(min_value=1, max_value=5))
     parts = []
-    for _i in range(num_parts):
-        # First character should be uppercase for Lean convention
+    for _ in range(num_parts):
         first_char = draw(st.sampled_from("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
         rest = draw(
             st.text(
@@ -67,449 +135,288 @@ def valid_file_paths(draw):
             )
         )
         parts.append(first_char + rest)
-
-    path = "/".join(parts) + ".lean"
-    return path
-
-
-@st.composite
-def valid_proof_attempts(draw):
-    """Generate valid proof attempt tactics."""
-    tactics = ["aesop", "grind", "simp", "rfl", "trivial", "exact?", "omega"]
-    return draw(st.sampled_from(tactics))
-
-
-@st.composite
-def valid_theorem_types(draw):
-    """Generate valid theorem type expressions."""
-    # Simple type expressions for testing
-    simple_types = [
-        "True",
-        "False → True",
-        "∀ x : ℕ, x ≤ x",
-        "p ∈ H.prod K ↔ p.1 ∈ H ∧ p.2 ∈ K",
-        "{p : G × N} → p ∈ H.prod K ↔ p.1 ∈ H ∧ p.2 ∈ K",
-        "∀ (a b : ℕ), a + b = b + a",
-    ]
-    return draw(st.sampled_from(simple_types))
-
-
-@st.composite
-def valid_harness_configs(draw):
-    """Generate valid HarnessConfig instances."""
-    theorem_id = draw(valid_theorem_ids())
-    file_path = draw(valid_file_paths())
-    proof_attempt = draw(valid_proof_attempts())
-
-    # Optionally add additional imports
-    add_imports = draw(st.booleans())
-    if add_imports:
-        num_imports = draw(st.integers(min_value=1, max_value=3))
-        additional_imports = [f"import Module{i}" for i in range(num_imports)]
-    else:
-        additional_imports = []
-
-    return HarnessConfig(
-        theorem_id=theorem_id,
-        file_path=file_path,
-        proof_attempt=proof_attempt,
-        additional_imports=additional_imports,
-    )
+    return "/".join(parts) + ".lean"
 
 
 # ============================================================================
-# Property 1: Import-First Invariant
+# Property 1: Proof Attempt Preservation
 # ============================================================================
 
 
-@given(config=valid_harness_configs(), theorem_type=valid_theorem_types())
+@given(proof_attempt=valid_proof_attempts())
 @settings(max_examples=100)
-def test_property_1_import_first_invariant(config, theorem_type):
+def test_property_proof_attempt_preservation(proof_attempt):
     """
-    Feature: import-based-theorem-testing
-    Property 1: Import-First Invariant
-
-    For any harness construction, ALL imports MUST be on line 1 (or consecutive
-    lines starting from line 1). No code should appear before imports.
-
-    **Validates: Requirements 1.1, 1.5**
+    Property: The proof attempt tactic MUST appear in the generated harness
+    exactly as specified in the config.
     """
-    # Setup mocks
-    type_extractor = Mock()
-    type_extractor.extract_type.return_value = TheoremType(type_expr=theorem_type, source="test")
-
-    path_converter = Mock()
-    path_converter.convert.return_value = ImportPath(path="Test.Module")
-
-    # Create constructor
-    constructor = ImportBasedHarnessConstructor(
-        type_extractor=type_extractor, path_converter=path_converter
-    )
-
-    # Execute: Construct harness
+    constructor = RangeBasedHarnessConstructor()
+    config = _make_file_and_config("test_thm", proof_attempt)
     result = constructor.construct(config)
 
-    # Verify: Result is successful
-    if not isinstance(result, HarnessSuccess):
-        pytest.skip(f"Harness construction failed: {result.message}")
-
-    # Verify: First non-empty line is an import
-    lines = result.code.split("\n")
-    first_non_empty = next((line for line in lines if line.strip()), "")
-    assert first_non_empty.startswith("import"), (
-        f"First non-empty line must be import, got: {first_non_empty}"
-    )
-
-    # Verify: All imports are consecutive from the start
-    found_non_import = False
-    for i, line in enumerate(lines):
-        if line.strip():
-            if line.strip().startswith("import"):
-                assert not found_non_import, f"Import at line {i + 1} appears after non-import code"
-            else:
-                found_non_import = True
+    assert isinstance(result, HarnessSuccess)
+    assert proof_attempt in result.code
 
 
 # ============================================================================
-# Property 2: No Signature Reconstruction
+# Property 2: Import Preservation
 # ============================================================================
 
 
-@given(config=valid_harness_configs(), theorem_type=valid_theorem_types())
+@given(proof_attempt=valid_proof_attempts())
 @settings(max_examples=100)
-def test_property_2_no_signature_reconstruction(config, theorem_type):
+def test_property_import_preservation(proof_attempt):
     """
-    Feature: import-based-theorem-testing
-    Property 2: No Signature Reconstruction
-
-    For any harness construction, the generated code MUST use "example :" not
-    "theorem <name>". This ensures we're testing the type, not redeclaring the
-    theorem.
-
-    **Validates: Requirements 1.4**
+    Property: Original imports from the source file MUST be preserved
+    in the generated harness.
     """
-    # Setup mocks
-    type_extractor = Mock()
-    type_extractor.extract_type.return_value = TheoremType(type_expr=theorem_type, source="test")
-
-    path_converter = Mock()
-    path_converter.convert.return_value = ImportPath(path="Test.Module")
-
-    # Create constructor
-    constructor = ImportBasedHarnessConstructor(
-        type_extractor=type_extractor, path_converter=path_converter
-    )
-
-    # Execute: Construct harness
+    constructor = RangeBasedHarnessConstructor()
+    config = _make_file_and_config("test_thm", proof_attempt)
     result = constructor.construct(config)
 
-    # Verify: Result is successful
-    if not isinstance(result, HarnessSuccess):
-        pytest.skip(f"Harness construction failed: {result.message}")
-
-    # Verify: Uses "example :" not "theorem"
-    assert "example :" in result.code, "Harness must use 'example :' statement"
-
-    # Verify: Does NOT redeclare the theorem
-    assert f"theorem {config.theorem_id}" not in result.code, (
-        f"Harness must not redeclare theorem {config.theorem_id}"
-    )
-
-    # Verify: Does NOT use "def" either
-    assert not result.code.strip().startswith("def "), (
-        "Harness must not use 'def' for theorem testing"
-    )
+    assert isinstance(result, HarnessSuccess)
+    assert "import Mathlib" in result.code
 
 
 # ============================================================================
-# Property 3: Type Preservation
+# Property 3: Additional Imports Included
 # ============================================================================
 
 
-@given(config=valid_harness_configs(), theorem_type=valid_theorem_types())
+@given(proof_attempt=valid_proof_attempts())
 @settings(max_examples=100)
-def test_property_3_type_preservation(config, theorem_type):
+def test_property_additional_imports_included(proof_attempt):
     """
-    Feature: import-based-theorem-testing
-    Property 3: Type Preservation
-
-    For any harness construction, the theorem type in the generated harness MUST
-    exactly match the type extracted from LeanInteract. No manual parsing or
-    reconstruction should alter the type.
-
-    **Validates: Requirements 1.2**
+    Property: ALL additional imports specified in config MUST appear
+    in the generated harness.
     """
-    # Setup mocks
-    type_extractor = Mock()
-    type_extractor.extract_type.return_value = TheoremType(
-        type_expr=theorem_type, source="LeanInteract:test.lean"
+    constructor = RangeBasedHarnessConstructor()
+    config = _make_file_and_config(
+        "test_thm", proof_attempt, additional_imports=["import Aesop", "import Std"]
     )
-
-    path_converter = Mock()
-    path_converter.convert.return_value = ImportPath(path="Test.Module")
-
-    # Create constructor
-    constructor = ImportBasedHarnessConstructor(
-        type_extractor=type_extractor, path_converter=path_converter
-    )
-
-    # Execute: Construct harness
     result = constructor.construct(config)
 
-    # Verify: Result is successful
-    if not isinstance(result, HarnessSuccess):
-        pytest.skip(f"Harness construction failed: {result.message}")
-
-    # Verify: Exact type appears in harness
-    assert theorem_type in result.code, (
-        f"Theorem type '{theorem_type}' must appear exactly in harness"
-    )
-
-    # Verify: Type appears after "example :"
-    example_index = result.code.find("example :")
-    type_index = result.code.find(theorem_type)
-    assert example_index < type_index, "Theorem type must appear after 'example :'"
+    assert isinstance(result, HarnessSuccess)
+    assert "import Aesop" in result.code
+    assert "import Std" in result.code
 
 
 # ============================================================================
-# Additional Property Tests
+# Property 4: Deterministic Construction
 # ============================================================================
 
 
-@given(config=valid_harness_configs(), theorem_type=valid_theorem_types())
+@given(
+    theorem_id=valid_theorem_ids(),
+    proof_attempt=valid_proof_attempts(),
+)
 @settings(max_examples=100)
-def test_property_proof_attempt_preservation(config, theorem_type):
+def test_property_deterministic_construction(theorem_id, proof_attempt):
     """
-    Feature: import-based-theorem-testing
-    Property: Proof Attempt Preservation
-
-    For any harness construction, the proof attempt tactic MUST appear in the
-    generated harness exactly as specified in the config.
-
-    **Validates: Requirements 1.1**
+    Property: Same inputs MUST produce identical output across invocations.
+    The constructor is stateless — no hidden caches or side effects.
     """
-    # Setup mocks
-    type_extractor = Mock()
-    type_extractor.extract_type.return_value = TheoremType(type_expr=theorem_type, source="test")
+    constructor = RangeBasedHarnessConstructor()
+    config = _make_file_and_config(theorem_id, proof_attempt)
 
-    path_converter = Mock()
-    path_converter.convert.return_value = ImportPath(path="Test.Module")
+    result1 = constructor.construct(config)
+    result2 = constructor.construct(config)
 
-    # Create constructor
-    constructor = ImportBasedHarnessConstructor(
-        type_extractor=type_extractor, path_converter=path_converter
-    )
-
-    # Execute: Construct harness
-    result = constructor.construct(config)
-
-    # Verify: Result is successful
-    if not isinstance(result, HarnessSuccess):
-        pytest.skip(f"Harness construction failed: {result.message}")
-
-    # Verify: Proof attempt appears in harness
-    assert config.proof_attempt in result.code, (
-        f"Proof attempt '{config.proof_attempt}' must appear in harness"
-    )
+    if not isinstance(result1, HarnessSuccess):
+        pytest.skip(f"Construction failed: {result1.message}")
+    assert isinstance(result2, HarnessSuccess)
+    assert result1.code == result2.code
 
 
-@given(config=valid_harness_configs(), theorem_type=valid_theorem_types())
-@settings(max_examples=100)
-def test_property_additional_imports_included(config, theorem_type):
-    """
-    Feature: import-based-theorem-testing
-    Property: Additional Imports Included
-
-    For any harness construction with additional imports specified, ALL additional
-    imports MUST appear in the generated harness.
-
-    **Validates: Requirements 1.1**
-    """
-    # Setup mocks
-    type_extractor = Mock()
-    type_extractor.extract_type.return_value = TheoremType(type_expr=theorem_type, source="test")
-
-    path_converter = Mock()
-    path_converter.convert.return_value = ImportPath(path="Test.Module")
-
-    # Create constructor
-    constructor = ImportBasedHarnessConstructor(
-        type_extractor=type_extractor, path_converter=path_converter
-    )
-
-    # Execute: Construct harness
-    result = constructor.construct(config)
-
-    # Verify: Result is successful
-    if not isinstance(result, HarnessSuccess):
-        pytest.skip(f"Harness construction failed: {result.message}")
-
-    # Verify: All additional imports appear
-    for import_stmt in config.additional_imports:
-        assert import_stmt in result.code, (
-            f"Additional import '{import_stmt}' must appear in harness"
-        )
+# ============================================================================
+# Property 5: Metadata Preservation
+# ============================================================================
 
 
 @given(
     theorem_id=valid_theorem_ids(),
     file_path=valid_file_paths(),
     proof_attempt=valid_proof_attempts(),
-    theorem_type=valid_theorem_types(),
 )
 @settings(max_examples=100)
-def test_property_deterministic_construction(theorem_id, file_path, proof_attempt, theorem_type):
+def test_property_metadata_preservation(theorem_id, file_path, proof_attempt):
     """
-    Feature: import-based-theorem-testing
-    Property: Deterministic Construction
-
-    For any harness construction with the same inputs, the output MUST be
-    identical across multiple invocations.
-
-    **Validates: Requirements 1.1**
+    Property: theorem_id and file_path from config MUST be preserved
+    in the result.
     """
-    # Setup mocks
-    type_extractor = Mock()
-    type_extractor.extract_type.return_value = TheoremType(type_expr=theorem_type, source="test")
-
-    path_converter = Mock()
-    path_converter.convert.return_value = ImportPath(path="Test.Module")
-
-    # Create constructor
-    constructor = ImportBasedHarnessConstructor(
-        type_extractor=type_extractor, path_converter=path_converter
-    )
-
-    # Create config
-    config = HarnessConfig(theorem_id=theorem_id, file_path=file_path, proof_attempt=proof_attempt)
-
-    # Execute: Construct harness twice
-    result1 = constructor.construct(config)
-    result2 = constructor.construct(config)
-
-    # Verify: Both results are successful
-    if not isinstance(result1, HarnessSuccess):
-        pytest.skip(f"Harness construction failed: {result1.message}")
-    if not isinstance(result2, HarnessSuccess):
-        pytest.skip(f"Harness construction failed: {result2.message}")
-
-    # Verify: Results are identical
-    assert result1.code == result2.code, "Harness construction must be deterministic"
-
-
-@given(config=valid_harness_configs(), theorem_type=valid_theorem_types())
-@settings(max_examples=100)
-def test_property_unicode_preservation(config, theorem_type):
-    """
-    Feature: import-based-theorem-testing
-    Property: Unicode Preservation
-
-    For any harness construction with Unicode characters in the theorem type,
-    the Unicode MUST be preserved exactly in the generated harness.
-
-    **Validates: Requirements 1.2**
-    """
-    # Setup mocks with Unicode type
-    unicode_type = "∀ x : ℕ, x ≤ x → x ∈ Set.univ"
-
-    type_extractor = Mock()
-    type_extractor.extract_type.return_value = TheoremType(type_expr=unicode_type, source="test")
-
-    path_converter = Mock()
-    path_converter.convert.return_value = ImportPath(path="Test.Module")
-
-    # Create constructor
-    constructor = ImportBasedHarnessConstructor(
-        type_extractor=type_extractor, path_converter=path_converter
-    )
-
-    # Execute: Construct harness
+    constructor = RangeBasedHarnessConstructor()
+    config = _make_file_and_config(theorem_id, proof_attempt, file_path=file_path)
     result = constructor.construct(config)
 
-    # Verify: Result is successful
     if not isinstance(result, HarnessSuccess):
-        pytest.skip(f"Harness construction failed: {result.message}")
+        pytest.skip(f"Construction failed: {result.message}")
 
-    # Verify: Unicode characters are preserved
-    assert "∀" in result.code, "Unicode ∀ must be preserved"
-    assert "ℕ" in result.code, "Unicode ℕ must be preserved"
-    assert "≤" in result.code, "Unicode ≤ must be preserved"
-    assert "∈" in result.code, "Unicode ∈ must be preserved"
-    assert unicode_type in result.code, "Full Unicode type must be preserved"
+    assert result.theorem_id == theorem_id
+    assert result.file_path == file_path
 
 
-@given(config=valid_harness_configs())
+# ============================================================================
+# Property 6: Error Handling — Theorem Not Found
+# ============================================================================
+
+
+@given(proof_attempt=valid_proof_attempts())
 @settings(max_examples=100)
-def test_property_error_handling_theorem_not_found(config):
+def test_property_error_handling_theorem_not_found(proof_attempt):
     """
-    Feature: import-based-theorem-testing
-    Property: Error Handling - Theorem Not Found
-
-    For any harness construction where the theorem cannot be found, the result
+    Property: When the target theorem is not in declarations, the result
     MUST be a HarnessError with error_type="theorem_not_found".
-
-    **Validates: Requirements 1.2**
     """
-    # Setup mocks - theorem not found
-    from lean_proof_auto_mcp.core.harness_construction import TheoremNotFoundError
+    constructor = RangeBasedHarnessConstructor()
 
-    type_extractor = Mock()
-    type_extractor.extract_type.side_effect = TheoremNotFoundError(
-        f"Theorem {config.theorem_id} not found"
+    file_content = "import Mathlib\n\ntheorem other : True := by trivial\n"
+    declarations = [
+        _decl(
+            "other",
+            start_line=3,
+            end_line=3,
+            value_start=3,
+            value_start_col=24,
+            value_end=3,
+            value_end_col=34,
+        )
+    ]
+    config = HarnessConfig(
+        theorem_id="nonexistent",
+        file_path="test.lean",
+        proof_attempt=proof_attempt,
+        file_content=file_content,
+        declarations=declarations,
     )
 
-    path_converter = Mock()
-    path_converter.convert.return_value = ImportPath(path="Test.Module")
-
-    # Create constructor
-    constructor = ImportBasedHarnessConstructor(
-        type_extractor=type_extractor, path_converter=path_converter
-    )
-
-    # Execute: Construct harness
     result = constructor.construct(config)
-
-    # Verify: Result is an error
-    assert isinstance(result, HarnessError), "Result must be HarnessError when theorem not found"
-
-    # Verify: Error type is correct
-    assert result.error_type == "theorem_not_found", "Error type must be 'theorem_not_found'"
-
-    # Verify: Error contains theorem ID
-    assert config.theorem_id in result.message, "Error message must contain theorem ID"
+    assert isinstance(result, HarnessError)
+    assert result.error_type == "theorem_not_found"
 
 
-@given(config=valid_harness_configs(), theorem_type=valid_theorem_types())
+# ============================================================================
+# Property 7: Error Handling — Empty Content
+# ============================================================================
+
+
+@given(proof_attempt=valid_proof_attempts())
 @settings(max_examples=100)
-def test_property_metadata_preservation(config, theorem_type):
+def test_property_error_handling_empty_content(proof_attempt):
     """
-    Feature: import-based-theorem-testing
-    Property: Metadata Preservation
-
-    For any successful harness construction, the result MUST preserve the
-    theorem_id and file_path from the config.
-
-    **Validates: Requirements 1.1**
+    Property: When file_content is empty, the result MUST be a HarnessError.
     """
-    # Setup mocks
-    type_extractor = Mock()
-    type_extractor.extract_type.return_value = TheoremType(type_expr=theorem_type, source="test")
+    constructor = RangeBasedHarnessConstructor()
 
-    path_converter = Mock()
-    path_converter.convert.return_value = ImportPath(path="Test.Module")
-
-    # Create constructor
-    constructor = ImportBasedHarnessConstructor(
-        type_extractor=type_extractor, path_converter=path_converter
+    config = HarnessConfig(
+        theorem_id="test",
+        file_path="test.lean",
+        proof_attempt=proof_attempt,
+        file_content="",
+        declarations=[],
     )
 
-    # Execute: Construct harness
     result = constructor.construct(config)
+    assert isinstance(result, HarnessError)
+    assert result.error_type == "construction_failed"
 
-    # Verify: Result is successful
-    if not isinstance(result, HarnessSuccess):
-        pytest.skip(f"Harness construction failed: {result.message}")
 
-    # Verify: Metadata is preserved
-    assert result.theorem_id == config.theorem_id, "Theorem ID must be preserved in result"
-    assert result.file_path == config.file_path, "File path must be preserved in result"
+# ============================================================================
+# Property 8: Non-Target Theorems Get Sorry
+# ============================================================================
+
+
+@given(proof_attempt=valid_proof_attempts())
+@settings(max_examples=100)
+def test_property_non_target_theorems_get_sorry(proof_attempt):
+    """
+    Property: Non-target theorem proofs MUST be replaced with sorry,
+    while the target theorem gets the proof_attempt.
+    """
+    constructor = RangeBasedHarnessConstructor()
+
+    file_content = (
+        "import Mathlib\n\n"
+        "theorem target : True := by\n  trivial\n\n"
+        "theorem other : True := by\n  trivial\n"
+    )
+    declarations = [
+        _decl(
+            "target",
+            start_line=3,
+            end_line=4,
+            value_start=3,
+            value_start_col=25,
+            value_end=4,
+            value_end_col=9,
+        ),
+        _decl(
+            "other",
+            start_line=6,
+            end_line=7,
+            value_start=6,
+            value_start_col=24,
+            value_end=7,
+            value_end_col=9,
+        ),
+    ]
+
+    config = HarnessConfig(
+        theorem_id="target",
+        file_path="test.lean",
+        proof_attempt=proof_attempt,
+        file_content=file_content,
+        declarations=declarations,
+    )
+
+    result = constructor.construct(config)
+    assert isinstance(result, HarnessSuccess)
+    assert proof_attempt in result.code
+    assert "sorry" in result.code
+
+
+# ============================================================================
+# Property 9: Unicode Preservation
+# ============================================================================
+
+
+@given(proof_attempt=valid_proof_attempts())
+@settings(max_examples=100)
+def test_property_unicode_preservation(proof_attempt):
+    """
+    Property: Unicode characters in the source file MUST be preserved
+    exactly in the generated harness.
+    """
+    constructor = RangeBasedHarnessConstructor()
+
+    file_content = (
+        "import Mathlib\n\n"
+        "variable {G : Type*} [Group G]\n\n"
+        "theorem mem_prod : ∀ x : ℕ, x ≤ x := by\n  trivial\n"
+    )
+    # value range covers only the proof body "by\n  trivial"
+    # "theorem mem_prod : ∀ x : ℕ, x ≤ x := " is 41 chars, so proof starts at col 41
+    declarations = [
+        Declaration(
+            name="mem_prod",
+            full_name="mem_prod",
+            type="∀ x : ℕ, x ≤ x",
+            value=DeclValue(pp="by trivial", constants=[], range=Range(5, 41, 6, 8)),
+            attributes=[],
+            range=Range(5, 0, 6, 8),
+            namespace="",
+            kind="theorem",
+        ),
+    ]
+
+    config = HarnessConfig(
+        theorem_id="mem_prod",
+        file_path="test.lean",
+        proof_attempt=proof_attempt,
+        file_content=file_content,
+        declarations=declarations,
+    )
+
+    result = constructor.construct(config)
+    assert isinstance(result, HarnessSuccess)
+    assert "∀ x : ℕ, x ≤ x" in result.code
+    assert "variable {G : Type*} [Group G]" in result.code

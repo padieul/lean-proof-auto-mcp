@@ -258,10 +258,10 @@ class TestSearchDepthPresets:
         config, _, _, _ = _build_search_config(args)
 
         assert config.search_depth == "quick"
-        assert config.search_budget_s == 10.0
+        assert config.search_budget_s == 300.0
         assert config.max_candidates == 20
-        assert config.max_search_steps == 50
-        assert config.minimize_budget_s == 5.0
+        assert config.max_search_steps == 10
+        assert config.minimize_budget_s == 30.0
 
     def test_normal_preset_parameters(self):
         """Test normal preset has correct parameters."""
@@ -274,9 +274,9 @@ class TestSearchDepthPresets:
         config, _, _, _ = _build_search_config(args)
 
         assert config.search_depth == "normal"
-        assert config.search_budget_s == 30.0
+        assert config.search_budget_s == 600.0
         assert config.max_candidates == 50
-        assert config.max_search_steps == 100
+        assert config.max_search_steps == 20
         assert config.minimize_budget_s == 30.0
 
     def test_deep_preset_parameters(self):
@@ -290,9 +290,9 @@ class TestSearchDepthPresets:
         config, _, _, _ = _build_search_config(args)
 
         assert config.search_depth == "deep"
-        assert config.search_budget_s == 60.0
+        assert config.search_budget_s == 1200.0
         assert config.max_candidates == 100
-        assert config.max_search_steps == 200
+        assert config.max_search_steps == 40
         assert config.minimize_budget_s == 60.0
 
     def test_exhaustive_preset_parameters(self):
@@ -306,9 +306,9 @@ class TestSearchDepthPresets:
         config, _, _, _ = _build_search_config(args)
 
         assert config.search_depth == "exhaustive"
-        assert config.search_budget_s == 120.0
+        assert config.search_budget_s == 3600.0
         assert config.max_candidates == 200
-        assert config.max_search_steps == 500
+        assert config.max_search_steps == 100
         assert config.minimize_budget_s == 120.0
 
     def test_preset_override_with_custom_budget(self):
@@ -338,7 +338,7 @@ class TestSearchDepthPresets:
         config, _, _, _ = _build_search_config(args)
 
         assert config.search_depth == "normal"
-        assert config.search_budget_s == 30.0  # Preset value
+        assert config.search_budget_s == 600.0  # Preset value
         assert config.max_candidates == 200  # Custom value
 
 

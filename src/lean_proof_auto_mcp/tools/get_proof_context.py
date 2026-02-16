@@ -13,33 +13,43 @@ LLM reasoning and pattern matching.
 Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 29.5, 29.6
 """
 
-
 import hashlib
-
 import logging
 import uuid
-
 from datetime import datetime, timezone
-
 from pathlib import Path
-
 from typing import Any
 
-
 from ..core.context_extractor import ContextExtractor
-
 from ..lean.proof_state import LeanInteractProofStateInspector
-
 from ..lean.querier import LeanInteractQuerier
-
 from ..observability import SubprocessMetadataCollector
-
 
 logger = logging.getLogger(__name__)
 
 
 API_VERSION = "0.2.0"
 
+
+def _normalize_proof_text(proof: str) -> str:
+    """Strip leading ':=' token from proof text if present.
+
+    LeanInteract's value.pp sometimes includes the ':=' assignment operator
+    as part of the pretty-printed value for term-mode proofs. This is a
+    syntax token, not part of the proof body. Stripping it here ensures
+    callers receive clean proof text that can be fed directly to
+    try_automated_proof without double-':=' issues.
+
+    Args:
+        proof: Raw proof text from value.pp
+
+    Returns:
+        Proof text with leading ':=' stripped (if present)
+    """
+    stripped = proof.strip()
+    if stripped.startswith(":="):
+        return stripped[2:].lstrip()
+    return proof
 
 
 def get_proof_context(args: dict[str, Any]) -> dict[str, Any]:
@@ -115,83 +125,69 @@ def get_proof_context(args: dict[str, Any]) -> dict[str, Any]:
     # Validate and coerce arguments
 
     try:
-
         file_path, theorem_id, include_similar, similarity_threshold, run_id = _validate_args(args)
 
     except ValueError as e:
-
         # Return error response for invalid inputs
 
         return _build_error_response(
-
             file=args.get("file", "<invalid>"),
-
             theorem_id=args.get("theorem_id", "<invalid>"),
-
             error_message=str(e),
-
             error_code="input_validation_error",
-
         )
-
 
     # Execute context extraction with error handling wrapper
 
     try:
-
         # Create extractor with real adapters (composition root)
 
         extractor = _create_extractor(file_path)
-
 
         # Create SubprocessMetadataCollector at composition root
 
         metadata_collector = SubprocessMetadataCollector()
 
-
         # Execute context extraction
 
         context = extractor.extract_context(
-
             file_path=file_path,
-
             theorem_id=theorem_id,
-
             include_similar=include_similar,
-
             similarity_threshold=similarity_threshold,
-
         )
-
 
         # Collect metadata
 
         metadata = metadata_collector.collect_version_info()
 
-
         # Convert result to dict
 
         return _format_response(context, file_path, theorem_id, run_id, metadata)
 
+    except ValueError as e:
+        # Theorem not found or invalid — tool worked, input was bad
+        logger.warning(f"Context extraction failed for {file_path}:{theorem_id}: {e}")
+
+        return _build_fail_response(
+            file=file_path,
+            theorem_id=theorem_id,
+            fail_message=str(e),
+            fail_code="theorem_not_found",
+            run_id=run_id,
+        )
 
     except Exception as e:
-
         # Catch all exceptions and return error response
 
         logger.exception(f"Context extraction failed for {file_path}:{theorem_id}")
 
         return _build_error_response(
-
             file=file_path,
-
             theorem_id=theorem_id,
-
             error_message=f"Context extraction error: {str(e)}",
-
             error_code="internal_error",
-
         )
-
 
 
 def _validate_args(args: dict[str, Any]) -> tuple[str, str, bool, float, str]:
@@ -223,46 +219,37 @@ def _validate_args(args: dict[str, Any]) -> tuple[str, str, bool, float, str]:
     file = args.get("file")
 
     if not isinstance(file, str) or not file.strip():
-
         raise ValueError("'file' must be a non-empty string")
 
     file_path = file.strip()
-
 
     # Validate and extract theorem_id (required)
 
     theorem_id = args.get("theorem_id")
 
     if not isinstance(theorem_id, str) or not theorem_id.strip():
-
         raise ValueError("'theorem_id' must be a non-empty string")
 
     theorem_id = theorem_id.strip()
-
 
     # Validate and extract include_similar_proofs (optional, default: True)
 
     include_similar = args.get("include_similar_proofs", True)
 
     if not isinstance(include_similar, bool):
-
         raise ValueError("'include_similar_proofs' must be a boolean")
-
 
     # Validate and extract similarity_threshold (optional, default: 0.7)
 
     similarity_threshold = args.get("similarity_threshold", 0.7)
 
     if not isinstance(similarity_threshold, (int, float)):
-
         raise ValueError("'similarity_threshold' must be a number")
 
     if not 0.0 <= similarity_threshold <= 1.0:
-
         raise ValueError("'similarity_threshold' must be between 0.0 and 1.0")
 
     similarity_threshold = float(similarity_threshold)
-
 
     # Generate run_id
 
@@ -274,9 +261,7 @@ def _validate_args(args: dict[str, Any]) -> tuple[str, str, bool, float, str]:
 
     run_id = f"context-{timestamp}-{file_hash}-{random_suffix}"
 
-
     return file_path, theorem_id, include_similar, similarity_threshold, run_id
-
 
 
 def _create_extractor(file_path: str) -> ContextExtractor:
@@ -316,45 +301,35 @@ def _create_extractor(file_path: str) -> ContextExtractor:
 
     file_path_obj = Path(file_path).resolve()
 
-
     # Check if file exists
 
     if not file_path_obj.exists():
-
         raise FileNotFoundError(f"File not found: {file_path}")
 
-
     project_root = _find_lean_project_root(file_path_obj)
-
 
     # If no Lean project found, use the file's directory
 
     if project_root is None:
-
         project_root = file_path_obj.parent
 
+    # Get shared ServerManager (persists across tool calls, project-keyed)
 
-    # Create ServerManager with workspace context
+    from ..lean.server_manager import get_shared_server_manager
 
-    from ..lean.server_manager import LeanInteractServerManager
-
-    server_manager = LeanInteractServerManager(workspace_path=project_root)
-
+    server_manager = get_shared_server_manager(project_root)
 
     # Create Querier with ServerManager
 
     querier = LeanInteractQuerier(server_manager=server_manager)
 
-
     # Create ProofStateInspector with ServerManager
 
     proof_state_inspector = LeanInteractProofStateInspector(server_manager=server_manager)
 
-
     # Create ContextExtractor
 
     return ContextExtractor(querier=querier, proof_state_inspector=proof_state_inspector)
-
 
 
 def _find_lean_project_root(file_path: Path) -> Path | None:
@@ -375,37 +350,28 @@ def _find_lean_project_root(file_path: Path) -> Path | None:
 
     current = file_path if file_path.is_dir() else file_path.parent
 
-
     # Search up to 10 levels
 
     for _ in range(10):
-
         if (current / "lakefile.toml").exists() or (current / "lakefile.lean").exists():
             return current
-
 
         parent = current.parent
 
         if parent == current:  # Reached filesystem root
-
             break
 
         current = parent
 
-
     return None
 
 
-
 def _format_response(
-
     context: Any,  # ProofContext
     file_path: str,
     theorem_id: str,
     run_id: str,
-
-    metadata: dict[str, str],
-
+    metadata: dict[str, Any],
 ) -> dict[str, Any]:
     """
 
@@ -438,59 +404,91 @@ def _format_response(
     similar_proofs_list = []
 
     for similar in context.similar_proofs:
-
         similar_proofs_list.append(
-
             {
                 "theorem_id": similar.theorem_id,
-
                 "similarity": similar.similarity,
                 "theorem_statement": similar.theorem_statement,
                 "proof": similar.proof,
                 "hints_used": similar.hints_used,
-
             }
-
         )
 
+    metadata_out: dict[str, Any] = dict(metadata)
+    value_range = getattr(context, "value_range", None)
+    if value_range is not None:
+        metadata_out["value_range"] = {
+            "start_line": value_range.start_line,
+            "start_col": value_range.start_col,
+            "end_line": value_range.end_line,
+            "end_col": value_range.end_col,
+        }
 
     return {
-
         "api_version": API_VERSION,
         "status": "success",
         "run_id": run_id,
         "file": file_path,
         "theorem_id": theorem_id,
-
         "theorem_statement": context.theorem_statement,
-
-        "original_proof": context.original_proof,
-
+        "original_proof": _normalize_proof_text(context.original_proof),
         "hypotheses": context.hypotheses,
-
         "in_scope": context.in_scope,
-
         "namespace": context.namespace,
         "similar_proofs": similar_proofs_list,
-        "metadata": metadata,
-
+        "metadata": metadata_out,
         "timing": {
-
             "total_s": 0.0,  # TODO: Add actual timing
-
         },
-
     }
 
+
+def _build_fail_response(
+    file: str,
+    theorem_id: str,
+    fail_message: str,
+    fail_code: str,
+    run_id: str,
+) -> dict[str, Any]:
+    """
+    Build fail response for expected non-success outcomes.
+
+    Unlike _build_error_response (infrastructure failures), this produces
+    status="fail" for cases where the tool worked correctly but the
+    operation could not succeed (e.g., theorem not found).
+
+    Args:
+        file: File path from request
+        theorem_id: Theorem ID from request
+        fail_message: Human-readable failure message
+        fail_code: Machine-readable failure code
+        run_id: Run identifier from validation step
+
+    Returns:
+        Fail response dict
+    """
+    return {
+        "api_version": API_VERSION,
+        "status": "fail",
+        "run_id": run_id,
+        "file": file,
+        "theorem_id": theorem_id,
+        "theorem_statement": "",
+        "original_proof": "",
+        "hypotheses": [],
+        "in_scope": [],
+        "namespace": "",
+        "similar_proofs": [],
+        "metadata": {"fail_code": fail_code, "fail_message": fail_message},
+        "timing": {"total_s": 0.0},
+    }
 
 
 def _build_error_response(
     file: str,
     theorem_id: str,
-
     error_message: str,
     error_code: str,
-
 ) -> dict[str, Any]:
     """
 
@@ -523,7 +521,6 @@ def _build_error_response(
     file_str = str(file) if file is not None else "<invalid>"
 
     if not file_str or not file_str.strip():
-
         file_str = "<invalid>"
 
     file_hash = hashlib.md5(file_str.encode()).hexdigest()[:8]
@@ -532,37 +529,25 @@ def _build_error_response(
 
     run_id = f"context-{timestamp}-{file_hash}-{random_suffix}"
 
-
     # Ensure theorem_id is non-empty string
 
     theorem_id_str = str(theorem_id) if theorem_id is not None else "<invalid>"
 
     if not theorem_id_str or not theorem_id_str.strip():
-
         theorem_id_str = "<invalid>"
 
-
     return {
-
         "api_version": API_VERSION,
         "status": "error",
         "run_id": run_id,
         "file": file_str,
         "theorem_id": theorem_id_str,
         "theorem_statement": "",
-
         "original_proof": "",
-
         "hypotheses": [],
-
         "in_scope": [],
         "namespace": "",
-
         "similar_proofs": [],
-
         "metadata": {"error_code": error_code, "error_message": error_message},
-
         "timing": {"total_s": 0.0},
-
     }
-

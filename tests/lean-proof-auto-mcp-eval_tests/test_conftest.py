@@ -4,12 +4,13 @@ Validates that all pytest fixtures are correctly configured with appropriate
 scopes and that parametrization and marker registration work as expected.
 """
 
-import pytest
 from pathlib import Path
 
-from fixtures import FixtureFile, ALL_FIXTURE_FILES
+import pytest
 from mcp_client import MCPClient
 from result_collector import ResultCollector
+
+from fixtures import ALL_FIXTURE_FILES, FixtureFile
 
 
 class TestFixtureAvailability:
@@ -59,8 +60,13 @@ class TestMarkerRegistration:
         marker_names = [m.split(":")[0] for m in markers]
 
         for domain in (
-            "eval_algebra", "eval_analysis", "eval_data", "eval_group_theory",
-            "eval_linear_algebra", "eval_ring_theory", "eval_topology",
+            "eval_algebra",
+            "eval_analysis",
+            "eval_data",
+            "eval_group_theory",
+            "eval_linear_algebra",
+            "eval_ring_theory",
+            "eval_topology",
         ):
             assert domain in marker_names, f"Missing domain marker: {domain}"
 
@@ -69,7 +75,10 @@ class TestFixtureIntegration:
     """Test that fixtures work together correctly."""
 
     def test_fixtures_can_be_used_together(
-        self, eval_repo: Path, mcp_server_path: Path, result_collector: ResultCollector,
+        self,
+        eval_repo: Path,
+        mcp_server_path: Path,
+        result_collector: ResultCollector,
     ):
         assert isinstance(eval_repo, Path)
         assert isinstance(mcp_server_path, Path)

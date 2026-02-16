@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-02-16
+
+### Breaking Changes
+- Unified MCP tool API version to `1.1.0` across all registered tools.
+- Removed legacy `search_annotations` workflow and related modules.
+- Search/proof workflow now uses the split tool model:
+  - `search_automated_proof`
+  - `try_automated_proof`
+  - `get_proof_context`
+
+### Added
+- New Lean adapter/runtime layer:
+  - `lean/server_manager.py`
+  - `lean/querier.py`
+  - `lean/validator.py`
+  - `lean/proof_state.py`
+  - `lean/ports.py`
+- New core services/orchestrators:
+  - `core/harness_construction.py` (range-based harness construction)
+  - `core/search_orchestrator.py`
+  - `core/search_automated_proof_domain.py`
+  - `core/validate_proof_domain.py`
+  - `core/context_extractor.py`
+  - `core/feedback_builder.py`
+- New MCP tools:
+  - `search_automated_proof`
+  - `try_automated_proof`
+  - `get_proof_context`
+- Eval/benchmark infrastructure and expanded integration/property test coverage.
+- Dedicated docs site config under `docs/mkdocs.yml` with expanded MCP tool docs.
+
+### Changed
+- Refactored tool composition roots and orchestration boundaries across `verify`, `probe`, `probe_file`, and search flows.
+- Replaced earlier harness strategies with **range-based source splicing** for safer proof replacement.
+- Improved status normalization, server interaction, and runtime error handling.
+- Reorganized documentation into `docs/docs/` and expanded per-tool runtime/status documentation.
+- Updated package/server version to `0.4.0`.
+
+### Removed
+- Obsolete search modules and strategies:
+  - `core/search_annotations_domain.py`
+  - `core/search_strategy.py`
+  - `core/minimizer.py`
+  - `core/skeleton_explorer.py`
+  - `core/proof_patch_builder.py`
+  - `core/global_suggestion_analyzer.py`
+  - `tools/search_annotations.py`
+- Deprecated adapter/workspace paths no longer used in the new runtime shape.
+- Obsolete property tests tied to removed legacy search components.
+
+
 ## [0.3.0] - 2026-01-30
 ### Added
 - **Probe and Probe_File tools**: Empirical automation measurement primitives for controlled testing

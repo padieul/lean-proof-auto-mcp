@@ -199,7 +199,7 @@ class TestBuildErrorResponse:
             error_code="test_error",
         )
 
-        assert response["api_version"] == "0.2.0"
+        assert response["api_version"] == "1.1.0"
         assert response["status"] == "error"
         assert response["file"] == "test.lean"
         assert response["theorem_id"] is None
@@ -401,7 +401,7 @@ class TestErrorHandling:
         result = verify({})
 
         assert result["status"] == "error"
-        assert result["api_version"] == "0.2.0"
+        assert result["api_version"] == "1.1.0"
         assert "error_code: input_validation_error" in result["evidence"]["notes"]
         assert len(result["diagnostics"]) == 1
         assert result["diagnostics"][0]["severity"] == "error"

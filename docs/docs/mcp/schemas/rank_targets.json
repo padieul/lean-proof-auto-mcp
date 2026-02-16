@@ -1,15 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://lean-proof-auto-mcp/schemas/rank_targets.json",
-  "title": "rank_targets tool response (API 1.0)",
+  "title": "rank_targets tool response (API 1.1.0)",
   "type": "object",
   "additionalProperties": false,
   "required": ["api_version", "status", "run_id", "tool", "file", "objective", "ranking", "summary", "diagnostics", "metadata", "available_objectives"],
   "properties": {
     "api_version": {
       "$ref": "common.json#/$defs/api_version",
-      "const": "1.0",
-      "description": "API version 1.0 - BREAKING CHANGES from 0.x"
+      "const": "1.1.0",
+      "description": "API version 1.1.0 - BREAKING CHANGES from 0.x"
     },
     "status": { "$ref": "common.json#/$defs/status" },
     "run_id": { "$ref": "common.json#/$defs/run_id" },

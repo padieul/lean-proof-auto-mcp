@@ -75,7 +75,7 @@ class TestProbeIntegration:
 
         # Verify success status
         assert result["status"] == "success", f"Expected success but got {result['status']}"
-        assert result["api_version"] == "0.1.0"
+        assert result["api_version"] == "1.1.0"
 
         # Verify run_id exists and has correct format
         assert "run_id" in result

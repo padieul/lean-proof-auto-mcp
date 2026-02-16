@@ -21,8 +21,8 @@
     "api_version": {
       "type": "string",
       "description": "API version for schema compatibility tracking",
-      "const": "0.2.0",
-      "examples": ["0.2.0"]
+      "const": "1.1.0",
+      "examples": ["1.1.0"]
     },
     "status": {
       "type": "string",
@@ -336,7 +336,7 @@
   "additionalProperties": false,
   "examples": [
     {
-      "api_version": "0.2.0",
+      "api_version": "1.1.0",
       "status": "success",
       "run_id": "verify-20250126-143022-a1b2c3d4-abc123",
       "file": "Mathlib/Data/List/Basic.lean",
@@ -367,7 +367,7 @@
       }
     },
     {
-      "api_version": "0.2.0",
+      "api_version": "1.1.0",
       "status": "fail",
       "run_id": "verify-20250126-143100-b2c3d4e5-def456",
       "file": "MyProject/BadTheorem.lean",
@@ -410,7 +410,7 @@
       }
     },
     {
-      "api_version": "0.2.0",
+      "api_version": "1.1.0",
       "status": "timeout",
       "run_id": "verify-20250126-143300-d4e5f6g7-ghi789",
       "file": "MyProject/SlowProof.lean",
@@ -441,7 +441,7 @@
       }
     },
     {
-      "api_version": "0.2.0",
+      "api_version": "1.1.0",
       "status": "error",
       "run_id": "verify-20250126-143400-e5f6g7h8-jkl012",
       "file": "NonExistent.lean",

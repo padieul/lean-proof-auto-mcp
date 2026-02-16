@@ -343,12 +343,12 @@ def test_verify_status_valid():
 
 
 def test_verify_api_version_format():
-    """Test that api_version follows the required format (0.2.0)."""
+    """Test that api_version follows the required format (1.1.0)."""
     resp = verify({"file": "test.lean", "workspace_mode": "temp"})
 
-    # Must be exactly "0.2.0" for API version 0.2.0
-    assert resp["api_version"] == "0.2.0", (
-        f"api_version must be '0.2.0', got '{resp['api_version']}'"
+    # Must be exactly "1.1.0" for API version 1.1.0
+    assert resp["api_version"] == "1.1.0", (
+        f"api_version must be '1.1.0', got '{resp['api_version']}'"
     )
 
 

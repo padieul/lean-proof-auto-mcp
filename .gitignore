@@ -48,6 +48,9 @@ tmp/
 
 .artifacts
 
+# MkDocs build output (using docs/mkdocs.yml -> site_dir: docs/site)
+docs/site/
+
 # Eval test reports (persistent results, not committed)
 tests/lean-proof-auto-mcp-eval_tests/reports/*
 !tests/lean-proof-auto-mcp-eval_tests/reports/.gitkeep

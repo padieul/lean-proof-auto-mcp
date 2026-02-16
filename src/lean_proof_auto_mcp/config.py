@@ -17,6 +17,6 @@ class Config:
 
         return Config(
             server_name=os.getenv("LPAMCP_SERVER_NAME", "lean-proof-auto-mcp"),
-            api_version=os.getenv("LPAMCP_API_VERSION", "0.2.0"),
+            api_version=os.getenv("LPAMCP_API_VERSION", "0.4.0"),
             working_directory=os.getenv("LPAMCP_WORKING_DIR", default_cwd),
         )

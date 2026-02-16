@@ -1,0 +1,64 @@
+site_name: Lean Proof Automation MCP server
+site_description: Documentation for the lean-proof-auto-mcp runtime, tools, and workflows
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  logo: assets/logo.png
+  palette:
+    scheme: default
+    primary: teal
+    accent: grey
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+extra_javascript:
+  - https://unpkg.com/mermaid@10.9.1/dist/mermaid.min.js
+  - javascripts/mermaid-init.js
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Overview: overview.md
+  - Architecture:
+      - System Overview: architecture/system_overview.md
+      - Decision Log: architecture/decision_log.md
+  - MCP:
+      - Tools Runtime: mcp/README.md
+      - Tool Contract: mcp/tool_contract.md
+      - Tools:
+          - scan_file: mcp/tools/scan_file.md
+          - scan_theorem: mcp/tools/scan_theorem.md
+          - rank_targets: mcp/tools/rank_targets.md
+          - verify: mcp/tools/verify.md
+          - probe: mcp/tools/probe.md
+          - probe_file: mcp/tools/probe_file.md
+          - search_automated_proof: mcp/tools/search_automated_proof.md
+          - try_automated_proof: mcp/tools/try_automated_proof.md
+          - get_proof_context: mcp/tools/get_proof_context.md
+  - Workflows:
+      - Interactive User Flow: workflows/interactive_user_flow.md
+  - Configuration: configuration.md
+  - Workspace Modes: workspace_modes.md
+  - Requirements:
+      - Functional: requirements/functional.md
+      - Non-Functional: requirements/nun_functional.md

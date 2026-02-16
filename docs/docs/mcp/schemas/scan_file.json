@@ -1,15 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://lean-proof-auto-mcp/schemas/scan_file.json",
-  "title": "scan_file tool response (API 1.0)",
+  "title": "scan_file tool response (API 1.1.0)",
   "type": "object",
   "additionalProperties": false,
   "required": ["api_version", "status", "run_id", "tool", "file", "summary"],
   "properties": {
     "api_version": {
       "$ref": "common.json#/$defs/api_version",
-      "const": "1.0",
-      "description": "API version 1.0 - BREAKING CHANGES from 0.x (numeric confidence in notes)"
+      "const": "1.1.0",
+      "description": "API version 1.1.0 - BREAKING CHANGES from 0.x (numeric confidence in notes)"
     },
     "status": { "$ref": "common.json#/$defs/status" },
     "run_id": { "$ref": "common.json#/$defs/run_id" },

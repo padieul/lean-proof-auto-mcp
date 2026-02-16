@@ -5,8 +5,8 @@ A Model Context Protocol (MCP) server for **Lean 4 proof automation analysis and
 This project provides deterministic tooling to analyze Lean proofs, probe automation potential (e.g. `aesop`, `grind`), and search for automation annotations in a reproducible, LLM-agnostic way.
 
 **Status:**
-- MCP Server Version: 0.2.0
-- API Version: 1.0 - Production Ready
+- MCP Server Version: 0.4.0
+- API Version: 1.1.0 - Production Ready
 
 **Audience:** Lean 4 community
 
@@ -64,7 +64,7 @@ Response includes automation profiles with confidence values:
 
 ```json
 {
-  "api_version": "1.0",
+  "api_version": "1.1.0",
   "status": "success",
   "theorems": [
     {
@@ -104,7 +104,7 @@ Response includes ranked theorems with tiers:
 
 ```json
 {
-  "api_version": "1.0",
+  "api_version": "1.1.0",
   "status": "success",
   "ranking": [
     {
@@ -256,14 +256,14 @@ export LEAN_PROOF_AUTO_MCP_CONFIG=/path/to/custom_heuristics.yaml
 
 See [Configuration Guide](docs/configuration.md) for complete documentation.
 
-## Migration Guide: API 0.1 → 1.0
+## Migration Guide: API 0.1 -> 1.1.0
 
 ### Breaking Changes
 
 1. **New Required Parameter**: `skip_already_automated` is now required for `rank_targets`
 2. **Response Structure**: All tools include new fields (tier, available_objectives, etc.)
 3. **Confidence Values**: Now properly exposed in notes (was always 0.0 in API 0.1)
-4. **API Version**: Bumped from "0.1" to "1.0"
+4. **API Version**: Bumped from "0.1" to "1.1.0"
 
 ### Migration Steps
 
@@ -277,7 +277,7 @@ See [Configuration Guide](docs/configuration.md) for complete documentation.
 }
 ```
 
-**After (API 1.0):**
+**After (API 1.1.0):**
 ```json
 {
   "file": "MyFile.lean",
@@ -302,7 +302,7 @@ See [Configuration Guide](docs/configuration.md) for complete documentation.
 
 #### Update API Version Checks
 
-Change version checks from `"0.1"` to `"1.0"`:
+Change version checks from `"0.1"` to `"1.1.0"`:
 
 ```python
 # Before
@@ -310,13 +310,13 @@ if response["api_version"] == "0.1":
     # ...
 
 # After
-if response["api_version"] == "1.0":
+if response["api_version"] == "1.1.0":
     # ...
 ```
 
 ### No Backward Compatibility
 
-API 1.0 is **not backward compatible** with 0.1. All clients must be updated to use the new API.
+API 1.1.0 is **not backward compatible** with 0.1. All clients must be updated to use the new API.
 
 ## Documentation
 

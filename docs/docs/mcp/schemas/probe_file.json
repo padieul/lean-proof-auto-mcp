@@ -12,8 +12,8 @@
         "api_version": {
           "type": "string",
           "description": "API version for schema compatibility tracking",
-          "default": "0.1.0",
-          "examples": ["0.1.0"]
+          "default": "1.1.0",
+          "examples": ["1.1.0"]
         },
         "file": {
           "type": "string",
@@ -52,13 +52,6 @@
           "default": "file_order",
           "enum": ["file_order", "rank_targets"],
           "examples": ["file_order", "rank_targets"]
-        },
-        "workspace_mode": {
-          "type": ["string", "null"],
-          "description": "Controls workspace isolation strategy. 'worktree' uses git worktree (fast, requires git repo), 'temp' copies project to temp directory (slower, works without git), null auto-detects based on git repository presence.",
-          "default": null,
-          "enum": ["worktree", "temp", null],
-          "examples": ["worktree", "temp", null]
         }
       },
       "additionalProperties": false,
@@ -75,8 +68,7 @@
           "mode": "aesop?",
           "budget_s_per": 10.0,
           "limit": 10,
-          "ordering": "rank_targets",
-          "workspace_mode": "worktree"
+          "ordering": "rank_targets"
         }
       ]
     },
@@ -94,8 +86,8 @@
         "api_version": {
           "type": "string",
           "description": "API version for schema compatibility tracking",
-          "const": "0.1.0",
-          "examples": ["0.1.0"]
+          "const": "1.1.0",
+          "examples": ["1.1.0"]
         },
         "status": {
           "type": "string",
@@ -295,7 +287,7 @@
       "additionalProperties": false,
       "examples": [
         {
-          "api_version": "0.1.0",
+          "api_version": "1.1.0",
           "status": "success",
           "file": "Mathlib/Data/List/Basic.lean",
           "summary": {
@@ -338,7 +330,7 @@
           }
         },
         {
-          "api_version": "0.1.0",
+          "api_version": "1.1.0",
           "status": "partial",
           "file": "MyProject/Theorems.lean",
           "summary": {
@@ -374,7 +366,7 @@
           }
         },
         {
-          "api_version": "0.1.0",
+          "api_version": "1.1.0",
           "status": "error",
           "file": "NonExistent.lean",
           "summary": {

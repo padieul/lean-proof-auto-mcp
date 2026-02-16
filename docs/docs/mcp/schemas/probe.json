@@ -12,8 +12,8 @@
         "api_version": {
           "type": "string",
           "description": "API version for schema compatibility tracking",
-          "default": "0.1.0",
-          "examples": ["0.1.0"]
+          "default": "1.1.0",
+          "examples": ["1.1.0"]
         },
         "file": {
           "type": "string",
@@ -69,13 +69,6 @@
             {"aesop": true},
             {"grind": true}
           ]
-        },
-        "workspace_mode": {
-          "type": ["string", "null"],
-          "description": "Controls workspace isolation strategy. 'worktree' uses git worktree (fast, requires git repo), 'temp' copies project to temp directory (slower, works without git), null auto-detects based on git repository presence.",
-          "default": null,
-          "enum": ["worktree", "temp", null],
-          "examples": ["worktree", "temp", null]
         }
       },
       "additionalProperties": false,
@@ -91,8 +84,7 @@
           "theorem_id": "MyProject.my_theorem",
           "mode": "aesop?",
           "budget_s": 5.0,
-          "trace_config": {"aesop": true},
-          "workspace_mode": "worktree"
+          "trace_config": {"aesop": true}
         }
       ]
     },
@@ -111,8 +103,8 @@
         "api_version": {
           "type": "string",
           "description": "API version for schema compatibility tracking",
-          "const": "0.1.0",
-          "examples": ["0.1.0"]
+          "const": "1.1.0",
+          "examples": ["1.1.0"]
         },
         "status": {
           "type": "string",
@@ -317,7 +309,7 @@
       "additionalProperties": false,
       "examples": [
         {
-          "api_version": "0.1.0",
+          "api_version": "1.1.0",
           "status": "success",
           "run_id": "probe-20250126-143022-a1b2c3d4-abc123",
           "probe_result": {
@@ -339,7 +331,7 @@
           }
         },
         {
-          "api_version": "0.1.0",
+          "api_version": "1.1.0",
           "status": "fail",
           "run_id": "probe-20250126-143100-b2c3d4e5-def456",
           "probe_result": {
@@ -373,7 +365,7 @@
           }
         },
         {
-          "api_version": "0.1.0",
+          "api_version": "1.1.0",
           "status": "success",
           "run_id": "probe-20250126-143200-c3d4e5f6-ghi789",
           "probe_result": {
@@ -395,7 +387,7 @@
           }
         },
         {
-          "api_version": "0.1.0",
+          "api_version": "1.1.0",
           "status": "timeout",
           "run_id": "probe-20250126-143300-d4e5f6g7-jkl012",
           "probe_result": {
@@ -417,7 +409,7 @@
           }
         },
         {
-          "api_version": "0.1.0",
+          "api_version": "1.1.0",
           "status": "error",
           "run_id": "probe-20250126-143400-e5f6g7h8-mno345",
           "probe_result": {

@@ -60,7 +60,7 @@
     },
     "workspace_mode": {
       "type": ["string", "null"],
-      "description": "Controls workspace isolation strategy. 'worktree' uses git worktree (fast, requires git repo), 'temp' copies project to temp directory (slower, works without git), null auto-detects based on git repository presence.",
+      "description": "Accepted workspace isolation hint. Current composition-root behavior uses adapter auto-detection (currently resolving to none mode).",
       "default": null,
       "enum": ["worktree", "temp", null],
       "examples": [

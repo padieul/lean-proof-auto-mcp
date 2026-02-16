@@ -38,7 +38,7 @@ from ..observability import SubprocessMetadataCollector
 logger = logging.getLogger(__name__)
 
 
-API_VERSION = "0.2.0"
+API_VERSION = "1.1.0"
 
 
 def search_automated_proof(args: dict[str, Any]) -> dict[str, Any]:

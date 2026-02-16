@@ -61,7 +61,7 @@ class TestVerifyIntegration:
 
         # Verify success status
         assert result["status"] == "success", f"Expected success but got {result['status']}"
-        assert result["api_version"] == "0.2.0"
+        assert result["api_version"] == "1.1.0"
 
         # Verify no error diagnostics
         error_diagnostics = [d for d in result["diagnostics"] if d["severity"] == "error"]
@@ -93,7 +93,7 @@ class TestVerifyIntegration:
 
         # Verify fail status
         assert result["status"] == "fail", f"Expected fail but got {result['status']}"
-        assert result["api_version"] == "0.2.0"
+        assert result["api_version"] == "1.1.0"
 
         # Verify error diagnostic is present
         error_diagnostics = [d for d in result["diagnostics"] if d["severity"] == "error"]
@@ -130,7 +130,7 @@ class TestVerifyIntegration:
 
         # Verify success status (sorry is a warning, not an error)
         assert result["status"] == "success", f"Expected success but got {result['status']}"
-        assert result["api_version"] == "0.2.0"
+        assert result["api_version"] == "1.1.0"
 
         # Verify warning diagnostic is present
         warning_diagnostics = [d for d in result["diagnostics"] if d["severity"] == "warning"]
@@ -175,7 +175,7 @@ class TestVerifyIntegration:
 
         # Verify timeout status
         assert result["status"] == "timeout", f"Expected timeout but got {result['status']}"
-        assert result["api_version"] == "0.2.0"
+        assert result["api_version"] == "1.1.0"
 
         # Verify timeout within reasonable overhead
         # Note: lean_interact has significant process management overhead (~2s)
@@ -210,7 +210,7 @@ class TestVerifyIntegration:
 
         # Verify success status
         assert result["status"] == "success", f"Expected success but got {result['status']}"
-        assert result["api_version"] == "0.2.0"
+        assert result["api_version"] == "1.1.0"
 
         # Verify theorem scope was used
         assert result["verification_scope_used"] == "theorem", (

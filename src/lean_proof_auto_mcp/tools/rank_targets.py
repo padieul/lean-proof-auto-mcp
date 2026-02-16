@@ -25,7 +25,7 @@ from ..core.source import SourceText
 from .scan_file import scan_file
 from .scan_theorem import scan_theorem
 
-API_VERSION = "1.0"
+API_VERSION = "1.1.0"
 
 
 @dataclass(frozen=True)

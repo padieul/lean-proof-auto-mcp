@@ -12,7 +12,7 @@ from ..core.scoring import compute_profile
 from ..core.segmenter import segment_proof
 from ..core.source import SourceText
 
-API_VERSION = "1.0"
+API_VERSION = "1.1.0"
 
 
 @dataclass(frozen=True)

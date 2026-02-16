@@ -615,5 +615,5 @@ Fix the invalid value and reload.
 ## See Also
 
 - [Tool Contract Documentation](mcp/tool_contract.md) - API reference
-- [README](../README.md) - Quick start guide
+- [Overview](overview.md) - Quick start context
 - Default configuration: `src/lean_proof_auto_mcp/heuristics.yaml`

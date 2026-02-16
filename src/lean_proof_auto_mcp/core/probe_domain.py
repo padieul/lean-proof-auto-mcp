@@ -1382,7 +1382,7 @@ class ProbeCommandHandler:
         logger.info("Metadata built, creating ProbeResult...")
 
         result = ProbeResult(
-            api_version="0.1.0",
+            api_version="1.1.0",
             status=status,
             run_id=run_id,
             probe_result=probe_outcome,
@@ -1447,7 +1447,7 @@ class ProbeCommandHandler:
         }
 
         return ProbeResult(
-            api_version="0.1.0",
+            api_version="1.1.0",
             status="fail",
             run_id=run_id,
             probe_result=probe_outcome,
@@ -1527,7 +1527,7 @@ class ProbeCommandHandler:
         }
 
         return ProbeResult(
-            api_version="0.1.0",
+            api_version="1.1.0",
             status="error",
             run_id=run_id,
             probe_result=probe_outcome,
@@ -1591,7 +1591,7 @@ class ProbeCommandHandler:
         }
 
         return ProbeResult(
-            api_version="0.1.0",
+            api_version="1.1.0",
             status="timeout",
             run_id=run_id,
             probe_result=probe_outcome,
@@ -1741,7 +1741,7 @@ class ProbeFileCommandHandler:
         if not theorem_ids:
             logger.warning(f"No theorems found in {cmd.file_path}")
             return ProbeFileResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="success",
                 file=cmd.file_path,
                 summary={"total": 0, "closed": 0, "promising": 0, "failed": 0, "timed_out": 0},
@@ -1815,7 +1815,7 @@ class ProbeFileCommandHandler:
                 metadata["errors"] = errors
 
             return ProbeFileResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status=status,
                 file=cmd.file_path,
                 summary=summary,
@@ -2178,7 +2178,7 @@ class ProbeFileCommandHandler:
         elapsed_ms = round((time.time() - start_time) * 1000.0, 2)
 
         return ProbeFileResult(
-            api_version="0.1.0",
+            api_version="1.1.0",
             status="error",
             file=cmd.file_path,
             summary={"total": 0, "closed": 0, "promising": 0, "failed": 0, "timed_out": 0},

@@ -332,7 +332,7 @@ def test_property_15_scan_file_integration(file_path, mode, num_theorems):
     # Mock probe results
     probe_handler.handle = Mock(
         return_value=ProbeResult(
-            api_version="0.1.0",
+            api_version="1.1.0",
             status="success",
             run_id="probe-test",
             probe_result=ProbeOutcome(
@@ -408,7 +408,7 @@ def test_property_16_batch_probe_invocation(file_path, mode, num_theorems, budge
     # Mock probe results
     probe_handler.handle = Mock(
         return_value=ProbeResult(
-            api_version="0.1.0",
+            api_version="1.1.0",
             status="success",
             run_id="probe-test",
             probe_result=ProbeOutcome(
@@ -486,7 +486,7 @@ def test_property_17_per_theorem_budget_isolation(file_path, mode, num_theorems,
     def mock_probe_handle(cmd):
         if cmd.theorem_id == "theorem_0":
             return ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="timeout",
                 run_id="probe-timeout",
                 probe_result=ProbeOutcome(
@@ -501,7 +501,7 @@ def test_property_17_per_theorem_budget_isolation(file_path, mode, num_theorems,
             )
         else:
             return ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="success",
                 run_id="probe-success",
                 probe_result=ProbeOutcome(
@@ -591,7 +591,7 @@ def test_property_18_summary_aggregation_correctness(
     for i in range(num_closed):
         probe_results.append(
             ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="success",
                 run_id=f"probe-{i}",
                 probe_result=ProbeOutcome(
@@ -608,7 +608,7 @@ def test_property_18_summary_aggregation_correctness(
     for i in range(num_promising):
         probe_results.append(
             ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="fail",
                 run_id=f"probe-{i}",
                 probe_result=ProbeOutcome(
@@ -625,7 +625,7 @@ def test_property_18_summary_aggregation_correctness(
     for i in range(num_failed):
         probe_results.append(
             ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="fail",
                 run_id=f"probe-{i}",
                 probe_result=ProbeOutcome(
@@ -642,7 +642,7 @@ def test_property_18_summary_aggregation_correctness(
     for i in range(num_timed_out):
         probe_results.append(
             ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="timeout",
                 run_id=f"probe-{i}",
                 probe_result=ProbeOutcome(
@@ -719,7 +719,7 @@ def test_property_19_probe_file_result_completeness(file_path, mode, num_theorem
     # Mock probe results
     probe_handler.handle = Mock(
         return_value=ProbeResult(
-            api_version="0.1.0",
+            api_version="1.1.0",
             status="success",
             run_id="probe-test",
             probe_result=ProbeOutcome(
@@ -811,7 +811,7 @@ def test_property_20_partial_success_handling(file_path, mode, num_theorems, err
         if cmd.theorem_id == f"theorem_{error_index}":
             raise RuntimeError(f"Probe failed for {cmd.theorem_id}")
         return ProbeResult(
-            api_version="0.1.0",
+            api_version="1.1.0",
             status="success",
             run_id="probe-test",
             probe_result=ProbeOutcome(
@@ -889,7 +889,7 @@ def test_property_21_deterministic_result_ordering(file_path, mode, num_theorems
     # Mock probe results
     probe_handler.handle = Mock(
         return_value=ProbeResult(
-            api_version="0.1.0",
+            api_version="1.1.0",
             status="success",
             run_id="probe-test",
             probe_result=ProbeOutcome(

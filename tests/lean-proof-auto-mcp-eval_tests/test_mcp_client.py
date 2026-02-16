@@ -157,7 +157,7 @@ class TestMCPClientCallTool:
                     "type": "text",
                     "text": json.dumps(
                         {
-                            "api_version": "0.2.0",
+                            "api_version": "1.1.0",
                             "status": "success",
                             "run_id": "verify-test",
                             "file": "test.lean",
@@ -174,7 +174,7 @@ class TestMCPClientCallTool:
                 result = client.call_tool("verify", {"file": "test.lean"})
 
         assert result["status"] == "success"
-        assert result["api_version"] == "0.2.0"
+        assert result["api_version"] == "1.1.0"
 
     def test_call_tool_sends_correct_jsonrpc(self):
         """Test that call_tool sends properly formatted tools/call request."""

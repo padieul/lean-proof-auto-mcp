@@ -24,7 +24,7 @@ from ..core.probe_domain import ProbeCommand, ProbeCommandHandler
 logger = logging.getLogger(__name__)
 
 
-API_VERSION = "0.1.0"
+API_VERSION = "1.1.0"
 
 
 # Artifacts directory for storing probe logs

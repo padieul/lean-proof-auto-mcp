@@ -199,38 +199,6 @@ ALL_GROUND_TRUTH_FILES = [
 ]
 
 
-def get_ground_truth_for_file(file_path: str) -> GroundTruthFile | None:
-    """Get ground truth for a specific file."""
-    for gt_file in ALL_GROUND_TRUTH_FILES:
-        if gt_file.file_path.endswith(file_path) or file_path.endswith(gt_file.file_path):
-            return gt_file
-    return None
-
-
-def get_all_ground_truth_declarations() -> list[GroundTruthDeclaration]:
-    """Get all ground truth declarations across all files."""
-    all_declarations = []
-    for gt_file in ALL_GROUND_TRUTH_FILES:
-        all_declarations.extend(gt_file.declarations)
-    return all_declarations
-
-
 def count_total_declarations() -> int:
     """Count total number of declarations in ground truth."""
     return sum(len(gt_file.declarations) for gt_file in ALL_GROUND_TRUTH_FILES)
-
-
-def count_declarations_with_proofs() -> int:
-    """Count declarations that have proofs."""
-    return sum(
-        1 for gt_file in ALL_GROUND_TRUTH_FILES for decl in gt_file.declarations if decl.has_proof
-    )
-
-
-def count_total_proof_references() -> int:
-    """Count total number of proof references across all declarations."""
-    return sum(
-        len(decl.proof_references)
-        for gt_file in ALL_GROUND_TRUTH_FILES
-        for decl in gt_file.declarations
-    )

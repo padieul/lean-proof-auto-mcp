@@ -166,7 +166,7 @@ class TestErrorResponse:
             error_code="test_error",
         )
 
-        assert response["api_version"] == "0.2.0"
+        assert response["api_version"] == "1.1.0"
         assert response["status"] == "error"
         assert "run_id" in response
         assert response["run_id"].startswith("context-")
@@ -238,7 +238,7 @@ class TestContextExtraction:
         )
 
         # Verify response structure
-        assert response["api_version"] == "0.2.0"
+        assert response["api_version"] == "1.1.0"
         assert response["status"] == "success"
         assert response["run_id"] == "context-20240101-12345678-abcdef"
         assert response["file"] == "test.lean"

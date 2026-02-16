@@ -28,7 +28,7 @@ from ..core.verify_domain import VerifyCommand, VerifyCommandHandler
 logger = logging.getLogger(__name__)
 
 
-API_VERSION = "0.2.0"
+API_VERSION = "1.1.0"
 
 
 def verify(args: dict[str, Any]) -> dict[str, Any]:

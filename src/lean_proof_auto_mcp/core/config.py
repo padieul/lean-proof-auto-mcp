@@ -140,20 +140,6 @@ class ProofLengthBonus:
 
 
 @dataclass(frozen=True)
-class PenaltyThreshold:
-    """Penalty threshold configuration."""
-
-    threshold: int
-    penalty: float
-
-    def __post_init__(self) -> None:
-        if self.threshold < 0:
-            raise ValueError(f"threshold must be >= 0, got {self.threshold}")
-        if not (-1.0 <= self.penalty <= 0.0):
-            raise ValueError(f"penalty must be in [-1.0, 0.0], got {self.penalty}")
-
-
-@dataclass(frozen=True)
 class AesopScoringConfig:
     """Configuration for aesop potential scoring."""
 
@@ -359,20 +345,6 @@ class SubgoalPotentialScoringConfig:
 
 
 @dataclass(frozen=True)
-class RiskThreshold:
-    """Risk threshold configuration."""
-
-    threshold: int
-    risk: float
-
-    def __post_init__(self) -> None:
-        if self.threshold < 0:
-            raise ValueError(f"threshold must be >= 0, got {self.threshold}")
-        if not (0.0 <= self.risk <= 1.0):
-            raise ValueError(f"risk must be in [0.0, 1.0], got {self.risk}")
-
-
-@dataclass(frozen=True)
 class RiskScoringConfig:
     """Configuration for risk scoring."""
 
@@ -500,20 +472,6 @@ class ImpactScoringConfig:
         for name, weight in weights.items():
             if not (0.0 <= weight <= 1.0):
                 raise ValueError(f"{name} must be in [0.0, 1.0], got {weight}")
-
-
-@dataclass(frozen=True)
-class ComplexityPenalty:
-    """Complexity penalty configuration."""
-
-    threshold: int
-    penalty: float
-
-    def __post_init__(self) -> None:
-        if self.threshold < 0:
-            raise ValueError(f"threshold must be >= 0, got {self.threshold}")
-        if not (0.0 <= self.penalty <= 1.0):
-            raise ValueError(f"penalty must be in [0.0, 1.0], got {self.penalty}")
 
 
 @dataclass(frozen=True)

@@ -69,7 +69,7 @@ class TestProbeFileIntegration:
 
         # Verify success status
         assert result["status"] == "success", f"Expected success but got {result['status']}"
-        assert result["api_version"] == "0.1.0"
+        assert result["api_version"] == "1.1.0"
 
         # Verify file field
         assert result["file"] == MULTI_THEOREM

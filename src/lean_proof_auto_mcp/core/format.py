@@ -92,27 +92,3 @@ def ensure_deterministic(data: dict[str, Any]) -> dict[str, Any]:
             result[key] = value
 
     return result
-
-
-def _round_automation_scores(automation: dict[str, Any]) -> dict[str, Any]:
-    """
-    Helper function to round automation scores to 2 decimal places.
-
-    Args:
-        automation: Automation dictionary with score fields
-
-    Returns:
-        Automation dict with rounded scores
-    """
-    result: dict[str, Any] = {}
-
-    for key, value in automation.items():
-        if isinstance(value, dict):
-            # Handle nested score dictionaries like whole_goal_potential
-            result[key] = {k: round(v, 2) if isinstance(v, float) else v for k, v in value.items()}
-        elif isinstance(value, float):
-            result[key] = round(value, 2)
-        else:
-            result[key] = value
-
-    return result

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from lean_proof_auto_mcp.tools.rank_targets import rank_targets
+from lean_proof_auto_mcp.tools.rank_targets import API_VERSION, rank_targets
 
 # Fixture paths
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "mathlib_lean_files"
@@ -39,7 +39,7 @@ class TestRankTargetsIntegration:
         # Verify success
         assert result["status"] == "success"
         assert result["tool"] == "rank_targets"
-        assert result["api_version"] == "1.0"
+        assert result["api_version"] == API_VERSION
 
         # Verify new fields exist
         assert "available_objectives" in result

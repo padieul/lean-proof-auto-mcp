@@ -1,55 +1,70 @@
 # lean-proof-auto-mcp
 
-A Model Context Protocol (MCP) server for **Lean 4 proof automation analysis and annotation discovery**.
+Deterministic Model Context Protocol (MCP) server for Lean 4 proof analysis, automation probing, proof validation, and theorem context extraction.
 
-This project provides deterministic tooling to analyze Lean proofs, probe automation potential (e.g. `aesop`, `grind`), and search for automation annotations in a reproducible, LLM-agnostic way.
+## Current status
 
-**Status:**
-- MCP Server Version: 0.2.0
-- API Version: 1.0 - Production Ready
+- Package/server version: `0.4.0`
+- Tool API version in response envelopes: `1.1.0`
 
-**Audience:** Lean 4 community
+## Implemented tools
 
-## Features
+| Tool | Purpose | Status values |
+|---|---|---|
+| `scan_file` | Static theorem-level analysis for one Lean file | `success`, `fail` |
+| `scan_theorem` | Deep analysis for one theorem target | `success`, `fail` |
+| `rank_targets` | Objective-based ranking and tiering | `success`, `fail` |
+| `verify` | Lean validation for file/theorem scope | `success`, `fail`, `timeout`, `error` |
+| `probe` | Single-theorem automation probe (`aesop`, `aesop?`, `grind`) | `success`, `fail`, `timeout`, `error` |
+| `probe_file` | Batch probe across theorem set | `success`, `partial`, `error` |
+| `search_automated_proof` | Hint-set search for automated proofs | `success`, `partial`, `fail`, `error` |
+| `try_automated_proof` | Validate a concrete proof attempt | `success`, `rejected`, `incomplete`, `timeout`, `error` |
+| `get_proof_context` | Extract statement/proof/scope/similar-proof context | `success`, `fail`, `error` |
 
-- **Proof Analysis**: Scan Lean files to extract automation profiles for all theorems
-- **Intelligent Ranking**: Rank theorems by automation potential using configurable objectives
-- **Already-Automated Detection**: Filter out theorems that already use automation tactics
-- **Tier System**: S/A/B/C/D tier classification for quick quality assessment
-- **Configurable Heuristics**: Customize all scoring parameters via YAML configuration
-- **Objective Discovery**: Explore available ranking strategies without trial-and-error
-- **Deterministic**: Same inputs always produce identical outputs
-- **LLM-Agnostic**: Server executes experiments, clients decide policy
+## Quick start
 
-## Quick Start
+### Prerequisites
 
-### Installation
+- Python `>=3.10`
+- `uv`
+- Lean 4 project/toolchain for runtime tools (`verify`, `probe`, `search_automated_proof`, `try_automated_proof`)
+
+### Install and validate
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/lean-proof-auto-mcp.git
-cd lean-proof-auto-mcp
-
-# Install dependencies
 uv sync --dev
 uv run pre-commit install
-
-# Run tests
 uv run pytest
-
-# Type checking
 uv run mypy .
-
-# Linting and formatting
-uv run ruff check . --fix
+uv run ruff check .
 uv run ruff format .
 ```
 
-### Basic Usage
+### Run the MCP server
 
-#### Scan a Lean File
+```bash
+uv run lean-proof-auto-mcp
+```
 
-Analyze all theorems in a file:
+Optional environment variables:
+
+- `LPAMCP_SERVER_NAME`
+- `LPAMCP_API_VERSION`
+- `LPAMCP_WORKING_DIR`
+
+## Typical workflow
+
+1. Discover and triage with `scan_file` and `rank_targets`.
+2. Inspect one target with `scan_theorem`.
+3. Measure baseline automation with `probe` or `probe_file`.
+4. Pull theorem context with `get_proof_context`.
+5. Search candidate automation with `search_automated_proof`.
+6. Validate candidate scripts with `try_automated_proof`.
+7. Run final check with `verify`.
+
+## Minimal examples
+
+`scan_file`:
 
 ```json
 {
@@ -60,329 +75,71 @@ Analyze all theorems in a file:
 }
 ```
 
-Response includes automation profiles with confidence values:
-
-```json
-{
-  "api_version": "1.0",
-  "status": "success",
-  "theorems": [
-    {
-      "theorem_id": "List.append_nil",
-      "automation_profile": {
-        "whole_goal_potential": {"aesop": 0.90, "grind": 0.75},
-        "subgoal_potential": {"aesop": 0.85, "grind": 0.70},
-        "annotation_value": 0.80
-      },
-      "notes": [
-        "confidence: 0.95",
-        "very high confidence proof",
-        "excellent aesop candidate"
-      ]
-    }
-  ]
-}
-```
-
-#### Rank Theorems by Automation Potential
-
-Get top automation candidates:
+`rank_targets`:
 
 ```json
 {
   "tool": "rank_targets",
   "arguments": {
     "file": "Mathlib/Data/List/Basic.lean",
-    "objective": "maximize_success",
-    "skip_already_automated": false,
-    "limit": 10
+    "objective": "balanced",
+    "limit": 30
   }
 }
 ```
 
-Response includes ranked theorems with tiers:
+`try_automated_proof`:
 
 ```json
 {
-  "api_version": "1.0",
-  "status": "success",
-  "ranking": [
-    {
-      "theorem_id": "List.append_nil",
-      "score": 0.92,
-      "tier": "S",
-      "components": {
-        "success_likelihood": 0.95,
-        "impact": 0.45,
-        "annotation_value": 0.80,
-        "subgoal_potential": 0.60,
-        "risk": 0.10,
-        "already_automated_penalty": 0.0
-      },
-      "reasons": [
-        "confidence: 0.95",
-        "very high confidence proof",
-        "excellent aesop candidate (0.90)"
-      ]
-    }
-  ],
-  "summary": {
-    "total": 150,
-    "returned": 10,
-    "skipped_low_confidence": 0,
-    "skipped_already_automated": 0,
-    "tier_distribution": {
-      "S": 15,
-      "A": 22,
-      "B": 38,
-      "C": 37,
-      "D": 38
-    }
-  },
-  "available_objectives": [
-    {
-      "name": "maximize_success",
-      "description": "Prioritize theorems most likely to be automated successfully",
-      "use_case": "When you want quick wins and high success rate"
-    }
-  ]
-}
-```
-
-#### Skip Already-Automated Theorems
-
-Focus on unannotated work:
-
-```json
-{
-  "tool": "rank_targets",
+  "tool": "try_automated_proof",
   "arguments": {
-    "file": "Mathlib/Algebra/Ring/Basic.lean",
-    "objective": "maximize_impact",
-    "skip_already_automated": true,
-    "limit": 10
+    "file": "Mathlib/Data/List/Basic.lean",
+    "theorem_id": "List.append_nil",
+    "proof_attempt": "by aesop",
+    "timeout_s": 10.0
   }
 }
 ```
 
-This filters out theorems that already use `aesop`, `grind`, `simp`, or have automation attributes like `@[aesop]`, `@[simp]`.
+## Runtime notes
 
-### Ranking Objectives
+- Tool responses are normalized and deterministic, with `status` and `api_version`.
+- Lean server instances are reused by project root.
+- Harness-based tools use range-based source splicing (`RangeBasedHarnessConstructor`).
 
-Choose the objective that matches your use case:
+### Workspace behavior (current)
 
-- **maximize_success**: Quick wins, high success rate (first-time automation, demos)
-- **maximize_impact**: Maximum time saved (mature projects, refactoring)
-- **maximize_subgoal_automation**: Partial automation (incremental automation, complex proofs)
-- **balanced**: General-purpose ranking (exploratory analysis)
+- Provider modes supported by adapters: `none`, `worktree`, `temp`.
+- Current auto-detection resolves to `none` in runtime adapters.
+- In current composition roots, workflows run against project root unless wiring is changed to explicitly pass `temp`/`worktree`.
+- `verify` accepts a `workspace_mode` argument at the tool boundary, but current composition-root wiring still uses auto-detected mode.
 
-### Tier System
+## Configuration
 
-Each ranked theorem includes a tier classification:
+Heuristics configuration source priority:
 
-- **S-tier** (top 10%): Exceptional candidates, highest priority
-- **A-tier** (10-25%): Strong candidates, high priority
-- **B-tier** (25-50%): Good candidates, medium priority
-- **C-tier** (50-75%): Acceptable candidates, lower priority
-- **D-tier** (75-100%): Weak candidates, consider skipping
+1. `config_path` request parameter
+2. `LEAN_PROOF_AUTO_MCP_CONFIG` environment variable
+3. Built-in defaults
 
-Tiers are relative to the file, not absolute scores.
+See `docs/docs/configuration.md` for full schema and parameter ranges.
 
-### Workspace Modes
+## Documentation map
 
-The verify tool supports two workspace isolation modes:
-
-- **temp** (default): Copies files to a temporary directory. Safest option, works everywhere.
-- **worktree**: Uses git worktree for faster isolation. Requires git repository.
-
-**Default behavior**: The system always uses temp mode unless you explicitly request worktree mode.
-
-To use worktree mode explicitly:
-
-```json
-{
-  "tool": "verify",
-  "arguments": {
-    "file": "MyTheorem.lean",
-    "budget_s": 30.0,
-    "workspace_mode": "worktree"
-  }
-}
-```
-
-**For tests**: Always use temp mode to avoid polluting your development repository with git worktrees.
-
-See [Workspace Modes Documentation](docs/workspace_modes.md) for complete details on workspace isolation, trade-offs, and best practices.
-
-### Configuration
-
-Customize all heuristic parameters via YAML configuration:
-
-```yaml
-# custom_heuristics.yaml
-version: "1.0"
-
-confidence:
-  base_score: 0.4  # Increase base confidence
-  bonuses:
-    proof_structure: 0.25  # Reward good structure more
-
-aesop_scoring:
-  base_score: 0.3  # Higher base for structural proofs
-
-tiers:
-  s_tier_percentile: 5  # Top 5% are S-tier (stricter)
-```
-
-Use custom configuration:
-
-```json
-{
-  "tool": "rank_targets",
-  "arguments": {
-    "file": "MyFile.lean",
-    "objective": "maximize_success",
-    "skip_already_automated": false,
-    "config_path": "/path/to/custom_heuristics.yaml"
-  }
-}
-```
-
-Or via environment variable:
-
-```bash
-export LEAN_PROOF_AUTO_MCP_CONFIG=/path/to/custom_heuristics.yaml
-```
-
-See [Configuration Guide](docs/configuration.md) for complete documentation.
-
-## Migration Guide: API 0.1 → 1.0
-
-### Breaking Changes
-
-1. **New Required Parameter**: `skip_already_automated` is now required for `rank_targets`
-2. **Response Structure**: All tools include new fields (tier, available_objectives, etc.)
-3. **Confidence Values**: Now properly exposed in notes (was always 0.0 in API 0.1)
-4. **API Version**: Bumped from "0.1" to "1.0"
-
-### Migration Steps
-
-#### Update rank_targets Calls
-
-**Before (API 0.1):**
-```json
-{
-  "file": "MyFile.lean",
-  "objective": "maximize_success"
-}
-```
-
-**After (API 1.0):**
-```json
-{
-  "file": "MyFile.lean",
-  "objective": "maximize_success",
-  "skip_already_automated": false
-}
-```
-
-#### Update Response Parsing
-
-**New fields in rank_targets response:**
-- `tier` (string): S/A/B/C/D tier classification
-- `available_objectives` (array): List of available objectives with metadata
-- `already_automated_penalty` (number): Penalty component in components
-- `tier_distribution` (object): Count of theorems in each tier
-- `skipped_already_automated` (number): Count of filtered theorems
-- `config_source` (string): Configuration source in metadata
-
-**New fields in scan_file/scan_theorem response:**
-- Numeric confidence in notes: `"confidence: 0.85"`
-- `config_source` (string): Configuration source in metadata
-
-#### Update API Version Checks
-
-Change version checks from `"0.1"` to `"1.0"`:
-
-```python
-# Before
-if response["api_version"] == "0.1":
-    # ...
-
-# After
-if response["api_version"] == "1.0":
-    # ...
-```
-
-### No Backward Compatibility
-
-API 1.0 is **not backward compatible** with 0.1. All clients must be updated to use the new API.
-
-## Documentation
-
-- [Tool Contract](docs/mcp/tool_contract.md) - Complete API reference
-- [Configuration Guide](docs/configuration.md) - Heuristic parameter documentation
-- [JSON Schemas](docs/mcp/schemas/) - Request/response schemas
-- [Architecture](docs/architecture/) - System design and decisions
-
-## Development
-
-### Running Tests
-
-```bash
-# All tests
-uv run pytest
-
-# Unit tests only
-uv run pytest tests/unit/
-
-# Property-based tests
-uv run pytest tests/property/
-
-# Integration tests
-uv run pytest tests/integration/
-
-# Contract tests
-uv run pytest tests/mcp_contract/
-```
-
-### Code Quality
-
-```bash
-# Type checking
-uv run mypy .
-
-# Linting
-uv run ruff check .
-
-# Formatting
-uv run ruff format .
-
-# Pre-commit hooks
-uv run pre-commit run --all-files
-```
-
-## Goals
-
-- Expose Lean proof analysis and automation probes via MCP tools
-- Treat annotation discovery as a bounded, deterministic search problem
-- Support interactive use (IDE + LLMs) and large-scale batch automation (e.g. via AI agents)
-- Remain LLM-agnostic: the server executes experiments, clients decide policy
-
-## Background
-
-This project builds on a prototype explored at ItaLean 2025 and focuses on
-scaling annotation-based proof automation in existing Lean codebases
-(e.g. Mathlib).
-
-More detailed design docs live in `docs/`. Specs and steering
-files for **Kiro** can be found in `.kiro/steering` and `.kiro/specs`.
+- Overview: `docs/docs/overview.md`
+- Tool runtime hub: `docs/docs/mcp/README.md`
+- Tool contract: `docs/docs/mcp/tool_contract.md`
+- Tool pages: `docs/docs/mcp/tools/`
+- Architecture: `docs/docs/architecture/system_overview.md`
+- Workspace modes: `docs/docs/workspace_modes.md`
+- Workflow: `docs/docs/workflows/interactive_user_flow.md`
+- Requirements: `docs/docs/requirements/functional.md`
 
 ## Citation
 
-If you use this project in academic work, please cite it using the
-`CITATION.cff` file provided in the repository.
+If you use this project in academic work, cite `CITATION.cff`.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT. See `LICENSE`.

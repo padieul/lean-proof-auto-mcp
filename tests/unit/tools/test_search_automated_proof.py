@@ -354,7 +354,7 @@ class TestJSONResponseFormat:
             error_code="test_error",
         )
 
-        assert response["api_version"] == "0.2.0"
+        assert response["api_version"] == "1.1.0"
         assert response["status"] == "error"
         assert "run_id" in response
         assert response["run_id"].startswith("search-auto-")

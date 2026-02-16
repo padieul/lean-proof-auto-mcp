@@ -53,7 +53,7 @@ def create_sample_command(file_path: str = "test.lean") -> VerifyCommand:
 def create_sample_result(run_id: str = "test-run-123") -> VerifyResult:
     """Create a sample VerifyResult for testing."""
     return VerifyResult(
-        api_version="0.2.0",
+        api_version="1.1.0",
         status="success",
         run_id=run_id,
         file="test.lean",
@@ -177,7 +177,7 @@ class TestProperty10ArtifactStorageCompleteness:
         run_id = "test-run-20250126-120002-ghi789"
         command = create_sample_command()
         result = VerifyResult(
-            api_version="0.2.0",
+            api_version="1.1.0",
             status="fail",
             run_id=run_id,
             file="path/to/test.lean",
@@ -216,7 +216,7 @@ class TestProperty10ArtifactStorageCompleteness:
             with open(result_file, encoding="utf-8") as f:
                 result_data = json.load(f)
 
-            assert result_data["api_version"] == "0.2.0"
+            assert result_data["api_version"] == "1.1.0"
             assert result_data["status"] == "fail"
             assert result_data["run_id"] == run_id
             assert result_data["file"] == "path/to/test.lean"

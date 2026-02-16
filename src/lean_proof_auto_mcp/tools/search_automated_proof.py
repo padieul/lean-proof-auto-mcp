@@ -11,7 +11,7 @@ This module provides the enhanced MCP tool interface for searching automated
 proofs with LLM-controlled parameters, rich feedback mechanisms, and metadata
 
 
-collection. It replaces the search_annotations tool with improved capabilities.
+collection with rich, configurable automation search capabilities.
 
 
 
@@ -38,7 +38,7 @@ from ..observability import SubprocessMetadataCollector
 logger = logging.getLogger(__name__)
 
 
-API_VERSION = "0.2.0"
+API_VERSION = "1.1.0"
 
 
 def search_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
@@ -49,7 +49,7 @@ def search_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
 
 
 
-    This is the enhanced MCP tool that replaces search_annotations with:
+    This tool provides:
 
 
     - LLM-controlled search depth presets (quick, normal, deep, exhaustive)

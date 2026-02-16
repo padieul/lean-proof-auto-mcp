@@ -95,7 +95,7 @@ class TestProbeFileCommandHandler:
         # Mock _process_lean_result to return a closed ProbeResult
         def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
             return ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="success",
                 run_id=run_id,
                 probe_result=ProbeOutcome(
@@ -162,7 +162,7 @@ class TestProbeFileCommandHandler:
 
         def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
             return ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="success",
                 run_id=run_id,
                 probe_result=ProbeOutcome(
@@ -237,7 +237,7 @@ class TestProbeFileCommandHandler:
 
         def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
             return ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="success",
                 run_id=run_id,
                 probe_result=ProbeOutcome(
@@ -298,7 +298,7 @@ class TestProbeFileCommandHandler:
 
         def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
             return ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="success",
                 run_id=run_id,
                 probe_result=ProbeOutcome(
@@ -378,7 +378,7 @@ class TestProbeFileCommandHandler:
                 else ("timeout" if outcome == "timeout" else "fail")
             )
             return ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status=status,
                 run_id=run_id,
                 probe_result=ProbeOutcome(
@@ -462,7 +462,7 @@ class TestProbeFileCommandHandler:
 
         def mock_process(cmd, run_id, lean_result, start_time, workspace=None):
             return ProbeResult(
-                api_version="0.1.0",
+                api_version="1.1.0",
                 status="success",
                 run_id=run_id,
                 probe_result=ProbeOutcome(

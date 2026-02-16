@@ -263,7 +263,7 @@ class TestBuildErrorResponse:
             error_code="test_error",
         )
 
-        assert response["api_version"] == "0.1.0"
+        assert response["api_version"] == "1.1.0"
         assert response["status"] == "error"
         assert response["file"] == "test.lean"
 
@@ -471,7 +471,7 @@ class TestErrorHandling:
         result = probe_file({"mode": "aesop"})
 
         assert result["status"] == "error"
-        assert result["api_version"] == "0.1.0"
+        assert result["api_version"] == "1.1.0"
         assert result["metadata"]["error_code"] == "input_validation_error"
         assert "error" in result["metadata"]
 

@@ -28,7 +28,7 @@ from ..observability import SubprocessMetadataCollector
 logger = logging.getLogger(__name__)
 
 
-API_VERSION = "0.2.0"
+API_VERSION = "1.1.0"
 
 
 def _normalize_proof_text(proof: str) -> str:

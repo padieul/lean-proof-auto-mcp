@@ -70,7 +70,7 @@ class VerifyResult:
     Requirements: 1.1, 8.3
 
     Attributes:
-        api_version: API version string (e.g., "0.2.0")
+        api_version: API version string (e.g., "1.1.0")
         status: Verification status ("success", "fail", "timeout", "error")
         run_id: Unique identifier for this verification run
         file: Path to the verified file
@@ -354,7 +354,7 @@ class VerifyCommandHandler:
 
             # 6. Build result
             result = VerifyResult(
-                api_version="0.2.0",
+                api_version="1.1.0",
                 status=status,
                 run_id=run_id,
                 file=cmd.file_path,

@@ -3,6 +3,7 @@
 import pytest
 
 from lean_proof_auto_mcp.tools.rank_targets import (
+    API_VERSION,
     RankTargetsArgs,
     _coerce_args,
 )
@@ -510,8 +511,8 @@ class TestResponseStructure:
         assert "diagnostics" in result
         assert "metadata" in result
 
-        # Check API version is 1.0
-        assert result["api_version"] == "1.0"
+        # Check API version matches declared tool version
+        assert result["api_version"] == API_VERSION
 
         # Check status is fail
         assert result["status"] == "fail"

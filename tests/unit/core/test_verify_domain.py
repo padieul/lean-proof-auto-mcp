@@ -87,7 +87,7 @@ class TestVerifyResult:
     def test_create_result(self):
         """Test creating a VerifyResult with all fields."""
         result = VerifyResult(
-            api_version="0.2.0",
+            api_version="1.1.0",
             status="success",
             run_id="verify-20250126-120000-abc123",
             file="test.lean",
@@ -100,7 +100,7 @@ class TestVerifyResult:
             timing={"total_s": 1.5, "lean_execution_s": 1.2, "overhead_s": 0.3},
         )
 
-        assert result.api_version == "0.2.0"
+        assert result.api_version == "1.1.0"
         assert result.status == "success"
         assert result.run_id == "verify-20250126-120000-abc123"
         assert result.file == "test.lean"
@@ -109,7 +109,7 @@ class TestVerifyResult:
     def test_immutability(self):
         """Test that VerifyResult is immutable."""
         result = VerifyResult(
-            api_version="0.2.0",
+            api_version="1.1.0",
             status="success",
             run_id="verify-20250126-120000-abc123",
             file="test.lean",

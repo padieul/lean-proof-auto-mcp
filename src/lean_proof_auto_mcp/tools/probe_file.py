@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-API_VERSION = "0.1.0"
+API_VERSION = "1.1.0"
 
 # Artifacts directory for storing probe logs
 ARTIFACTS_DIR = Path(".artifacts")

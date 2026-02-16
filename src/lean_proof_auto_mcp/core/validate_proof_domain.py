@@ -3,8 +3,6 @@ Core domain structures and handler for proof validation.
 
 This module defines the Command/Handler pattern for proof validation operations,
 following hexagonal architecture principles and dependency injection.
-
-Requirements: 4.1, 4.2, 4.6
 """
 
 import logging
@@ -34,11 +32,6 @@ class ValidateProofCommand:
     """
     Immutable command representing a proof validation request.
 
-    This command encapsulates all parameters needed to validate a proof attempt
-    against a theorem statement, following the Command pattern for clean entry points.
-
-    Requirements: 4.1
-
     Attributes:
         file_path: Path to Lean file containing the theorem
         theorem_id: Identifier of the theorem to validate
@@ -54,14 +47,6 @@ class ValidateProofCommand:
     return_proof_state: bool = True
 
     def __post_init__(self) -> None:
-        """
-        Validate command parameters.
-
-        Raises:
-            ValueError: If any parameter is invalid
-
-        Requirements: 4.1
-        """
         if not self.file_path:
             raise ValueError("file_path must be non-empty")
         if not self.theorem_id:
@@ -81,19 +66,11 @@ class ValidateProofCommandHandler:
     """
     Orchestrates proof validation operations.
 
-    This handler implements the proof validation workflow following hexagonal
-    architecture principles. It depends only on abstract ports (Querier,
-    ProofValidator, HarnessConstructor, ProofStateInspector) and contains
-    no infrastructure logic.
-
-    The workflow:
-    1. Extract theorem declaration using querier
-    2. Construct test harness with proof attempt
-    3. Validate proof using validator
-    4. Enrich with proof state if incomplete (optional)
-    5. Return structured validation result
-
-    Requirements: 4.2, 4.6
+    Workflow:
+    1. Extract theorem declaration using querier.
+    2. Construct harness code exactly once.
+    3. Validate that exact prebuilt harness code.
+    4. Enrich with proof state if incomplete (optional).
     """
 
     def __init__(
@@ -104,21 +81,6 @@ class ValidateProofCommandHandler:
         proof_state_inspector: "ProofStateInspector | None" = None,
         metadata_collector: "MetadataCollector | None" = None,
     ):
-        """
-        Initialize handler with dependency injection.
-
-        All dependencies are injected at construction time, following
-        dependency injection principles. No infrastructure is created internally.
-
-        Args:
-            querier: Port for querying Lean files to extract declarations
-            validator: Port for validating proof attempts
-            constructor: Port for constructing test harnesses
-            proof_state_inspector: Optional port for inspecting proof states
-            metadata_collector: Optional port for collecting environment metadata
-
-        Requirements: 4.2
-        """
         self.querier = querier
         self.validator = validator
         self.constructor = constructor
@@ -126,35 +88,10 @@ class ValidateProofCommandHandler:
         self.metadata_collector = metadata_collector
 
     def handle(self, cmd: ValidateProofCommand) -> "ValidationResult":
-        """
-        Execute proof validation workflow.
+        """Execute proof validation workflow."""
+        logger.info(f"Validating proof for theorem {cmd.theorem_id} in {cmd.file_path}")
 
-        This method orchestrates the entire validation process with explicit
-        error handling at each stage following the Result/Either pattern.
-
-        Error handling strategy:
-        - Theorem not found: Raise ValueError
-        - Harness construction errors: Raise RuntimeError
-        - Validation errors: Return ValidationResult with error status
-        - Proof state inspection: Best effort, log errors but don't fail
-
-        Args:
-            cmd: Validation command with all parameters
-
-        Returns:
-            ValidationResult with status, error information, and optional proof state
-
-        Raises:
-            ValueError: If theorem not found
-            RuntimeError: If harness construction fails
-
-        Requirements: 4.2, 4.6
-        """
-        logger.info(
-            f"Validating proof for theorem {cmd.theorem_id} in {cmd.file_path}"
-        )
-
-        # Step 1: Extract theorem using querier
+        # Step 1: Extract theorem using deterministic matching
         try:
             declarations = self.querier.extract_declarations(cmd.file_path)
             theorem = self._find_theorem(declarations, cmd.theorem_id)
@@ -162,42 +99,45 @@ class ValidateProofCommandHandler:
             logger.error(f"Failed to extract theorem: {e}")
             raise ValueError(f"Theorem {cmd.theorem_id} not found: {e}") from e
 
-        # Step 2: Construct harness with proof attempt
+        # Step 2: Construct harness once
         from .harness_construction import HarnessConfig, HarnessError
 
+        file_content = self.querier.read_source_file(cmd.file_path)
         harness_config = HarnessConfig(
             theorem_id=cmd.theorem_id,
             file_path=cmd.file_path,
             proof_attempt=cmd.proof_attempt,
+            file_content=file_content,
+            declarations=declarations,
         )
-
         harness_result = self.constructor.construct(harness_config)
-
-        # Check if construction was successful
         if isinstance(harness_result, HarnessError):
             logger.error(f"Harness construction failed: {harness_result.message}")
-            raise RuntimeError(
-                f"Failed to construct harness: {harness_result.message}"
-            )
+            raise RuntimeError(f"Failed to construct harness: {harness_result.message}")
 
-        # Step 3: Validate proof using ProofValidator port
-        #
-        # Pass file_path and theorem_id so the validator uses the import-based
-        # harness path (which re-uses the constructor's caches) instead of the
-        # standalone fallback that wraps proof_attempt in a bare
-        # "theorem ... := by\n{proof_attempt}" — which would double-wrap the
-        # already-constructed harness code and produce invalid Lean.
+        # Step 3: Validate exactly the prebuilt harness code
         try:
-            result = self.validator.validate_proof(
-                theorem_statement=theorem.type,
-                proof_attempt=cmd.proof_attempt,
-                timeout_s=cmd.timeout_s,
-                file_path=cmd.file_path,
-                theorem_id=cmd.theorem_id,
-            )
+            if hasattr(self.validator, "validate_harness_code"):
+                result = self.validator.validate_harness_code(
+                    harness_code=harness_result.code,
+                    timeout_s=cmd.timeout_s,
+                    file_path=cmd.file_path,
+                )
+            else:
+                # Backward-compatible fallback for custom validators that do
+                # not yet implement validate_harness_code.
+                logger.warning(
+                    "ProofValidator lacks validate_harness_code; falling back to validate_proof"
+                )
+                result = self.validator.validate_proof(
+                    theorem_statement=theorem.type,
+                    proof_attempt=cmd.proof_attempt,
+                    timeout_s=cmd.timeout_s,
+                    file_path=cmd.file_path,
+                    theorem_id=cmd.theorem_id,
+                )
         except Exception as e:
             logger.error(f"Proof validation failed: {e}")
-            # Convert to ValidationResult with error status
             from ..lean.ports import ValidationResult
 
             result = ValidationResult(
@@ -209,17 +149,14 @@ class ValidateProofCommandHandler:
                 time_s=0.0,
             )
 
-        # Step 4: Enrich with proof state if incomplete and requested
+        # Step 4: Optional proof-state enrichment
         if (
             result.status == "incomplete"
             and cmd.return_proof_state
             and self.proof_state_inspector
         ):
             try:
-                proof_state = self.proof_state_inspector.get_initial_proof_state(
-                    theorem
-                )
-                # Create enriched result with proof state
+                proof_state = self.proof_state_inspector.get_initial_proof_state(theorem)
                 from ..lean.ports import ValidationResult
 
                 result = ValidationResult(
@@ -231,7 +168,6 @@ class ValidateProofCommandHandler:
                     time_s=result.time_s,
                 )
             except Exception as e:
-                # Log but don't fail - proof state is optional enrichment
                 logger.warning(f"Failed to get proof state: {e}")
 
         logger.info(f"Validation complete: status={result.status}")
@@ -239,33 +175,48 @@ class ValidateProofCommandHandler:
 
     def _find_theorem(self, declarations: list, theorem_id: str):
         """
-        Find theorem in declarations list.
+        Find theorem in declarations list with deterministic matching.
 
-        Matches by name or full_name, handling both simple names and
-        namespaced names (e.g., "Subgroup.mem_prod").
-
-        Args:
-            declarations: List of Declaration objects
-            theorem_id: Theorem identifier to find
-
-        Returns:
-            Declaration object for the theorem
-
-        Raises:
-            ValueError: If theorem not found
-
-        Requirements: 4.2
+        Priority:
+        1. exact full_name
+        2. exact name
+        3. local-name fallback (only if unique)
         """
-        # Extract local name (without namespace) for matching
-        local_name = theorem_id.split(".")[-1] if "." in theorem_id else theorem_id
+        theorem_decls = [
+            d for d in declarations if getattr(d, "kind", "") in ("theorem", "lemma")
+        ]
 
-        for decl in declarations:
-            if (
-                decl.name == theorem_id
-                or decl.full_name == theorem_id
-                or decl.name == local_name
-                or decl.full_name == local_name
-            ):
-                return decl
+        def _select_unique(matches: list, label: str):
+            if len(matches) == 1:
+                return matches[0]
+            if len(matches) > 1:
+                names = ", ".join(
+                    getattr(d, "full_name", getattr(d, "name", "<unknown>"))
+                    for d in matches[:5]
+                )
+                raise ValueError(f"Ambiguous theorem_id '{theorem_id}' ({label}): {names}")
+            return None
+
+        full_exact = [d for d in theorem_decls if d.full_name == theorem_id]
+        selected = _select_unique(full_exact, "exact_full_name")
+        if selected is not None:
+            return selected
+
+        name_exact = [d for d in theorem_decls if d.name == theorem_id]
+        selected = _select_unique(name_exact, "exact_name")
+        if selected is not None:
+            return selected
+
+        local_name = theorem_id.split(".")[-1]
+        local_matches = [
+            d
+            for d in theorem_decls
+            if d.name == local_name
+            or d.full_name == local_name
+            or d.full_name.endswith(f".{local_name}")
+        ]
+        selected = _select_unique(local_matches, "local_name_fallback")
+        if selected is not None:
+            return selected
 
         raise ValueError(f"Theorem {theorem_id} not found in declarations")

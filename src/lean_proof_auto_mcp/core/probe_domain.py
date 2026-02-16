@@ -38,6 +38,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+HARNESS_CACHE_DIR = "_harness_cache"
+
 
 # ============================================================================
 
@@ -724,7 +726,10 @@ class ProbeCommandHandler:
                     file_path_for_harness = cmd.file_path
 
 
-                # Build harness config
+                # Build harness config — populate file_content and declarations
+                # so the constructor (RangeBasedHarnessConstructor) stays pure.
+                declarations = self.querier.extract_declarations(file_path_for_harness)
+                file_content = self.querier.read_source_file(file_path_for_harness)
 
                 config = HarnessConfig(
 
@@ -733,6 +738,10 @@ class ProbeCommandHandler:
                     file_path=file_path_for_harness,
 
                     proof_attempt=cmd.mode,
+
+                    file_content=file_content,
+
+                    declarations=declarations,
 
                     additional_imports=additional_imports,
 
@@ -747,6 +756,11 @@ class ProbeCommandHandler:
                 # Check if construction was successful
 
                 if isinstance(result, HarnessError):
+
+                    if result.error_type == "theorem_not_found":
+                        return self._build_fail_result(
+                            cmd, run_id, result.error_type, result.message, start_time
+                        )
 
                     logger.error(f"Harness construction failed: {result.message}")
 
@@ -801,9 +815,9 @@ class ProbeCommandHandler:
 
                 # Theorem not found or invalid
 
-                logger.error(f"Harness construction failed: {e}")
+                logger.warning(f"Harness construction failed: {e}")
 
-                return self._build_error_result(
+                return self._build_fail_result(
 
                     cmd, run_id, "theorem_not_found", str(e), start_time
 
@@ -848,9 +862,9 @@ class ProbeCommandHandler:
 
                 # Theorem not found or invalid
 
-                logger.error(f"Theorem validation failed: {e}")
+                logger.warning(f"Theorem validation failed: {e}")
 
-                return self._build_error_result(
+                return self._build_fail_result(
 
                     cmd, run_id, "theorem_not_found", str(e), start_time
 
@@ -995,11 +1009,8 @@ class ProbeCommandHandler:
         # filename and verify it
 
 
-        # Generate harness filename (must match _write_harness logic)
-
-        safe_theorem_id = "".join(c if c.isalnum() else "_" for c in cmd.theorem_id)
-
-        harness_filename = f"_probe_harness_{safe_theorem_id}.lean"
+        # Generate harness relative path (must match _write_harness logic)
+        harness_filename = self._harness_relative_path(cmd.theorem_id)
 
 
         try:
@@ -1024,9 +1035,9 @@ class ProbeCommandHandler:
 
         except ValueError as e:
 
-            logger.error(f"Theorem validation failed: {e}")
+            logger.warning(f"Theorem validation failed: {e}")
 
-            return self._build_error_result(cmd, run_id, "theorem_not_found", str(e), start_time)
+            return self._build_fail_result(cmd, run_id, "theorem_not_found", str(e), start_time)
 
         except Exception as e:
 
@@ -1254,27 +1265,28 @@ class ProbeCommandHandler:
         Requirements: 1.2, 3.2
         """
 
-        # Generate harness filename based on theorem_id
-
-        # Use a safe filename by replacing non-alphanumeric characters
-
-        safe_theorem_id = "".join(c if c.isalnum() else "_" for c in cmd.theorem_id)
-
-        harness_filename = f"_probe_harness_{safe_theorem_id}.lean"
-
-        harness_path = workspace_path / harness_filename
+        # Generate harness path under a cache directory in the workspace.
+        harness_relative_path = self._harness_relative_path(cmd.theorem_id)
+        harness_path = workspace_path / harness_relative_path
 
 
         try:
+            harness_path.parent.mkdir(parents=True, exist_ok=True)
 
             with open(harness_path, "w", encoding="utf-8") as f:
 
                 f.write(harness_content)
-            return harness_filename
+            return str(harness_relative_path)
 
         except Exception as e:
 
             raise OSError(f"Failed to write harness file: {e}") from e
+
+    def _harness_relative_path(self, theorem_id: str) -> Path:
+        """Build workspace-relative harness path for a theorem."""
+        safe_theorem_id = "".join(c if c.isalnum() else "_" for c in theorem_id)
+        harness_filename = f"_probe_harness_{safe_theorem_id}.lean"
+        return Path(HARNESS_CACHE_DIR) / harness_filename
 
 
 
@@ -1663,6 +1675,68 @@ class ProbeCommandHandler:
         return result
 
 
+    def _build_fail_result(
+        self,
+        cmd: ProbeCommand,
+        run_id: str,
+        fail_type: str,
+        fail_message: str,
+        start_time: float,
+    ) -> ProbeResult:
+        """
+        Build fail result for expected non-success outcomes.
+
+        Unlike _build_error_result (infrastructure failures), this method
+        produces status="fail" for cases where the tool worked correctly
+        but the operation could not succeed (e.g., theorem not found).
+
+        Args:
+            cmd: Original probe command
+            run_id: Unique run identifier
+            fail_type: Type of failure (theorem_not_found, etc.)
+            fail_message: Failure message
+            start_time: Start time for timing calculation
+
+        Returns:
+            ProbeResult with fail status
+        """
+        elapsed_s = time.time() - start_time
+        elapsed_ms = elapsed_s * 1000.0
+
+        probe_outcome = ProbeOutcome(
+            mode=cmd.mode,
+            outcome="not_closed",
+            classification="failed",
+            suggested_script=None,
+        )
+
+        diagnostics = [
+            {
+                "severity": "error",
+                "message": f"{fail_type}: {fail_message}",
+                "location": None,
+            }
+        ]
+
+        timing = {
+            "elapsed_ms": round(elapsed_ms, 2),
+            "budget_s": cmd.budget_s,
+        }
+
+        metadata = {
+            "fail_type": fail_type,
+        }
+
+        return ProbeResult(
+            api_version="0.1.0",
+            status="fail",
+            run_id=run_id,
+            probe_result=probe_outcome,
+            diagnostics=diagnostics,
+            timing=timing,
+            metadata=metadata,
+        )
+
     def _build_error_result(
 
         self,
@@ -1778,6 +1852,69 @@ class ProbeCommandHandler:
             metadata=metadata,
 
         )
+    def _build_fail_result(
+        self,
+        cmd: ProbeCommand,
+        run_id: str,
+        fail_type: str,
+        fail_message: str,
+        start_time: float,
+    ) -> ProbeResult:
+        """
+        Build fail result for expected non-success outcomes.
+
+        Unlike _build_error_result (infrastructure failures), this method
+        produces status="fail" for cases where the tool worked correctly
+        but the operation could not succeed (e.g., theorem not found).
+
+        Args:
+            cmd: Original probe command
+            run_id: Unique run identifier
+            fail_type: Type of failure (theorem_not_found, etc.)
+            fail_message: Failure message
+            start_time: Start time for timing calculation
+
+        Returns:
+            ProbeResult with fail status
+        """
+        elapsed_s = time.time() - start_time
+        elapsed_ms = elapsed_s * 1000.0
+
+        probe_outcome = ProbeOutcome(
+            mode=cmd.mode,
+            outcome="not_closed",
+            classification="failed",
+            suggested_script=None,
+        )
+
+        diagnostics = [
+            {
+                "severity": "error",
+                "message": f"{fail_type}: {fail_message}",
+                "location": None,
+            }
+        ]
+
+        timing = {
+            "elapsed_ms": round(elapsed_ms, 2),
+            "budget_s": cmd.budget_s,
+        }
+
+        metadata = {
+            "fail_type": fail_type,
+        }
+
+        return ProbeResult(
+            api_version="0.1.0",
+            status="fail",
+            run_id=run_id,
+            probe_result=probe_outcome,
+            diagnostics=diagnostics,
+            timing=timing,
+            metadata=metadata,
+        )
+
+
 
 
     def _build_timeout_result(
@@ -2036,6 +2173,7 @@ class ProbeFileCommandHandler:
         try:
             workspace = self.probe_handler.workspace_provider.create_workspace(cmd.file_path)
             logger.info(f"Created workspace for batch probe: {workspace.workspace_id}")
+            self._cleanup_stale_harness_files(workspace.path)
         except Exception as e:
             logger.error(f"Workspace creation failed: {e}")
             if workspace:
@@ -2050,14 +2188,12 @@ class ProbeFileCommandHandler:
             # 3. Probe each theorem using shared workspace + validator
             results = []
             errors = []
-            harness_files: list[str] = []
 
             for theorem_id in theorem_ids:
                 theorem_result = self._probe_single_theorem(
                     cmd, theorem_id, file_path_for_harness, workspace,
                 )
                 # Extract and track internal keys before adding to results
-                harness_file = theorem_result.pop("_harness_file", None)
                 is_error = theorem_result.pop("_is_error", False)
 
                 if is_error:
@@ -2067,9 +2203,6 @@ class ProbeFileCommandHandler:
                     })
                 else:
                     results.append(theorem_result)
-
-                if harness_file:
-                    harness_files.append(harness_file)
 
             # 4. Aggregate results into summary
             summary = self._aggregate_results(results)
@@ -2105,15 +2238,7 @@ class ProbeFileCommandHandler:
             )
 
         finally:
-            # 7. Cleanup harness files and workspace
-            for harness_file in harness_files:
-                try:
-                    harness_path = workspace.path / harness_file
-                    if harness_path.exists():
-                        harness_path.unlink()
-                except Exception as e:
-                    logger.warning(f"Harness file cleanup failed for {harness_file}: {e}")
-
+            # 7. Cleanup workspace
             if workspace:
                 try:
                     self.probe_handler.workspace_provider.cleanup_workspace(workspace)
@@ -2164,6 +2289,8 @@ class ProbeFileCommandHandler:
             theorem_id=theorem_id,
             file_path=file_path_for_harness,
             proof_attempt=cmd.mode,
+            file_content=self.probe_handler.querier.read_source_file(file_path_for_harness),
+            declarations=self.probe_handler.querier.extract_declarations(file_path_for_harness),
             additional_imports=additional_imports,
         )
 
@@ -2194,8 +2321,8 @@ class ProbeFileCommandHandler:
             logger.warning(f"Failed to write harness for '{theorem_id}': {e}")
             return {"_is_error": True, "error": f"Failed to write harness: {e}"}
 
-        # 3. Validate harness directly using shared validator on shared workspace
         try:
+            # 3. Validate harness directly using shared validator on shared workspace
             lean_result = self.probe_handler.validator.verify_file(
                 workspace_path=workspace.path,
                 file_path=harness_file,
@@ -2209,15 +2336,15 @@ class ProbeFileCommandHandler:
                 "outcome": "timeout",
                 "classification": "timed_out",
                 "elapsed_ms": elapsed_ms,
-                "_harness_file": harness_file,
             }
         except Exception as e:
             logger.warning(f"Lean execution failed for '{theorem_id}': {e}")
             return {
                 "_is_error": True,
                 "error": f"Lean execution failed: {e}",
-                "_harness_file": harness_file,
             }
+        finally:
+            self._cleanup_harness_file(workspace.path, harness_file)
 
         # 4. Classify the result
         run_id = self.probe_handler._generate_run_id(probe_cmd)
@@ -2226,9 +2353,38 @@ class ProbeFileCommandHandler:
         )
 
         # 5. Extract summary
-        summary = self._extract_summary(probe_result, theorem_id)
-        summary["_harness_file"] = harness_file
-        return summary
+        return self._extract_summary(probe_result, theorem_id)
+
+    def _cleanup_harness_file(self, workspace_path: Path, harness_file: str) -> None:
+        """Best-effort cleanup of a generated probe harness file."""
+        try:
+            harness_path = workspace_path / harness_file
+            if harness_path.exists():
+                harness_path.unlink()
+        except Exception as e:
+            logger.warning(f"Harness file cleanup failed for {harness_file}: {e}")
+
+    def _cleanup_stale_harness_files(self, workspace_path: Path) -> None:
+        """Best-effort cleanup of stale harness files left by interrupted runs."""
+        try:
+            stale_files: list[Path] = []
+
+            # Current location (preferred)
+            cache_dir = workspace_path / HARNESS_CACHE_DIR
+            if cache_dir.exists():
+                stale_files.extend(p for p in cache_dir.glob("_probe_harness_*.lean") if p.is_file())
+
+            # Legacy location (backward compatibility)
+            stale_files.extend(
+                p for p in workspace_path.glob("_probe_harness_*.lean") if p.is_file()
+            )
+
+            for stale_file in stale_files:
+                stale_file.unlink()
+            if stale_files:
+                logger.info(f"Removed {len(stale_files)} stale probe harness file(s)")
+        except Exception as e:
+            logger.warning(f"Stale harness cleanup failed: {e}")
 
 
     def _enumerate_theorems(self, cmd: ProbeFileCommand) -> list[str]:

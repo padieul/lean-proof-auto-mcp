@@ -19,11 +19,6 @@ from ..lean.server_manager import get_shared_server_manager
 from ..lean.validator import LeanInteractProofValidator
 from ..lean.querier import LeanInteractQuerier
 from ..lean.proof_state import LeanInteractProofStateInspector
-from ..core.harness_construction import (
-    ImportBasedHarnessConstructor,
-    LeanInteractTheoremTypeExtractor,
-    StandardImportPathConverter,
-)
 from ..observability import SubprocessMetadataCollector
 
 logger = logging.getLogger(__name__)
@@ -226,12 +221,12 @@ def _create_handler(file_path: str) -> ValidateProofCommandHandler:
     # Create adapters (all use same ServerManager)
     querier = LeanInteractQuerier(server_manager)
 
-    # Create harness constructor with caching
-    type_extractor = LeanInteractTheoremTypeExtractor(querier)
-    path_converter = StandardImportPathConverter()
-    constructor = ImportBasedHarnessConstructor(type_extractor, path_converter)
+    # Create harness constructor (pure — zero dependencies)
+    from ..core.harness_construction import RangeBasedHarnessConstructor
 
-    validator = LeanInteractProofValidator(server_manager, harness_constructor=constructor)
+    constructor = RangeBasedHarnessConstructor()
+
+    validator = LeanInteractProofValidator(server_manager, harness_constructor=constructor, querier=querier)
     proof_state_inspector = LeanInteractProofStateInspector(server_manager)
 
     # Wire all dependencies into handler
@@ -363,6 +358,7 @@ def _format_response(
 
     status_map = {
         "success": "success",
+        "rejected": "rejected",
         "error": "error",
         "incomplete": "incomplete",
         "timeout": "timeout",

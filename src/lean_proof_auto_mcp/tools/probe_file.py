@@ -81,9 +81,6 @@ def probe_file(args: dict[str, Any]) -> dict[str, Any]:
         # Execute probe_file
         result = handler.handle(command)
 
-        # Clear cache after batch completes
-        constructor.clear_cache()
-
         # Convert result to dict
         return asdict(result)
 
@@ -176,7 +173,7 @@ def _create_handler(file_path: str) -> tuple[ProbeFileCommandHandler, "HarnessCo
     - Single LeanInteractServerManager instance (shared across all theorems)
     - LeanInteractQuerier for querying Lean files
     - LeanInteractProofValidator for proof validation
-    - Single ImportBasedHarnessConstructor with caching (shared across all theorems)
+    - RangeBasedHarnessConstructor (pure, stateless — no caching needed)
     - GitWorktreeProvider or TempCopyProvider for workspace isolation
     - HeuristicClassifier for outcome classification
 
@@ -184,7 +181,7 @@ def _create_handler(file_path: str) -> tuple[ProbeFileCommandHandler, "HarnessCo
         file_path: Path to the file being probed (used to detect project root)
 
     Returns:
-        Tuple of (Configured ProbeFileCommandHandler, HarnessConstructor for cache clearing)
+        Tuple of (Configured ProbeFileCommandHandler, HarnessConstructor)
 
     Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 8.1, 8.2, 8.3
     """
@@ -204,20 +201,14 @@ def _create_handler(file_path: str) -> tuple[ProbeFileCommandHandler, "HarnessCo
     from ..lean.querier import LeanInteractQuerier
     querier = LeanInteractQuerier(server_manager=server_manager)
 
-    # 3. Create single ImportBasedHarnessConstructor with caching (shared across all theorems)
-    from ..core.harness_construction import (
-        ImportBasedHarnessConstructor,
-        LeanInteractTheoremTypeExtractor,
-        StandardImportPathConverter,
-    )
+    # 3. Create RangeBasedHarnessConstructor (zero dependencies — pure core)
+    from ..core.harness_construction import RangeBasedHarnessConstructor
 
-    type_extractor = LeanInteractTheoremTypeExtractor(querier)
-    path_converter = StandardImportPathConverter()
-    constructor = ImportBasedHarnessConstructor(type_extractor, path_converter)
+    constructor = RangeBasedHarnessConstructor()
 
-    # 4. Create LeanInteractProofValidator with ServerManager and HarnessConstructor
+    # 4. Create LeanInteractProofValidator with ServerManager, HarnessConstructor, and Querier
     from ..lean.validator import LeanInteractProofValidator
-    validator = LeanInteractProofValidator(server_manager=server_manager, harness_constructor=constructor)
+    validator = LeanInteractProofValidator(server_manager=server_manager, harness_constructor=constructor, querier=querier)
 
     # 5. Create workspace provider (auto-detect mode)
     workspace_provider = create_workspace_provider(

@@ -11,7 +11,7 @@ Requirements: 8.2, 8.3, 8.4, 8.5, 8.6
 import logging
 from dataclasses import dataclass
 
-from ..lean.ports import Declaration, Querier, ProofStateInspector, TheoremContext
+from ..lean.ports import Declaration, Querier, ProofStateInspector, TheoremContext, Range
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ class ProofContext:
     in_scope: list[str]  # Declarations in scope
     namespace: str
     similar_proofs: list[SimilarProof]
+    value_range: Range | None = None
 
 
 class ContextExtractor:
@@ -152,6 +153,7 @@ class ContextExtractor:
                 in_scope=theorem_context.in_scope,
                 namespace=theorem_context.namespace,
                 similar_proofs=similar_proofs,
+                value_range=theorem_context.value_range,
             )
 
             # Cache context (without similar proofs)

@@ -1,31 +1,137 @@
 """
-Import-based harness construction for theorem testing.
+Harness construction for theorem testing.
 
 This module provides components for constructing test harnesses that preserve
-ALL context from the original file by using Lean's import system instead of
-manual signature reconstruction.
+all context from the original file using range-based splicing. The core
+RangeBasedHarnessConstructor is pure (zero I/O, zero dependencies).
 """
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from ..lean.ports import Declaration
+
+# ============================================================================
+# Module-level constants
+# ============================================================================
+
+# Declaration kinds that can be targeted for probing / proof validation.
+# Includes "instance" because Lean instances can carry proof obligations
+# (e.g. `Monoid.toNatPow`, `AddMonoid.toNatSMul`).
+_PROVABLE_DECL_KINDS: frozenset[str] = frozenset({
+    "theorem", "lemma", "instance",
+})
+
+# Declaration kinds whose non-target bodies are safe to replace with sorry.
+# Excludes "instance" because sorry-ing instance bodies destroys definitional
+# equality: `sorry` is an axiom that doesn't reduce, so proofs relying on
+# definitional unfolding of instance fields (e.g. `rfl`) will break.
+_SORRY_SAFE_DECL_KINDS: frozenset[str] = frozenset({
+    "theorem", "lemma",
+})
+
+# Lean declaration keywords. If a DeclValue.range starts with one of these,
+# the range likely covers declaration syntax rather than just a proof value.
+_DECLARATION_KEYWORDS: frozenset[str] = frozenset({
+    "private",
+    "protected",
+    "noncomputable",
+    "irreducible_def",
+    "def",
+    "instance",
+    "class",
+    "structure",
+    "inductive",
+    "abbrev",
+    "opaque",
+    "unsafe",
+})
+
+# Command-level keywords. If a value range starts with one of these, splicing
+# it is unsafe because it likely destroys command syntax.
+_COMMAND_KEYWORDS: frozenset[str] = frozenset({
+    "import",
+    "open",
+    "namespace",
+    "section",
+    "end",
+    "set_option",
+    "attribute",
+    "macro",
+    "syntax",
+    "elab",
+    "notation",
+    "infix",
+    "infixl",
+    "infixr",
+    "prefix",
+    "postfix",
+    "scoped",
+    "universe",
+    "variable",
+    "axiom",
+    "constant",
+    "example",
+    "mutual",
+    "theorem",
+    "lemma",
+})
+
+_TACTIC_KEYWORDS: frozenset[str] = frozenset({
+    "simp",
+    "simpa",
+    "simp_all",
+    "rw",
+    "rewrite",
+    "ring",
+    "linarith",
+    "omega",
+    "norm_num",
+    "exact",
+    "apply",
+    "intro",
+    "intros",
+    "constructor",
+    "cases",
+    "induction",
+    "have",
+    "let",
+    "obtain",
+    "rcases",
+    "ext",
+    "funext",
+    "congr",
+    "trivial",
+    "tauto",
+    "decide",
+    "norm_cast",
+    "push_cast",
+    "field_simp",
+    "aesop",
+    "grind",
+    "sorry",
+    "assumption",
+    "contradiction",
+    "exfalso",
+    "refine",
+    "calc",
+    "show",
+    "suffices",
+    "specialize",
+    "clear",
+    "rename_i",
+    "subst",
+    "injection",
+    "absurd",
+    "left",
+    "right",
+})
+
 
 # ============================================================================
 # Core Data Types
 # ============================================================================
-
-
-@dataclass(frozen=True)
-class ScopedNotationContext:
-    """Information about scoped notation in a theorem."""
-
-    has_scoped_notation: bool
-    scope_modules: list[str]  # e.g., ["Relator", "BigOperators"]
-    scope_declaration: str  # e.g., "open scoped Relator in"
-
-    @property
-    def is_empty(self) -> bool:
-        """Check if there is no scoped notation."""
-        return not self.has_scoped_notation
 
 
 @dataclass(frozen=True)
@@ -40,20 +146,14 @@ class ImportPath:
 
 
 @dataclass(frozen=True)
-class TheoremType:
-    """Extracted theorem type information."""
-
-    type_expr: str  # The type expression
-    source: str  # Where it came from (for debugging)
-
-
-@dataclass(frozen=True)
 class HarnessConfig:
     """Configuration for harness construction."""
 
     theorem_id: str
     file_path: str
     proof_attempt: str
+    file_content: str = ""  # Source file content (caller reads via Querier)
+    declarations: list["Declaration"] = field(default_factory=list)  # Caller extracts via Querier
     additional_imports: list[str] = field(default_factory=list)
 
 
@@ -64,21 +164,22 @@ class HarnessSuccess:
     code: str
     theorem_id: str
     file_path: str
-    theorem_statement: str = ""  # The theorem type expression (for passing to validate_proof)
+    theorem_statement: str = ""  # theorem type expression for validate_proof paths
 
 
 @dataclass(frozen=True)
 class HarnessError:
     """Failed harness construction."""
 
-    error_type: str  # "theorem_not_found", "invalid_path", "construction_failed"
+    # theorem_not_found | ambiguous_theorem_id | unsafe_target_range
+    # target_splice_cardinality | invalid_proof_attempt | construction_failed
+    error_type: str
     message: str
     theorem_id: str
     file_path: str
-    generated_code: str | None = None  # For debugging
+    generated_code: str | None = None
 
 
-# Result type for harness construction
 HarnessResult = HarnessSuccess | HarnessError
 
 
@@ -98,7 +199,21 @@ class HarnessConstructionError(Exception):
 class TheoremNotFoundError(HarnessConstructionError):
     """Raised when a theorem cannot be found."""
 
-    pass
+
+class AmbiguousTheoremMatchError(HarnessConstructionError):
+    """Raised when theorem matching is ambiguous."""
+
+
+class UnsafeTargetRangeError(HarnessConstructionError):
+    """Raised when target value range cannot be safely spliced."""
+
+
+class TargetSpliceCardinalityError(HarnessConstructionError):
+    """Raised when target is spliced zero or multiple times."""
+
+
+class InvalidProofAttemptError(HarnessConstructionError):
+    """Raised when a proof attempt normalizes to empty text."""
 
 
 # ============================================================================
@@ -116,24 +231,8 @@ class ImportPathConverter(Protocol):
         Args:
             file_path: e.g., "Fixtures/Algebra/Group.lean"
 
-        Returns: ImportPath e.g., "Fixtures.Algebra.Group"
-        """
-        ...
-
-
-class TheoremTypeExtractor(Protocol):
-    """Extract theorem types from Lean files."""
-
-    def extract_type(self, file_path: str, theorem_id: str) -> TheoremType:
-        """
-        Extract the type of a theorem.
-
-        Args:
-            file_path: Path to Lean file
-            theorem_id: Fully qualified theorem name
-
-        Returns: TheoremType with type expression
-        Raises: TheoremNotFoundError if theorem doesn't exist
+        Returns:
+            ImportPath, e.g. "Fixtures.Algebra.Group"
         """
         ...
 
@@ -145,453 +244,507 @@ class HarnessConstructor(Protocol):
         """
         Construct a test harness.
 
-        Returns: HarnessSuccess or HarnessError
-        """
-        ...
-
-
-class ScopedNotationDetector(Protocol):
-    """Detect scoped notation in theorem declarations."""
-
-    def detect(self, theorem_text: str) -> ScopedNotationContext:
-        """
-        Detect scoped notation in a theorem declaration.
-
-        Args:
-            theorem_text: The complete theorem declaration text
-
-        Returns: ScopedNotationContext with scope information
+        Returns:
+            HarnessSuccess or HarnessError
         """
         ...
 
 
 # ============================================================================
-# Implementations
+# Range-Based Harness Construction (Pure Core)
 # ============================================================================
 
 
-class RegexScopedNotationDetector:
-    """Detect scoped notation using regex patterns."""
-
-    # Pattern: open scoped <modules> in
-    SCOPED_PATTERN = r"open\s+scoped\s+([\w\s]+)\s+in\s+"
-
-    def detect(self, theorem_text: str) -> ScopedNotationContext:
-        """
-        Detect scoped notation in a theorem declaration.
-
-        Examples:
-            "open scoped Relator in theorem ..." -> has_scoped_notation=True,
-            scope_modules=["Relator"]
-            "open scoped A B C in theorem ..." -> has_scoped_notation=True,
-            scope_modules=["A", "B", "C"]
-            "theorem foo : ..." -> has_scoped_notation=False, scope_modules=[]
-
-        Args:
-            theorem_text: The complete theorem declaration text
-
-        Returns: ScopedNotationContext with detected scope information
-        """
-        import re
-
-        # Search for scoped notation pattern
-        match = re.search(self.SCOPED_PATTERN, theorem_text)
-
-        if match:
-            # Extract the modules string (e.g., "Relator" or "A B C")
-            modules_str = match.group(1)
-
-            # Split by whitespace to get individual modules
-            scope_modules = modules_str.split()
-
-            # Extract the complete scope declaration
-            scope_declaration = match.group(0).rstrip()  # Remove trailing whitespace
-
-            return ScopedNotationContext(
-                has_scoped_notation=True,
-                scope_modules=scope_modules,
-                scope_declaration=scope_declaration,
-            )
-        else:
-            # No scoped notation found
-            return ScopedNotationContext(
-                has_scoped_notation=False, scope_modules=[], scope_declaration=""
-            )
-
-
-class StandardImportPathConverter:
-    """Convert file paths to Lean import paths."""
-
-    def convert(self, file_path: str) -> ImportPath:
-        """
-        Convert file path to import path.
-
-        Examples:
-            "Fixtures/Algebra/Group.lean" -> "Fixtures.Algebra.Group"
-            "fixtures/mathlib/Fixtures/Algebra/Group.lean" -> "Fixtures.Algebra.Group"
-
-        Args:
-            file_path: Path to Lean file
-
-        Returns: ImportPath with dotted notation
-        """
-        from pathlib import Path
-
-        # Normalize path separators (handle both Unix and Windows)
-        normalized_path = file_path.replace("\\", "/")
-
-        # Normalize path
-        path = Path(normalized_path)
-
-        # Remove .lean extension
-        if path.suffix == ".lean":
-            path = path.with_suffix("")
-
-        # Convert to parts
-        parts = list(path.parts)
-
-        # Find the Lean project root (heuristic: first capitalized directory)
-        start_idx = 0
-        for i, part in enumerate(parts):
-            if part and part[0].isupper():
-                start_idx = i
-                break
-
-        # Take from project root onwards
-        import_parts = parts[start_idx:]
-
-        # Join with dots
-        import_path = ".".join(import_parts)
-
-        return ImportPath(path=import_path)
-
-
-class LeanInteractTheoremTypeExtractor:
-    """Extract theorem types using LeanInteract."""
-
-    def __init__(self, querier: "Querier") -> None:  # type: ignore[name-defined]
-        """
-        Initialize with querier.
-
-        Args:
-            querier: Querier instance for extracting declarations
-        """
-        from ..lean.ports import Querier
-
-        self.querier: Querier = querier
-        # Cache declarations per file path to avoid O(n) extract_declarations
-        # calls when probing multiple theorems in the same file.
-        self._declarations_cache: dict[str, list] = {}
-        # Cache extraction failures per file path so we fail fast instead of
-        # repeatedly hitting a dead server (negative caching).
-        self._declarations_errors: dict[str, Exception] = {}
-
-    def clear_cache(self) -> None:
-        """Clear the declarations cache after batch operations."""
-        self._declarations_cache.clear()
-        self._declarations_errors.clear()
-
-    def extract_type(self, file_path: str, theorem_id: str) -> TheoremType:
-        """
-        Extract the full file content with the theorem location.
-
-        This method returns the ENTIRE source file content, which preserves
-        all variable declarations, imports, and context. The caller will
-        replace just the theorem proof with the test tactic.
-
-        Declarations are cached per file_path so that probing N theorems
-        in the same file calls extract_declarations only once (O(1) not O(n)).
-        Failures are also cached (negative caching) to avoid hammering a dead
-        server when the first call fails.
-
-        Args:
-            file_path: Path to Lean file (absolute or relative to workspace)
-            theorem_id: Fully qualified theorem name (may include namespace like
-                "Subgroup.top_prod_top")
-
-        Returns: TheoremType with full file content and theorem location
-        Raises: TheoremNotFoundError if theorem doesn't exist
-        """
-        from pathlib import Path
-
-        # First, use LeanInteract to verify the theorem exists
-        file_path_obj = Path(file_path)
-        file_path_str = str(file_path_obj) if not file_path_obj.is_absolute() else file_path
-
-        # Fail fast if we already know this file's declarations can't be extracted
-        if file_path_str in self._declarations_errors:
-            cached_err = self._declarations_errors[file_path_str]
-            raise type(cached_err)(str(cached_err)) from cached_err
-
-        # Use cached declarations if available (critical for batch probe_file)
-        if file_path_str in self._declarations_cache:
-            declarations = self._declarations_cache[file_path_str]
-        else:
-            try:
-                declarations = self.querier.extract_declarations(file_path_str)
-                self._declarations_cache[file_path_str] = declarations
-            except Exception as e:
-                # Negative cache: remember the failure so subsequent theorems
-                # in the same file fail immediately instead of waiting for timeout
-                self._declarations_errors[file_path_str] = e
-                raise
-
-        # Extract the local name (without namespace) for matching
-        local_name = theorem_id.split(".")[-1] if "." in theorem_id else theorem_id
-
-        # Find the theorem to verify it exists
-        theorem_found = False
-        for decl in declarations:
-            if (
-                decl.name == theorem_id
-                or decl.full_name == theorem_id
-                or decl.name == local_name
-                or decl.full_name == local_name
-            ):
-                theorem_found = True
-                break
-
-        if not theorem_found:
-            raise TheoremNotFoundError(f"Theorem {theorem_id} not found in {file_path}")
-
-        # Now read the ENTIRE source file
-        workspace_path = self.querier.server_manager.workspace_path
-        full_file_path = workspace_path / file_path_str if workspace_path else Path(file_path_str)
-
-        if not full_file_path.exists():
-            # Try to find it by looking for capitalized parts
-            parts = Path(file_path_str).parts
-            for i, part in enumerate(parts):
-                if part and part[0].isupper():
-                    relative_from_capital = Path(*parts[i:])
-                    candidate = (
-                        workspace_path / relative_from_capital
-                        if workspace_path
-                        else relative_from_capital
-                    )
-                    if candidate.exists():
-                        full_file_path = candidate
-                        break
-
-        # Read the entire source file
-        try:
-            with open(full_file_path, encoding="utf-8") as f:
-                f.read()
-
-            # Return the full file content with a marker for the theorem location
-            # The type_expr will be "FULL_FILE:<theorem_id>"
-            return TheoremType(type_expr=f"FULL_FILE:{theorem_id}", source=f"FullFile:{file_path}")
-
-        except Exception as e:
-            raise TheoremNotFoundError(f"Failed to read source file {file_path}: {e}") from e
-
-    def _infer_free_variables(
-        self, constants: list[str], type_str: str
-    ) -> dict[str, tuple[str, str | None]]:
-        """
-        Infer free variables and their types from constants and type string.
-
-        This is a heuristic approach that identifies likely type variables
-        (single uppercase letters or capitalized identifiers) and infers
-        their types based on usage patterns in the type string.
-
-        Args:
-            constants: List of constant names from the type
-            type_str: The type expression string
-
-        Returns: Dict mapping variable names to their inferred types
-        """
-        import re
-
-        free_vars: dict[str, tuple[str, str | None]] = {}
-
-        # Look for patterns like "Subgroup G" or "Group G" to infer types
-        # Pattern: TypeConstructor followed by a single uppercase letter
-        type_patterns = [
-            (r"Subgroup\s+([A-Z])\b", "Type _", "Group"),
-            (r"AddSubgroup\s+([A-Z])\b", "Type _", "AddGroup"),
-            (r"Group\s+([A-Z])\b", "Type _", "Group"),
-            (r"AddGroup\s+([A-Z])\b", "Type _", "AddGroup"),
-            (r"Monoid\s+([A-Z])\b", "Type _", "Monoid"),
-            (r"Ring\s+([A-Z])\b", "Type _", "Ring"),
-            (r"Field\s+([A-Z])\b", "Type _", "Field"),
-        ]
-
-        for pattern, base_type, instance_type in type_patterns:
-            matches = re.findall(pattern, type_str)
-            for var in matches:
-                if var not in free_vars:
-                    free_vars[var] = (base_type, instance_type)
-
-        # Also check for variables in constants that appear in type_str
-        for const in constants:
-            # Single uppercase letters are likely type variables
-            if len(const) == 1 and const.isupper() and const in type_str and const not in free_vars:
-                # Default to Type _ without instance
-                free_vars[const] = ("Type _", None)
-
-        return free_vars
-
-    def _generate_variable_declarations(self, free_vars: dict[str, tuple[str, str | None]]) -> str:
-        """
-        Generate variable declarations from inferred free variables.
-
-        Args:
-            free_vars: Dict mapping variable names to (base_type, instance_type) tuples
-
-        Returns: Variable declaration string
-        """
-        if not free_vars:
-            return ""
-
-        # Group variables by their type signature
-        type_groups: dict[tuple[str, str | None], list[str]] = {}
-        for var, (base_type, instance_type) in free_vars.items():
-            key = (base_type, instance_type)
-            if key not in type_groups:
-                type_groups[key] = []
-            type_groups[key].append(var)
-
-        # Generate variable declarations
-        var_decls = []
-        for (base_type, instance_type), vars in type_groups.items():
-            vars_str = " ".join(vars)
-            if instance_type:
-                # Generate both type and instance declarations
-                # Each instance needs its own brackets
-                instances = " ".join(f"[{instance_type} {v}]" for v in vars)
-                var_decls.append(f"variable {{{vars_str} : {base_type}}} {instances}")
-            else:
-                var_decls.append(f"variable {{{vars_str} : {base_type}}}")
-
-        return "\n".join(var_decls)
-
-
-# ============================================================================
-# Pure helpers for harness construction
-# ============================================================================
-
-# Keywords that signal a new top-level Lean construct.
-# Used by _skip_proof_block to detect where a proof ends.
-_DECLARATION_STARTERS: tuple[str, ...] = (
-    "theorem ",
-    "lemma ",
-    "def ",
-    "instance ",
-    "variable ",
-    "namespace ",
-    "section ",
-    "end ",
-    "open ",
-    "set_option ",
-    "attribute ",
-    "class ",
-    "structure ",
-    "inductive ",
-    "abbrev ",
-    "noncomputable ",
-    "protected ",
-    "private ",
-    "nonrec ",
-    "#check ",
-    "#eval ",
-    "#print ",
-    "import ",
-    "@[",
-    "/-",
-)
-
-
-def _is_declaration_start(stripped: str) -> bool:
-    """Check whether a stripped line begins a new Lean declaration or scope.
-
-    Pure function — no side effects, no I/O.
-    """
-    if stripped == "end" or stripped == "section":
+@dataclass(frozen=True)
+class Splice:
+    """Immutable descriptor for a source-text replacement."""
+
+    start_line: int
+    start_col: int
+    end_line: int
+    end_col: int
+    replacement: str
+
+
+@dataclass(frozen=True)
+class RangeShape:
+    """Classified shape of a declaration value range."""
+
+    kind: str
+    source: str
+
+
+def _strip_leading_doc_comment(text: str) -> str:
+    """Strip leading Lean doc comments (/-- ... -/), if present."""
+    stripped = text
+    while stripped.startswith("/--"):
+        close_idx = stripped.find("-/", 3)
+        if close_idx == -1:
+            return stripped
+        stripped = stripped[close_idx + 2 :].lstrip()
+    return stripped
+
+
+def _extract_source_at_range(
+    file_content: str,
+    start_line: int,
+    start_col: int,
+    end_line: int,
+    end_col: int,
+) -> str:
+    """Extract source text at a given range (1-based lines, 0-based columns)."""
+    lines = file_content.split("\n")
+    sl = start_line - 1
+    el = end_line - 1
+    if sl < 0 or el >= len(lines):
+        return ""
+    if sl == el:
+        return lines[sl][start_col:end_col]
+    result = lines[sl][start_col:]
+    for i in range(sl + 1, el):
+        result += "\n" + lines[i]
+    result += "\n" + lines[el][:end_col]
+    return result
+
+
+def _starts_with_keyword(text: str, keyword: str) -> bool:
+    """Check whether text starts with a standalone keyword token."""
+    if text == keyword:
         return True
-    return any(stripped.startswith(kw) for kw in _DECLARATION_STARTERS)
+    if not text.startswith(keyword):
+        return False
+    if len(text) == len(keyword):
+        return True
+    return text[len(keyword)].isspace()
 
 
-def _is_theorem_or_lemma(stripped: str) -> bool:
-    """Check whether a stripped line declares a theorem or lemma.
+def _first_word(text: str) -> str:
+    """Extract a normalized first token-like word from text."""
+    tokens = text.split()
+    if not tokens:
+        return ""
+    return tokens[0].rstrip(":=;,()[]{}")
 
-    Handles prefixed variants: noncomputable, protected, private.
-    Pure function — no side effects, no I/O.
+
+def _infer_body_context(file_content: str, start_line: int, start_col: int) -> str:
+    """Infer whether a body range starts after ':=' or after 'by'."""
+    lines = file_content.split("\n")
+    line_idx = start_line - 1
+    if line_idx < 0 or line_idx >= len(lines):
+        return "unknown"
+
+    prefix_lines = lines[:line_idx]
+    current_prefix = lines[line_idx][:start_col]
+    before = ("\n".join(prefix_lines + [current_prefix])).rstrip()
+    if not before:
+        return "unknown"
+
+    if before.endswith(":="):
+        return "after_assign"
+
+    end = len(before) - 1
+    while end >= 0 and before[end].isspace():
+        end -= 1
+    if end < 0:
+        return "unknown"
+
+    start = end
+    while start >= 0 and (before[start].isalnum() or before[start] in "_'"):
+        start -= 1
+    token = before[start + 1 : end + 1]
+    if token == "by":
+        return "after_by"
+    return "unknown"
+
+
+def _classify_range_shape(
+    file_content: str,
+    start_line: int,
+    start_col: int,
+    end_line: int,
+    end_col: int,
+) -> RangeShape:
+    """Classify how a DeclValue range starts so replacement can be shape-aware."""
+    if not file_content:
+        # Backward-compatible fallback for callers that do not pass source.
+        return RangeShape(kind="term_body", source="")
+
+    source = _extract_source_at_range(file_content, start_line, start_col, end_line, end_col)
+    stripped = source.lstrip()
+
+    if not stripped:
+        return RangeShape(kind="empty", source=source)
+    if stripped.startswith(":="):
+        return RangeShape(kind="assign", source=source)
+    if _starts_with_keyword(stripped, "by"):
+        return RangeShape(kind="by", source=source)
+    if _starts_with_keyword(stripped, "where"):
+        return RangeShape(kind="where", source=source)
+
+    if stripped.startswith("|"):
+        context = _infer_body_context(file_content, start_line, start_col)
+        if context == "after_by":
+            return RangeShape(kind="tactic_body", source=source)
+        return RangeShape(kind="equation_clauses", source=source)
+
+    check_text = _strip_leading_doc_comment(stripped)
+    first_word = _first_word(check_text)
+    if first_word in _DECLARATION_KEYWORDS or first_word in _COMMAND_KEYWORDS:
+        return RangeShape(kind="unsafe_command", source=source)
+
+    context = _infer_body_context(file_content, start_line, start_col)
+    if context == "after_by":
+        return RangeShape(kind="tactic_body", source=source)
+    return RangeShape(kind="term_body", source=source)
+
+
+def _format_by_block(tactic_body: str) -> str:
+    """Format tactic body as a by-block with stable indentation."""
+    lines = tactic_body.splitlines()
+    if not lines:
+        return "by"
+    indented = "\n".join(f"  {line}" if line else "  " for line in lines)
+    return f"by\n{indented}"
+
+
+def _format_inline_tactic_body(tactic_body: str) -> str:
+    """Format tactic body for insertion where surrounding by already exists."""
+    lines = tactic_body.splitlines()
+    if not lines:
+        return ""
+    first = lines[0].strip()
+    rest = "".join(f"\n  {line.strip()}" if line.strip() else "\n  " for line in lines[1:])
+    return first + rest
+
+
+def _format_exact_tactic(term_expr: str) -> str:
+    """Format term expression as a tactic script using exact."""
+    if "\n" not in term_expr:
+        return f"exact {term_expr}"
+    indented = "\n".join(f"    {line}" if line else "" for line in term_expr.splitlines())
+    return f"exact (\n{indented}\n  )"
+
+
+def _resolve_target_index(declarations: list["Declaration"], theorem_id: str) -> int:
+    """Resolve theorem match deterministically with explicit ambiguity errors."""
+    theorem_entries = [
+        (idx, decl)
+        for idx, decl in enumerate(declarations)
+        if decl.kind in _PROVABLE_DECL_KINDS
+    ]
+
+    def _select_unique(matches: list[tuple[int, "Declaration"]], label: str) -> int | None:
+        if len(matches) == 1:
+            return matches[0][0]
+        if len(matches) > 1:
+            names = ", ".join((decl.full_name or decl.name) for _, decl in matches[:5])
+            raise AmbiguousTheoremMatchError(
+                f"Ambiguous theorem match ({label}) for '{theorem_id}': {names}"
+            )
+        return None
+
+    full_exact = [(i, d) for i, d in theorem_entries if d.full_name == theorem_id]
+    selected = _select_unique(full_exact, "exact_full_name")
+    if selected is not None:
+        return selected
+
+    name_exact = [(i, d) for i, d in theorem_entries if d.name == theorem_id]
+    selected = _select_unique(name_exact, "exact_name")
+    if selected is not None:
+        return selected
+
+    local_name = theorem_id.split(".")[-1]
+    local_matches = [
+        (i, d)
+        for i, d in theorem_entries
+        if d.name == local_name
+        or d.full_name == local_name
+        or d.full_name.endswith(f".{local_name}")
+    ]
+    selected = _select_unique(local_matches, "local_name_fallback")
+    if selected is not None:
+        return selected
+
+    raise TheoremNotFoundError(f"Theorem {theorem_id} not found in declarations")
+
+
+def _target_mode_hint(range_shape: str) -> str | None:
+    """Map target range shape to a mode hint for proof classification."""
+    if range_shape in ("by", "tactic_body"):
+        return "tactic"
+    if range_shape in ("assign", "where", "term_body", "equation_clauses"):
+        return "term"
+    return None
+
+
+def _target_replacement_for_shape(range_shape: str, mode: str, cleaned_proof: str) -> str:
+    """Build target replacement based on range shape and proof mode."""
+    if range_shape == "assign":
+        if mode == "tactic":
+            return f":= {_format_by_block(cleaned_proof)}"
+        return f":= {cleaned_proof}"
+
+    if range_shape == "by":
+        if mode == "tactic":
+            return _format_by_block(cleaned_proof)
+        return f"by\n  {_format_exact_tactic(cleaned_proof)}"
+
+    if range_shape == "where":
+        if mode == "tactic":
+            return f":= {_format_by_block(cleaned_proof)}"
+        return f":= {cleaned_proof}"
+
+    if range_shape == "term_body":
+        if mode == "tactic":
+            return _format_by_block(cleaned_proof)
+        return cleaned_proof
+
+    if range_shape == "tactic_body":
+        if mode == "tactic":
+            return _format_inline_tactic_body(cleaned_proof)
+        return _format_exact_tactic(cleaned_proof)
+
+    if range_shape == "equation_clauses":
+        if _starts_with_keyword(cleaned_proof.lstrip(), "where"):
+            raise UnsafeTargetRangeError(
+                "Target theorem proof starts with 'where', cannot rewrite equation clauses to ':='"
+            )
+        if mode == "tactic":
+            return f":= {_format_by_block(cleaned_proof)}"
+        return f":= {cleaned_proof}"
+
+    raise UnsafeTargetRangeError(f"Unsafe target range shape: {range_shape}")
+
+
+def _non_target_replacement_for_shape(range_shape: str) -> str:
+    """Build safe non-target replacement for a range shape."""
+    if range_shape == "assign":
+        return ":= by sorry"
+    if range_shape == "by":
+        return "by sorry"
+    if range_shape == "where":
+        return ":= by sorry"
+    if range_shape == "term_body":
+        return "by sorry"
+    if range_shape == "tactic_body":
+        return "sorry"
+    raise UnsafeTargetRangeError(f"Unsafe non-target range shape: {range_shape}")
+
+
+def classify_proof_attempt(
+    proof_attempt: str,
+    mode_hint: str | None = None,
+) -> tuple[str, str]:
+    """Classify a proof attempt as tactic-mode or term-mode and normalize it.
+
+    Explicit syntax precedence:
+    1. Leading ':=' (if present) is removed.
+    2. Leading 'by' wins and returns tactic-mode.
+    3. Leading 'where' wins and returns term-mode passthrough.
+
+    For ambiguous bare proofs, mode_hint is used before falling back to term.
     """
-    return (
-        stripped.startswith("theorem ")
-        or stripped.startswith("lemma ")
-        or " theorem " in stripped
-        or " lemma " in stripped
+    text = proof_attempt.strip()
+    if not text:
+        return ("term", "")
+
+    if text.startswith(":="):
+        text = text[2:].lstrip()
+        if not text:
+            return ("term", "")
+
+    if _starts_with_keyword(text, "by"):
+        if text == "by":
+            return ("tactic", "")
+        return ("tactic", text[2:].strip())
+
+    if _starts_with_keyword(text, "where"):
+        return ("term", text)
+
+    first_token = text.split()[0] if text.split() else ""
+    first_word = first_token.rstrip(";,")
+    first_word_base = first_word.rstrip("?")
+
+    # Heuristic for obvious tactic starts.
+    if first_word_base in _TACTIC_KEYWORDS:
+        return ("tactic", text)
+
+    # Ambiguous bare proof: prefer range-shape hint.
+    if mode_hint in ("tactic", "term"):
+        return (mode_hint, text)
+
+    return ("term", text)
+
+
+def build_splice_plan(
+    declarations: list["Declaration"],
+    target_theorem_id: str,
+    proof_attempt: str,
+    file_content: str = "",
+) -> list[Splice]:
+    """Build splices that transform source into a validation harness."""
+    target_index = _resolve_target_index(declarations, target_theorem_id)
+    target_decl = declarations[target_index]
+
+    if target_decl.value is None:
+        raise UnsafeTargetRangeError(
+            f"Target theorem '{target_theorem_id}' has no value range"
+        )
+    target_range = target_decl.value.range
+    if target_range.start_line == 0 and target_range.end_line == 0:
+        raise UnsafeTargetRangeError(
+            f"Target theorem '{target_theorem_id}' has empty value range"
+        )
+
+    target_shape = _classify_range_shape(
+        file_content,
+        target_range.start_line,
+        target_range.start_col,
+        target_range.end_line,
+        target_range.end_col,
     )
+    if target_shape.kind in ("unsafe_command", "empty"):
+        raise UnsafeTargetRangeError(
+            f"Target theorem '{target_theorem_id}' has unsafe value range shape: {target_shape.kind}"
+        )
+
+    mode_hint = _target_mode_hint(target_shape.kind)
+    mode, cleaned_proof = classify_proof_attempt(proof_attempt, mode_hint=mode_hint)
+    if not cleaned_proof.strip():
+        raise InvalidProofAttemptError("Proof attempt is empty after normalization")
+
+    splices: list[Splice] = []
+    target_splice_count = 0
+
+    for idx, decl in enumerate(declarations):
+        is_target = idx == target_index
+
+        # Target must be in _PROVABLE_DECL_KINDS (includes instances).
+        # Non-targets are only sorry'd if in _SORRY_SAFE_DECL_KINDS (excludes
+        # instances, whose bodies carry computational content needed for
+        # definitional equality).
+        if is_target:
+            if decl.kind not in _PROVABLE_DECL_KINDS:
+                continue
+        else:
+            if decl.kind not in _SORRY_SAFE_DECL_KINDS:
+                continue
+        if decl.value is None:
+            continue
+
+        vr = decl.value.range
+        if vr.start_line == 0 and vr.end_line == 0:
+            continue
+
+        range_shape = _classify_range_shape(
+            file_content,
+            vr.start_line,
+            vr.start_col,
+            vr.end_line,
+            vr.end_col,
+        ).kind
+
+        is_target = idx == target_index
+        if range_shape in ("unsafe_command", "empty"):
+            if is_target:
+                raise UnsafeTargetRangeError(
+                    f"Target theorem '{target_theorem_id}' has unsafe value range shape: {range_shape}"
+                )
+            # Skip non-target declarations that are unsafe to splice.
+            continue
+
+        if range_shape == "equation_clauses" and not is_target:
+            # Equation-clause non-target bodies cannot be replaced with "by sorry"
+            # without corrupting theorem header syntax; keep original source intact.
+            continue
+
+        if is_target:
+            replacement = _target_replacement_for_shape(range_shape, mode, cleaned_proof)
+            target_splice_count += 1
+        else:
+            replacement = _non_target_replacement_for_shape(range_shape)
+
+        splices.append(
+            Splice(
+                start_line=vr.start_line,
+                start_col=vr.start_col,
+                end_line=vr.end_line,
+                end_col=vr.end_col,
+                replacement=replacement,
+            )
+        )
+
+    if target_splice_count != 1:
+        raise TargetSpliceCardinalityError(
+            f"Target splice cardinality is {target_splice_count}; expected exactly 1"
+        )
+
+    # Sort bottom-to-top so earlier splices do not shift later coordinates.
+    splices.sort(key=lambda s: (s.start_line, s.start_col), reverse=True)
+    return splices
 
 
-def _find_proof_assignment(line: str) -> int:
-    """Find the index of the proof-starting ':=' in a line.
+def apply_splices(file_content: str, splices: list[Splice]) -> str:
+    """Apply splices to file content."""
+    lines = file_content.split("\n")
 
-    Skips ':=' that appear inside brace-delimited type signatures
-    (e.g., ``{x : Nat := 0}``).  Returns -1 if no proof ':=' is found.
+    for splice in splices:
+        sl = splice.start_line - 1
+        sc = splice.start_col
+        el = splice.end_line - 1
+        ec = splice.end_col
 
-    Pure function — no side effects, no I/O.
-    """
-    depth = 0  # brace nesting depth
-    i = 0
-    while i < len(line) - 1:
-        ch = line[i]
-        if ch == '{':
-            depth += 1
-        elif ch == '}':
-            depth = max(0, depth - 1)
-        elif ch == ':' and line[i + 1] == '=' and depth == 0:
-            return i
-        i += 1
-    return -1
+        if sl < 0 or el >= len(lines):
+            continue
+
+        prefix = lines[sl][:sc]
+        suffix = lines[el][ec:]
+        replacement_text = prefix + splice.replacement + suffix
+        replacement_lines = replacement_text.split("\n")
+        lines[sl : el + 1] = replacement_lines
+
+    return "\n".join(lines)
 
 
-class ImportBasedHarnessConstructor:
-    """Construct test harnesses using import-based approach."""
-
-    def __init__(
-        self, type_extractor: TheoremTypeExtractor, path_converter: ImportPathConverter
-    ) -> None:
-        """
-        Initialize with dependencies.
-
-        Args:
-            type_extractor: Extracts theorem types
-            path_converter: Converts file paths to import paths
-        """
-        self.type_extractor = type_extractor
-        self.path_converter = path_converter
-        
-        # Caching infrastructure
-        self._file_cache: dict[str, str] = {}
-        self._decl_cache: dict[str, TheoremType] = {}
-        self._theorem_verified: dict[str, bool] = {}
+class RangeBasedHarnessConstructor:
+    """Pure core-layer strategy. Zero I/O and zero adapter dependencies."""
 
     def construct(self, config: HarnessConfig) -> HarnessResult:
-        """
-        Construct test harness by copying imports, variables, and the target
-        theorem (with modified proof) from the source file.
+        """Construct a test harness from pre-loaded file content/declarations."""
+        if not config.file_content:
+            return HarnessError(
+                error_type="construction_failed",
+                message="file_content is empty - caller must provide source file content",
+                theorem_id=config.theorem_id,
+                file_path=config.file_path,
+            )
 
-        Returns: HarnessSuccess or HarnessError
-        """
+        if not config.declarations:
+            return HarnessError(
+                error_type="construction_failed",
+                message="declarations list is empty - caller must provide declarations",
+                theorem_id=config.theorem_id,
+                file_path=config.file_path,
+            )
+
         try:
-            # Step 1: Extract theorem type (with caching)
-            cache_key = f"{config.file_path}::{config.theorem_id}"
+            splices = build_splice_plan(
+                config.declarations,
+                config.theorem_id,
+                config.proof_attempt,
+                file_content=config.file_content,
+            )
 
-            # Check theorem_verified cache to short-circuit repeated lookups
-            if cache_key in self._decl_cache:
-                theorem_type = self._decl_cache[cache_key]
-            elif cache_key in self._theorem_verified:
-                # Theorem was verified to exist but type not cached (shouldn't happen,
-                # but handle gracefully by re-extracting)
-                theorem_type = self.type_extractor.extract_type(config.file_path, config.theorem_id)
-                self._decl_cache[cache_key] = theorem_type
-            else:
-                theorem_type = self.type_extractor.extract_type(config.file_path, config.theorem_id)
-                self._decl_cache[cache_key] = theorem_type
-                self._theorem_verified[cache_key] = True
+            code = apply_splices(config.file_content, splices)
+            if config.additional_imports:
+                code = _prepend_imports(code, config.additional_imports)
+
+            return HarnessSuccess(
+                code=code,
+                theorem_id=config.theorem_id,
+                file_path=config.file_path,
+                theorem_statement=config.theorem_id,
+            )
         except TheoremNotFoundError as e:
             return HarnessError(
                 error_type="theorem_not_found",
@@ -599,352 +752,86 @@ class ImportBasedHarnessConstructor:
                 theorem_id=config.theorem_id,
                 file_path=config.file_path,
             )
-        except Exception as e:
+        except AmbiguousTheoremMatchError as e:
             return HarnessError(
-                error_type="type_extraction_failed",
-                message=f"Failed to extract theorem type: {e}",
+                error_type="ambiguous_theorem_id",
+                message=str(e),
                 theorem_id=config.theorem_id,
                 file_path=config.file_path,
             )
-
-        # Determine the actual theorem statement (type expression)
-        # Strip FULL_FILE: prefix if present
-        if theorem_type.type_expr.startswith("FULL_FILE:"):
-            theorem_stmt = theorem_type.type_expr[len("FULL_FILE:"):]
-        else:
-            theorem_stmt = theorem_type.type_expr
-
-        try:
-            # Step 2: Check if we got the full file marker
-            if theorem_type.type_expr.startswith("FULL_FILE:"):
-                # Strategy: Copy ENTIRE file, then modify only what's needed
-                # This preserves ALL context (imports, variables, namespaces, etc.)
-                from pathlib import Path
-
-                # Access server_manager through the querier
-                # Type ignore because we know the concrete implementation has this attribute
-                workspace_path = self.type_extractor.querier.server_manager.workspace_path  # type: ignore[attr-defined]
-                if workspace_path:
-                    full_file_path = workspace_path / config.file_path
-                else:
-                    full_file_path = Path(config.file_path)
-
-                if not full_file_path.exists():
-                    # Try to find it
-                    parts = Path(config.file_path).parts
-                    for i, part in enumerate(parts):
-                        if part and part[0].isupper():
-                            relative_from_capital = Path(*parts[i:])
-                            candidate = (
-                                workspace_path / relative_from_capital
-                                if workspace_path
-                                else relative_from_capital
-                            )
-                            if candidate.exists():
-                                full_file_path = candidate
-                                break
-
-                # Check file content cache
-                file_path_str = str(full_file_path)
-                if file_path_str in self._file_cache:
-                    file_content = self._file_cache[file_path_str]
-                else:
-                    with open(full_file_path, encoding="utf-8") as f:
-                        file_content = f.read()
-                    self._file_cache[file_path_str] = file_content
-
-                # Build harness by copying whole file and modifying proofs
-                harness = self._build_harness_by_proof_replacement(
-                    file_content=file_content,
-                    theorem_id=config.theorem_id,
-                    proof_attempt=config.proof_attempt,
-                    additional_imports=config.additional_imports,
-                )
-
-                return HarnessSuccess(
-                    code=harness,
-                    theorem_id=config.theorem_id,
-                    file_path=config.file_path,
-                    theorem_statement=theorem_stmt,
-                )
-
-            else:
-                # Fallback to old approach (shouldn't happen with new extractor)
-                import_path = self.path_converter.convert(config.file_path)
-                imports = [import_path.to_import_statement()]
-                imports.extend(config.additional_imports)
-                import_block = "\n".join(imports)
-
-                example_block = f"""-- Test harness for {config.theorem_id}
-    example : {theorem_type.type_expr} := by
-      {config.proof_attempt}
-    """
-                harness = f"{import_block}\n\n{example_block}"
-
-                return HarnessSuccess(
-                    code=harness,
-                    theorem_id=config.theorem_id,
-                    file_path=config.file_path,
-                    theorem_statement=theorem_stmt,
-                )
-
+        except UnsafeTargetRangeError as e:
+            return HarnessError(
+                error_type="unsafe_target_range",
+                message=str(e),
+                theorem_id=config.theorem_id,
+                file_path=config.file_path,
+            )
+        except TargetSpliceCardinalityError as e:
+            return HarnessError(
+                error_type="target_splice_cardinality",
+                message=str(e),
+                theorem_id=config.theorem_id,
+                file_path=config.file_path,
+            )
+        except InvalidProofAttemptError as e:
+            return HarnessError(
+                error_type="invalid_proof_attempt",
+                message=str(e),
+                theorem_id=config.theorem_id,
+                file_path=config.file_path,
+            )
         except Exception as e:
             return HarnessError(
                 error_type="construction_failed",
-                message=f"Unexpected error during construction: {e}",
+                message=f"Splice failed: {e}",
                 theorem_id=config.theorem_id,
                 file_path=config.file_path,
-                generated_code=None,
             )
 
 
-    def _build_harness_by_proof_replacement(
-        self, file_content: str, theorem_id: str, proof_attempt: str, additional_imports: list[str]
-    ) -> str:
-        """
-        Build harness by copying entire file and replacing proofs.
+def _prepend_imports(code: str, additional_imports: list[str]) -> str:
+    """Insert additional imports after the last existing import line."""
+    lines = code.split("\n")
+    last_import_idx = -1
+    for i, line in enumerate(lines):
+        if line.strip().startswith("import "):
+            last_import_idx = i
 
-        Strategy:
-        1. Copy ENTIRE file (preserves all context)
-        2. Replace target theorem's proof with test tactic
-        3. Replace other theorem/lemma proofs with 'sorry' (keep declarations)
+    import_lines = []
+    for imp in additional_imports:
+        if not imp.startswith("import "):
+            imp = f"import {imp}"
+        import_lines.append(imp)
 
-        This ensures ALL context is preserved without complex parsing.
+    if last_import_idx >= 0:
+        lines = lines[: last_import_idx + 1] + import_lines + lines[last_import_idx + 1 :]
+    else:
+        lines = import_lines + lines
 
-        Args:
-            file_content: Complete source file content
-            theorem_id: Target theorem to test (e.g., "Subgroup.mem_prod")
-            proof_attempt: Tactic to test (e.g., "aesop")
-            additional_imports: Extra imports to add
+    return "\n".join(lines)
 
-        Returns: Harness code
-        """
 
-        lines = file_content.split("\n")
-        result_lines: list[str] = []
+class StandardImportPathConverter:
+    """Convert file paths to Lean import paths."""
 
-        # Step 1: Add any additional imports at the top (after existing imports)
-        if additional_imports:
-            # Find where imports end
-            last_import_idx = -1
-            for i, line in enumerate(lines):
-                if line.strip().startswith("import "):
-                    last_import_idx = i
+    def convert(self, file_path: str) -> ImportPath:
+        """Convert file path to import path."""
+        from pathlib import Path
 
-            # Insert additional imports after last import
-            if last_import_idx >= 0:
-                for i in range(last_import_idx + 1):
-                    result_lines.append(lines[i])
-                for imp in additional_imports:
-                    if not imp.startswith("import "):
-                        imp = f"import {imp}"
-                    result_lines.append(imp)
-                lines = lines[last_import_idx + 1 :]
-            else:
-                # No imports found, add at beginning
-                for imp in additional_imports:
-                    if not imp.startswith("import "):
-                        imp = f"import {imp}"
-                    result_lines.append(imp)
+        normalized_path = file_path.replace("\\", "/")
+        path = Path(normalized_path)
 
-        # Step 2: Process the rest of the file
-        # Find all theorem/lemma declarations and their proofs
-        local_name = theorem_id.split(".")[-1] if "." in theorem_id else theorem_id
+        if path.suffix == ".lean":
+            path = path.with_suffix("")
 
-        i = 0
-        in_doc_comment = False
+        parts = list(path.parts)
 
-        while i < len(lines):
-            line = lines[i]
-            stripped = line.strip()
-
-            # Track doc comment state
-            if stripped.startswith("/-"):
-                in_doc_comment = True
-            if in_doc_comment:
-                result_lines.append(line)
-                if "-/" in stripped:
-                    in_doc_comment = False
-                i += 1
-                continue
-
-            # Track attribute state (skip attributes for theorems/lemmas)
-            if stripped.startswith("@["):
-                # Peek ahead to see if next non-empty line is theorem/lemma
-                j = i + 1
-                while j < len(lines) and not lines[j].strip():
-                    j += 1
-                if j < len(lines) and _is_theorem_or_lemma(lines[j].strip()):
-                    # Skip this attribute line — the theorem handler will emit sorry
-                    i += 1
-                    continue
-                # Not a theorem/lemma attribute, keep it
-
-            # Check if this is a theorem or lemma declaration
-            if _is_theorem_or_lemma(stripped):
-                # Extract the declaration name
-                decl_name = self._extract_declaration_name(stripped)
-                is_target = (
-                    decl_name in (local_name, theorem_id)
-                    or stripped.startswith(f"theorem {local_name}")
-                    or stripped.startswith(f"lemma {local_name}")
-                )
-
-                # Find ':=' — use brace-aware search to skip ':=' inside type sigs
-                assign_pos = _find_proof_assignment(line)
-
-                if assign_pos >= 0:
-                    # ':=' on the same line as the declaration
-                    before_proof = line[:assign_pos]
-
-                    if is_target:
-                        result_lines.append(f"{before_proof}:= by")
-                        result_lines.append(f"  {proof_attempt}")
-                    else:
-                        result_lines.append(f"{before_proof}:= by sorry")
-
-                    # Skip the original proof
-                    i += 1
-                    i = self._skip_proof_block(lines, i)
-                else:
-                    # Multi-line declaration — collect until we find ':='
-                    decl_lines = [line]
-                    i += 1
-
-                    while i < len(lines):
-                        assign_pos = _find_proof_assignment(lines[i])
-                        if assign_pos >= 0:
-                            break
-                        # Stop collecting if we hit a new declaration (malformed source)
-                        if _is_declaration_start(lines[i].strip()):
-                            break
-                        decl_lines.append(lines[i])
-                        i += 1
-
-                    # Now we're at the ':=' line (or ran out of lines)
-                    if i < len(lines) and assign_pos >= 0:
-                        proof_line = lines[i]
-                        before_proof = proof_line[:assign_pos]
-
-                        # Add all declaration lines
-                        result_lines.extend(decl_lines)
-
-                        if is_target:
-                            result_lines.append(f"{before_proof}:= by")
-                            result_lines.append(f"  {proof_attempt}")
-                        else:
-                            result_lines.append(f"{before_proof}:= by sorry")
-
-                        # Skip the original proof (start from next line)
-                        i += 1
-                        i = self._skip_proof_block(lines, i)
-                    else:
-                        # No ':=' found — copy declaration as-is (e.g., axiom)
-                        result_lines.extend(decl_lines)
-            else:
-                # Not a theorem/lemma — copy as-is
-                result_lines.append(line)
-                i += 1
-
-        return "\n".join(result_lines)
-
-    def _extract_declaration_name(self, line: str) -> str:
-        """
-        Extract theorem/lemma name from declaration line.
-
-        Examples:
-            "theorem mem_prod : ..." -> "mem_prod"
-            "  theorem top_prod_top {G N : Type*} : ..." -> "top_prod_top"
-        """
-        import re
-
-        # Match: (theorem|lemma) <name>
-        match = re.search(r"(?:theorem|lemma)\s+(\w+)", line)
-        if match:
-            return match.group(1)
-        return ""
-
-    def _skip_proof_block(self, lines: list[str], start_idx: int) -> int:
-        """
-        Skip over a proof block, handling nested structures and doc comments.
-
-        A proof ends when we return to the same indentation level
-        and hit a new declaration or end of block.
-
-        Uses the module-level ``_is_declaration_start`` helper to detect
-        Lean keywords that signal the start of a new top-level construct.
-
-        Args:
-            lines: All lines
-            start_idx: Index after ':=' line
-
-        Returns: Index of first line after proof
-        """
-        if start_idx >= len(lines):
-            return start_idx
-
-        # Base indentation is the indentation of the ':=' line (the line before start_idx)
-        base_indent = len(lines[start_idx - 1]) - len(lines[start_idx - 1].lstrip())
-
-        i = start_idx
-        in_doc_comment = False
-
-        while i < len(lines):
-            line = lines[i]
-            stripped = line.strip()
-
-            # Track doc comment state
-            if stripped.startswith("/-"):
-                in_doc_comment = True
-            if in_doc_comment:
-                if "-/" in stripped:
-                    in_doc_comment = False
-                i += 1
-                continue
-
-            # Empty lines or single-line comments — keep skipping
-            if not stripped or stripped.startswith("--"):
-                i += 1
-                continue
-
-            # Check for new declarations at same or lower indentation
-            current_indent = len(line) - len(line.lstrip())
-
-            if current_indent <= base_indent and _is_declaration_start(stripped):
+        start_idx = 0
+        for i, part in enumerate(parts):
+            if part and part[0].isupper():
+                start_idx = i
                 break
 
-            i += 1
-
-        return i
-
-
-    def _validate_harness(self, harness: str) -> None:
-        """
-        Validate generated harness structure.
-
-        Raises: HarnessConstructionError if invalid
-        """
-        lines = harness.split("\n")
-
-        # Check 1: Should have at least one import
-        has_import = any(line.strip().startswith("import") for line in lines)
-        if not has_import:
-            raise HarnessConstructionError(
-                "Harness should contain at least one import statement", generated_code=harness
-            )
-
-        # Check 2: Should contain at least one theorem or lemma
-        has_theorem = any("theorem " in line or "lemma " in line for line in lines)
-        if not has_theorem:
-            raise HarnessConstructionError(
-                "Harness must contain at least one theorem or lemma", generated_code=harness
-            )
-
-    def clear_cache(self) -> None:
-        """Clear all caches after batch operation."""
-        self._file_cache.clear()
-        self._decl_cache.clear()
-        self._theorem_verified.clear()
-        # Also clear the type extractor's declarations cache if it supports it
-        if hasattr(self.type_extractor, 'clear_cache'):
-            self.type_extractor.clear_cache()
+        import_parts = parts[start_idx:]
+        import_path = ".".join(import_parts)
+        return ImportPath(path=import_path)

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from itertools import combinations
 from typing import TYPE_CHECKING, Literal
 
-from ..lean.ports import ProofStateInspector, ProofValidator
+from ..lean.ports import ProofStateInspector, ProofValidator, Querier
 from ..observability.ports import MetadataCollector
 from .candidate_generator import CandidateGenerator
 from .feedback_builder import FeedbackBuilder, SearchFeedback
@@ -190,6 +190,7 @@ class SearchOrchestrator:
         feedback_builder: FeedbackBuilder,
         validator: ProofValidator,
         constructor: "HarnessConstructor",
+        querier: "Querier | None" = None,
         proof_state_inspector: ProofStateInspector | None = None,
         metadata_collector: MetadataCollector | None = None,
     ):
@@ -201,6 +202,7 @@ class SearchOrchestrator:
             feedback_builder: FeedbackBuilder for building feedback
             validator: ProofValidator for validating proofs
             constructor: HarnessConstructor for building test harnesses
+            querier: Querier for extracting declarations and reading files
             proof_state_inspector: Optional ProofStateInspector for proof states
             metadata_collector: Optional MetadataCollector for environment metadata
 
@@ -210,6 +212,7 @@ class SearchOrchestrator:
         self.feedback_builder = feedback_builder
         self.validator = validator
         self.constructor = constructor
+        self.querier = querier
         self.proof_state_inspector = proof_state_inspector
         self.metadata_collector = metadata_collector
 
@@ -533,6 +536,8 @@ class SearchOrchestrator:
                 theorem_id=theorem_id,
                 file_path=file_path,
                 proof_attempt=proof_attempt,
+                file_content=self.querier.read_source_file(file_path) if self.querier else "",
+                declarations=self.querier.extract_declarations(file_path) if self.querier else [],
                 additional_imports=self._get_additional_imports(config),
             )
 

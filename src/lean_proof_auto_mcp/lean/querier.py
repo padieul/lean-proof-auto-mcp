@@ -149,8 +149,8 @@ class LeanInteractQuerier:
 
             # Use FileCommand with declarations=True
             # Timeout must be generous for large Mathlib files (e.g. Totient.lean).
-            # This is a one-time file-level parse; results are cached upstream by
-            # LeanInteractTheoremTypeExtractor so the cost is amortised.
+            # This is a one-time file-level parse; results are cached by the
+            # querier's _declarations_cache so the cost is amortised.
 
             command = FileCommand(path=file_path, declarations=True)
 
@@ -186,6 +186,8 @@ class LeanInteractQuerier:
                     name = getattr(decl, "name", "")
 
                     full_name = getattr(decl, "full_name", name)
+
+                    kind = getattr(decl, "kind", "")
 
 
                     # Extract type - handle both string and DeclType object
@@ -268,6 +270,8 @@ class LeanInteractQuerier:
                         name=name,
 
                         full_name=full_name,
+
+                        kind=kind,
 
                         type=type_sig,
 
@@ -527,6 +531,7 @@ class LeanInteractQuerier:
             in_scope=in_scope,
 
             namespace=namespace,
+            value_range=theorem.value.range if theorem.value else None,
 
         )
 
@@ -542,6 +547,8 @@ class LeanInteractQuerier:
 
         Extract position range from LeanInteract object.
 
+        Checks .range.start/.range.finish first (DeclarationInfo, DeclValue, etc.),
+        then falls back to .start_pos/.end_pos (Message, Sorry, Tactic objects).
 
         Args:
 
@@ -557,8 +564,20 @@ class LeanInteractQuerier:
 
         """
 
-        # Try to extract start and end positions
+        # First: try .range.start/.range.finish (DeclarationInfo, DeclValue, etc.)
+        range_obj = getattr(obj, "range", None)
+        if range_obj is not None:
+            start = getattr(range_obj, "start", None)
+            finish = getattr(range_obj, "finish", None)
+            if start and finish:
+                return Range(
+                    start_line=getattr(start, "line", 0),
+                    start_col=getattr(start, "column", 0),
+                    end_line=getattr(finish, "line", 0),
+                    end_col=getattr(finish, "column", 0),
+                )
 
+        # Fallback: try start_pos/end_pos (Message, Sorry, Tactic objects)
         start_pos = getattr(obj, "start_pos", None)
 
         end_pos = getattr(obj, "end_pos", None)
@@ -593,4 +612,47 @@ class LeanInteractQuerier:
         """
         self._declarations_cache.clear()
         logger.info("Declarations cache cleared")
+
+    def read_source_file(self, file_path: str) -> str:
+        """
+        Read source file content, resolving path via workspace_path.
+
+        Path resolution logic (moved from LeanInteractTheoremTypeExtractor
+        into the querier during the RangeBasedHarnessConstructor migration):
+        1. Try workspace_path / file_path directly
+        2. Fallback: find first capitalized directory component and try from there
+
+        Args:
+            file_path: Path to Lean file (relative to workspace)
+
+        Returns:
+            File content as string
+
+        Raises:
+            FileNotFoundError: If file cannot be found
+        """
+        from pathlib import Path
+
+        workspace_path = self.server_manager.workspace_path
+        full_path = workspace_path / file_path if workspace_path else Path(file_path)
+
+        if not full_path.exists():
+            # Try to find it by looking for capitalized parts
+            parts = Path(file_path).parts
+            for i, part in enumerate(parts):
+                if part and part[0].isupper():
+                    relative_from_capital = Path(*parts[i:])
+                    candidate = (
+                        workspace_path / relative_from_capital
+                        if workspace_path
+                        else relative_from_capital
+                    )
+                    if candidate.exists():
+                        full_path = candidate
+                        break
+
+        if not full_path.exists():
+            raise FileNotFoundError(f"Source file not found: {file_path} (tried {full_path})")
+
+        return full_path.read_text(encoding="utf-8")
 

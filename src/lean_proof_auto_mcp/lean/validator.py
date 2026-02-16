@@ -18,6 +18,7 @@ from .ports import ProofState, ServerManager, ValidationResult
 
 if TYPE_CHECKING:
     from ..core.harness_construction import HarnessConstructor
+    from .ports import Querier
 
 
 logger = logging.getLogger(__name__)
@@ -78,18 +79,20 @@ class LeanInteractProofValidator:
     """
 
 
-    def __init__(self, server_manager: "ServerManager", harness_constructor: "HarnessConstructor | None" = None):
+    def __init__(self, server_manager: "ServerManager", harness_constructor: "HarnessConstructor | None" = None, querier: "Querier | None" = None):
         """
         Initialize ProofValidator with ServerManager via dependency injection.
 
         Args:
             server_manager: ServerManager instance for obtaining server instances
             harness_constructor: Optional HarnessConstructor for import-based validation
+            querier: Optional Querier for extracting declarations and reading files
 
         Requirements: 8.3
         """
         self._server_manager = server_manager
         self._harness_constructor = harness_constructor
+        self._querier = querier
 
     def verify_file(
         self,
@@ -335,6 +338,10 @@ class LeanInteractProofValidator:
             if file_path and theorem_id:
 
                 # Import-based approach: preserves all context
+                # When using the harness constructor, non-target theorems
+                # are intentionally sorry'd. We must not treat those
+                # sorries as "proof incomplete" for the target theorem.
+                uses_harness_constructor = self._harness_constructor is not None
 
                 code = self._construct_validation_with_import(
 
@@ -345,6 +352,7 @@ class LeanInteractProofValidator:
             else:
 
                 # Fallback: standalone validation (may fail due to missing context)
+                uses_harness_constructor = False
 
                 logger.warning(
 
@@ -423,7 +431,8 @@ class LeanInteractProofValidator:
 
             if errors:
 
-                # Validation failed with errors
+                # Lean processed the proof but rejected it (type mismatch,
+                # tactic failure, etc.) — this is NOT a tool error.
 
                 first_error = errors[0]
 
@@ -432,7 +441,7 @@ class LeanInteractProofValidator:
 
                 return ValidationResult(
 
-                    status="error",
+                    status="rejected",
 
                     error_message=first_error["message"],
 
@@ -448,8 +457,10 @@ class LeanInteractProofValidator:
 
 
             # Check for incomplete proof (sorries)
-
-            if hasattr(response, "sorries") and response.sorries:
+            # When using the harness constructor, non-target theorems are
+            # intentionally replaced with sorry. Only flag "incomplete" if
+            # we're NOT using the harness path (standalone validation).
+            if not uses_harness_constructor and hasattr(response, "sorries") and response.sorries:
 
                 # Proof is incomplete
 
@@ -566,6 +577,124 @@ class LeanInteractProofValidator:
 
                 time_s=elapsed,
 
+            )
+
+    def validate_harness_code(
+        self,
+        harness_code: str,
+        timeout_s: float = 10.0,
+        file_path: str | None = None,
+    ) -> ValidationResult:
+        """Validate prebuilt harness code exactly as provided."""
+        if not LEAN_INTERACT_AVAILABLE or Command is None:
+            return ValidationResult(
+                status="error",
+                error_message="LeanInteract library not installed",
+                error_location=None,
+                proof_state=None,
+                suggestions=["Install LeanInteract: pip install lean-interact"],
+                time_s=0.0,
+            )
+
+        server_key = file_path or "default"
+        server = self._server_manager.get_server(server_key)
+        if server is None:
+            return ValidationResult(
+                status="error",
+                error_message="No server instance available",
+                error_location=None,
+                proof_state=None,
+                suggestions=["Create a server instance before validating"],
+                time_s=0.0,
+            )
+
+        start_time = time.time()
+        try:
+            command = Command(cmd=harness_code)
+            response = server.run(command, timeout=timeout_s)  # type: ignore[attr-defined]
+            elapsed = time.time() - start_time
+
+            if isinstance(response, LeanError):
+                error_msg = str(response)
+                if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                    return ValidationResult(
+                        status="timeout",
+                        error_message="Validation timed out",
+                        error_location=None,
+                        proof_state=None,
+                        suggestions=["Try simplifying the proof", "Increase timeout"],
+                        time_s=elapsed,
+                    )
+
+                return ValidationResult(
+                    status="error",
+                    error_message=error_msg,
+                    error_location=None,
+                    proof_state=None,
+                    suggestions=self._generate_error_suggestions(error_msg),
+                    time_s=elapsed,
+                )
+
+            diagnostics = self._parse_diagnostics(response)
+            errors = [d for d in diagnostics if d["severity"] == "error"]
+            if errors:
+                first_error = errors[0]
+                error_location = self._extract_location(first_error)
+                return ValidationResult(
+                    status="rejected",
+                    error_message=first_error["message"],
+                    error_location=error_location,
+                    proof_state=None,
+                    suggestions=self._generate_error_suggestions(first_error["message"]),
+                    time_s=elapsed,
+                )
+
+            # Do not treat response.sorries as incomplete here: prebuilt harness
+            # intentionally contains non-target sorry placeholders.
+            if hasattr(response, "goals") and response.goals:
+                proof_state = self._extract_proof_state(response)
+                return ValidationResult(
+                    status="incomplete",
+                    error_message="Proof is incomplete (goals remaining)",
+                    error_location=None,
+                    proof_state=proof_state,
+                    suggestions=["Complete all goals", "Add more tactics"],
+                    time_s=elapsed,
+                )
+
+            return ValidationResult(
+                status="success",
+                error_message=None,
+                error_location=None,
+                proof_state=None,
+                suggestions=["Proof verified successfully"],
+                time_s=elapsed,
+            )
+
+        except TimeoutError:
+            elapsed = time.time() - start_time
+            return ValidationResult(
+                status="timeout",
+                error_message="Validation timed out",
+                error_location=None,
+                proof_state=None,
+                suggestions=["Try simplifying the proof", "Increase timeout"],
+                time_s=elapsed,
+            )
+        except Exception as e:
+            elapsed = time.time() - start_time
+            if _is_server_dead_error(e):
+                logger.warning(f"Server died during validate_harness_code, restarting: {e}")
+                self._server_manager.restart_server(server_key)
+
+            logger.error(f"Failed to validate harness code: {e}")
+            return ValidationResult(
+                status="error",
+                error_message=str(e),
+                error_location=None,
+                proof_state=None,
+                suggestions=["Check harness syntax", "Verify theorem context"],
+                time_s=elapsed,
             )
 
     def _parse_diagnostics(self, response: object) -> list[dict]:
@@ -909,6 +1038,12 @@ class LeanInteractProofValidator:
 
             )
 
+            # Populate file_content and declarations if querier is available
+            file_content = ""
+            declarations: list = []
+            if self._querier is not None:
+                declarations = self._querier.extract_declarations(file_path)
+                file_content = self._querier.read_source_file(file_path)
 
             # Build harness config
 
@@ -919,6 +1054,10 @@ class LeanInteractProofValidator:
                 file_path=file_path,
 
                 proof_attempt=proof_attempt,
+
+                file_content=file_content,
+
+                declarations=declarations,
 
                 additional_imports=[],
 
@@ -976,12 +1115,17 @@ class LeanInteractProofValidator:
 
 
         This is the old approach that may fail due to missing context.
+        Uses classify_proof_attempt to handle both tactic-mode and term-mode
+        proofs correctly.
         """
+
+        from ..core.harness_construction import classify_proof_attempt
 
         # Convert file path to import path
 
         import_path = file_path.replace("/", ".").replace("\\", ".").replace(".lean", "")
 
+        mode, cleaned_proof = classify_proof_attempt(proof_attempt)
 
         # Build validation harness
 
@@ -993,15 +1137,12 @@ class LeanInteractProofValidator:
 
         lines.append(f"-- Validate proof for {theorem_id}")
 
-        lines.append(f"example : {theorem_statement} := by")
-
-
-        # Indent proof attempt
-
-        for line in proof_attempt.splitlines():
-
-            lines.append(f"  {line}")
-
+        if mode == "tactic":
+            lines.append(f"example : {theorem_statement} := by")
+            for line in cleaned_proof.splitlines():
+                lines.append(f"  {line}")
+        else:
+            lines.append(f"example : {theorem_statement} := {cleaned_proof}")
 
         return "\n".join(lines)
 

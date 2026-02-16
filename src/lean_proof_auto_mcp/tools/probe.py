@@ -283,7 +283,7 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
 
     - LeanInteractProofValidator for proof validation
 
-    - ImportBasedHarnessConstructor with caching for harness construction
+    - RangeBasedHarnessConstructor for harness construction
 
     - GitWorktreeProvider or TempCopyProvider for workspace isolation
 
@@ -333,31 +333,16 @@ def _create_handler(file_path: str) -> ProbeCommandHandler:
     querier = LeanInteractQuerier(server_manager=server_manager)
 
 
-    # 3. Create ImportBasedHarnessConstructor with caching
+    # 3. Create RangeBasedHarnessConstructor (zero dependencies — pure core)
+    from ..core.harness_construction import RangeBasedHarnessConstructor
 
-    from ..core.harness_construction import (
+    constructor = RangeBasedHarnessConstructor()
 
-        ImportBasedHarnessConstructor,
-
-        LeanInteractTheoremTypeExtractor,
-
-        StandardImportPathConverter,
-
-    )
-
-
-    type_extractor = LeanInteractTheoremTypeExtractor(querier)
-
-    path_converter = StandardImportPathConverter()
-
-    constructor = ImportBasedHarnessConstructor(type_extractor, path_converter)
-
-
-    # 4. Create LeanInteractProofValidator with ServerManager and HarnessConstructor
+    # 4. Create LeanInteractProofValidator with ServerManager, HarnessConstructor, and Querier
 
     from ..lean.validator import LeanInteractProofValidator
 
-    validator = LeanInteractProofValidator(server_manager=server_manager, harness_constructor=constructor)
+    validator = LeanInteractProofValidator(server_manager=server_manager, harness_constructor=constructor, querier=querier)
 
 
     # 5. Create workspace provider (auto-detect mode)

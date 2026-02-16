@@ -286,9 +286,6 @@ def search_automated_proof(args: dict[str, Any]) -> dict[str, Any]:
         result = orchestrator.search(file_path, theorem_id, config)
 
 
-        # Clear harness constructor cache after search completes
-        orchestrator.constructor.clear_cache()
-
         # Convert result to dict
 
 
@@ -902,41 +899,13 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
     # Create ProofStateInspector with ServerManager
     proof_state_inspector = LeanInteractProofStateInspector(server_manager)
 
-    # Create HarnessConstructor for building test harnesses
+    # Create HarnessConstructor (pure — zero dependencies)
+    from ..core.harness_construction import RangeBasedHarnessConstructor
 
+    harness_constructor = RangeBasedHarnessConstructor()
 
-    from ..core.harness_construction import (
-
-
-        ImportBasedHarnessConstructor,
-
-
-        LeanInteractTheoremTypeExtractor,
-
-
-        StandardImportPathConverter,
-
-
-    )
-
-
-
-    type_extractor = LeanInteractTheoremTypeExtractor(querier)
-
-
-    path_converter = StandardImportPathConverter()
-
-
-    harness_constructor = ImportBasedHarnessConstructor(
-
-
-        type_extractor=type_extractor, path_converter=path_converter
-
-
-    )
-
-    # Create ProofValidator with ServerManager and HarnessConstructor
-    validator = LeanInteractProofValidator(server_manager, harness_constructor=harness_constructor)
+    # Create ProofValidator with ServerManager, HarnessConstructor, and Querier
+    validator = LeanInteractProofValidator(server_manager, harness_constructor=harness_constructor, querier=querier)
 
 
 
@@ -993,6 +962,7 @@ def _create_orchestrator(file_path: str) -> SearchOrchestrator:
         feedback_builder=feedback_builder,
         validator=validator,
         constructor=harness_constructor,
+        querier=querier,
         proof_state_inspector=proof_state_inspector,
         metadata_collector=metadata_collector,
     )

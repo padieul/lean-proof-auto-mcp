@@ -41,6 +41,27 @@ logger = logging.getLogger(__name__)
 API_VERSION = "0.2.0"
 
 
+def _normalize_proof_text(proof: str) -> str:
+    """Strip leading ':=' token from proof text if present.
+
+    LeanInteract's value.pp sometimes includes the ':=' assignment operator
+    as part of the pretty-printed value for term-mode proofs. This is a
+    syntax token, not part of the proof body. Stripping it here ensures
+    callers receive clean proof text that can be fed directly to
+    try_automated_proof without double-':=' issues.
+
+    Args:
+        proof: Raw proof text from value.pp
+
+    Returns:
+        Proof text with leading ':=' stripped (if present)
+    """
+    stripped = proof.strip()
+    if stripped.startswith(":="):
+        return stripped[2:].lstrip()
+    return proof
+
+
 
 def get_proof_context(args: dict[str, Any]) -> dict[str, Any]:
     """
@@ -173,6 +194,24 @@ def get_proof_context(args: dict[str, Any]) -> dict[str, Any]:
 
         return _format_response(context, file_path, theorem_id, run_id, metadata)
 
+    except ValueError as e:
+
+        # Theorem not found or invalid — tool worked, input was bad
+        logger.warning(f"Context extraction failed for {file_path}:{theorem_id}: {e}")
+
+        return _build_fail_response(
+
+            file=file_path,
+
+            theorem_id=theorem_id,
+
+            fail_message=str(e),
+
+            fail_code="theorem_not_found",
+
+            run_id=run_id,
+
+        )
 
     except Exception as e:
 
@@ -404,7 +443,7 @@ def _format_response(
     theorem_id: str,
     run_id: str,
 
-    metadata: dict[str, str],
+    metadata: dict[str, Any],
 
 ) -> dict[str, Any]:
     """
@@ -454,6 +493,16 @@ def _format_response(
         )
 
 
+    metadata_out: dict[str, Any] = dict(metadata)
+    value_range = getattr(context, "value_range", None)
+    if value_range is not None:
+        metadata_out["value_range"] = {
+            "start_line": value_range.start_line,
+            "start_col": value_range.start_col,
+            "end_line": value_range.end_line,
+            "end_col": value_range.end_col,
+        }
+
     return {
 
         "api_version": API_VERSION,
@@ -464,7 +513,7 @@ def _format_response(
 
         "theorem_statement": context.theorem_statement,
 
-        "original_proof": context.original_proof,
+        "original_proof": _normalize_proof_text(context.original_proof),
 
         "hypotheses": context.hypotheses,
 
@@ -472,7 +521,7 @@ def _format_response(
 
         "namespace": context.namespace,
         "similar_proofs": similar_proofs_list,
-        "metadata": metadata,
+        "metadata": metadata_out,
 
         "timing": {
 
@@ -482,6 +531,47 @@ def _format_response(
 
     }
 
+
+
+def _build_fail_response(
+    file: str,
+    theorem_id: str,
+    fail_message: str,
+    fail_code: str,
+    run_id: str,
+) -> dict[str, Any]:
+    """
+    Build fail response for expected non-success outcomes.
+
+    Unlike _build_error_response (infrastructure failures), this produces
+    status="fail" for cases where the tool worked correctly but the
+    operation could not succeed (e.g., theorem not found).
+
+    Args:
+        file: File path from request
+        theorem_id: Theorem ID from request
+        fail_message: Human-readable failure message
+        fail_code: Machine-readable failure code
+        run_id: Run identifier from validation step
+
+    Returns:
+        Fail response dict
+    """
+    return {
+        "api_version": API_VERSION,
+        "status": "fail",
+        "run_id": run_id,
+        "file": file,
+        "theorem_id": theorem_id,
+        "theorem_statement": "",
+        "original_proof": "",
+        "hypotheses": [],
+        "in_scope": [],
+        "namespace": "",
+        "similar_proofs": [],
+        "metadata": {"fail_code": fail_code, "fail_message": fail_message},
+        "timing": {"total_s": 0.0},
+    }
 
 
 def _build_error_response(
